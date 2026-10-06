@@ -2,8 +2,10 @@
 
     python helena/distill.py <transcript.jsonl> [vault]
 
-Runs by itself at the end of every session (SessionEnd hook, in the background, on Haiku).
+Runs by itself in the background, on Haiku: every 6 prompts (router.js checkpoint) and at SessionEnd.
+Each run only reads the turns after the last one (offset per transcript in ~/.helena/distilled.json).
 Memory is written right away; a skill never is: it waits in the Inbox until it wins a benchmark task.
+When a library skill was used and the user corrected the result, the lesson lands under "## Learned" in its SKILL.md.
 """
 import datetime, json, os, pathlib, re, shutil, subprocess, sys
 
@@ -13,7 +15,13 @@ VAULT = pathlib.Path(os.environ.get('HELENA_VAULT') or (_CONF.read_text().strip(
 SECRET = re.compile(r'\b(sk[_-][A-Za-z0-9_-]{16,}|[a-f0-9]{40,}|(pk|rk)_(live|test)_[A-Za-z0-9]{10,}|'
                     r'AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|\d{8,}:[A-Za-z0-9_-]{30,})')
 MAX_CHARS = 30000
+# runs with no console (detached from the hook): without this, Windows opens a visible window for claude.exe and git
+NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 MIN_TURNS = 4
+HOME = pathlib.Path.home() / '.helena'
+STATE = HOME / 'distilled.json'  # transcript path -> number of turns already distilled
+LIB = HOME / 'library'
+USED = re.compile(r'\.helena[\\/]+library[\\/]+([\w.-]+)[\\/]+SKILL\.md')
 
 PROMPT = """You read a session between a user and an AI coding assistant and extract what is worth remembering six months from now.
 
@@ -43,7 +51,7 @@ Answer ONLY with JSON, no text around it:
  "skills": [{{"name": "kebab-case", "when": "trigger", "steps": "markdown", "how_to_test": "task + objective check"}}],
  "project": {{"state": "", "decisions": []}}}}
 An empty list is the right answer when nothing is durable. When in doubt, do not save.
-
+{learned}
 SESSION:
 {session}"""
 
@@ -65,6 +73,21 @@ def turns(transcript):
     return parts
 
 
+def used_skills(transcript):
+    """Library skills the assistant opened this session (its own tool calls, not paths the hooks merely listed)."""
+    names = set()
+    for line in open(transcript, encoding='utf-8', errors='ignore'):
+        if '"assistant"' in line and 'library' in line:
+            names |= {n for n in USED.findall(line) if (LIB / n / 'SKILL.md').exists()}
+    return sorted(names)
+
+
+LEARNED = """
+SKILLS USED THIS SESSION: {names}. If the user corrected or improved work done with one of them, add to the JSON
+"learned": [{{"skill": "one of those names", "lesson": "one line, imperative, reusable next time"}}]. Only real corrections.
+"""
+
+
 def index(memory):
     lines = []
     for f in sorted(memory.glob('*.md')):
@@ -78,7 +101,7 @@ def ask(prompt):
     r = subprocess.run([claude, '-p', '--model', 'haiku', '--output-format', 'json', '--tools', '',
                         '--no-session-persistence'], input=prompt, capture_output=True, text=True,
                        encoding='utf-8', errors='replace', timeout=300,
-                       env=dict(os.environ, HELENA_DISTILLING='1'), cwd=pathlib.Path.home())
+                       env=dict(os.environ, HELENA_DISTILLING='1'), cwd=pathlib.Path.home(), creationflags=NO_WINDOW)
     if not r.stdout.strip():  # empty answer: leave the reason in ~/.helena/distill.log instead of a bare JSON error
         sys.exit(f'{datetime.datetime.now():%Y-%m-%d %H:%M} claude -p returned nothing (exit {r.returncode}): {r.stderr.strip()[-500:]}')
     out = json.loads(r.stdout)
@@ -94,7 +117,7 @@ def slug(s):
     return re.sub(r'[^a-z0-9-]+', '-', s.lower()).strip('-')[:60] or 'note'
 
 
-def write(data, vault, source, project='', commits=''):
+def write(data, vault, source, project='', commits='', used=()):
     memory, inbox, projects = vault / 'Memory', vault / 'Inbox', vault / 'Projects'
     for d in (memory, inbox, projects):
         d.mkdir(parents=True, exist_ok=True)
@@ -124,6 +147,11 @@ def write(data, vault, source, project='', commits=''):
                          f"**When:** {s.get('when', '')}\n\n## Steps\n{s.get('steps', '')}\n\n"
                          f"## How to test\n{s.get('how_to_test', '')}\n\n## Sessions\n{line}"), encoding='utf-8')
         done.append(f)
+    for l in data.get('learned', []):
+        f = LIB / slug(l.get('skill', '')) / 'SKILL.md'
+        if l.get('skill') in used and f.exists() and l.get('lesson'):
+            learn(f, f"- {today}: {SECRET.sub('***', l['lesson'].strip())}")
+            done.append(f)
     p = data.get('project') or {}
     if project and (p.get('state') or p.get('decisions') or commits):
         # the project's hub note: what it is like now (replaced) + decisions and commits (appended)
@@ -137,6 +165,18 @@ def write(data, vault, source, project='', commits=''):
         f.write_text(old + '\n', encoding='utf-8')
         done.append(f)
     return done
+
+
+def learn(skill_md, line):
+    """Appends a line at the end of the skill's "## Learned" section (created at the bottom when missing)."""
+    text = skill_md.read_text(encoding='utf-8').rstrip('\n') + '\n'
+    if '\n## Learned\n' not in text:
+        text += '\n## Learned\n'
+    head, tail = text.split('\n## Learned\n', 1)
+    body, sep, rest = tail.partition('\n## ')
+    body = body.strip('\n')
+    skill_md.write_text(f'{head}\n## Learned\n' + (body + '\n' if body else '') + line + '\n' + (f'\n## {rest}' if sep else ''),
+                        encoding='utf-8')
 
 
 def project_of(transcript):
@@ -154,7 +194,7 @@ def project_of(transcript):
         return '', ''
     try:
         log = subprocess.run(['git', 'log', '--oneline', '-15', f'--since={started}'], cwd=cwd, capture_output=True,
-                             text=True, encoding='utf-8', errors='replace', timeout=10).stdout
+                             text=True, encoding='utf-8', errors='replace', timeout=10, creationflags=NO_WINDOW).stdout
     except (OSError, subprocess.SubprocessError):
         log = ''
     return pathlib.Path(cwd).name, ''.join(f'  - {l}\n' for l in log.splitlines())
@@ -166,10 +206,21 @@ def main():
     parts = turns(transcript)
     if sum(p.startswith('USER:') for p in parts) < MIN_TURNS:  # short sessions rarely teach anything; saves the plan limit
         return
-    text = SECRET.sub('***', '\n\n'.join(parts))[-MAX_CHARS:]
+    # claim the new turns before the slow LLM call, so a checkpoint and SessionEnd never distill the same turns twice
+    # ponytail: a failed call loses its turns; keep the offset until success if that ever matters
+    state = {k: v for k, v in json.loads(STATE.read_text() if STATE.exists() else '{}').items() if os.path.exists(k)}
+    key = str(pathlib.Path(transcript).resolve())
+    new, state[key] = parts[state.get(key, 0):], len(parts)
+    if not any(p.startswith('USER:') for p in new):
+        return
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    STATE.write_text(json.dumps(state, indent=1))
+    text = SECRET.sub('***', '\n\n'.join(new))[-MAX_CHARS:]
     project, commits = project_of(transcript)
-    data = ask(PROMPT.format(index=index(vault / 'Memory'), session=text, project=project or 'none'))
-    for f in write(data, vault, pathlib.Path(transcript).stem, project, commits):
+    used = used_skills(transcript)
+    data = ask(PROMPT.format(index=index(vault / 'Memory'), session=text, project=project or 'none',
+                             learned=LEARNED.format(names=', '.join(used)) if used else ''))
+    for f in write(data, vault, pathlib.Path(transcript).stem, project, commits, used):
         print(f)
 
 

@@ -2,6 +2,7 @@
 
     python helena/skills.py            # list, with how often each was used
     python helena/skills.py undo <name>
+    python helena/skills.py undo <name> learned   # drop the last "## Learned" line distill added to any library skill
 """
 import json, pathlib, shutil, sys
 
@@ -22,6 +23,21 @@ def mine():
         if 'created-by: helena' in text:
             desc = next((l[12:].strip() for l in text.splitlines() if l.startswith('description:')), '')
             yield md.parent.name, desc
+
+
+def unlearn(name):
+    md = LIB / name / 'SKILL.md'
+    lines = md.read_text(encoding='utf-8').split('\n') if md.exists() else []
+    if '## Learned' not in lines:
+        sys.exit(f'"{name}" has nothing learned')
+    start = lines.index('## Learned') + 1
+    end = next((i for i in range(start, len(lines)) if lines[i].startswith('## ')), len(lines))
+    last = max((i for i in range(start, end) if lines[i].startswith('- ')), default=None)
+    if last is None:
+        sys.exit(f'"{name}" has nothing learned')
+    gone = lines.pop(last)
+    md.write_text('\n'.join(lines), encoding='utf-8')
+    print(f'removed from {name}: {gone[2:]}')
 
 
 def undo(name):
@@ -46,7 +62,9 @@ def undo(name):
 
 if __name__ == '__main__':
     sys.stdout.reconfigure(encoding='utf-8')
-    if sys.argv[1:2] == ['undo'] and len(sys.argv) > 2:
+    if sys.argv[1:2] == ['undo'] and sys.argv[3:4] == ['learned']:
+        unlearn(sys.argv[2])
+    elif sys.argv[1:2] == ['undo'] and len(sys.argv) > 2:
         undo(sys.argv[2])
     else:
         stats = load(HOME / 'stats.json', {}).get('skills', {})

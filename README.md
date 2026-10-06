@@ -58,7 +58,7 @@ Prove     eval/run.py          every task runs with and without Helena; a skill 
 A fresh install knows nothing about you: no memories, no kits, an empty library. What ships is the machinery:
 
 - **Hooks that always run**: handoff on session start, secret and git guard before every commit and push, context
-  trimming, readability check on front-end work, memory distillation when a session ends.
+  trimming, readability check on front-end work, memory distillation every 6 prompts and when a session ends.
 - **Three skills that are just knowledge**: `handoff`, `readability`, `library`.
 - **Commands** to teach her by hand and to watch what she does.
 
@@ -117,7 +117,8 @@ Restart Claude Code. On the next session start you will see Helena's brief at th
 
 1. Open Claude Code in any project and work as usual.
 2. Correct her when she gets something wrong ("no, we deploy with Docker", "never commit to main here").
-   When the session ends (4+ messages of yours), Haiku reads it in the background and writes what is worth remembering.
+   Every 6 prompts and when the session ends (4+ messages of yours), Haiku reads the new turns in the background and writes what is worth remembering.
+   When a library skill was used and you corrected the result, the lesson is added under "## Learned" in that skill, so it gets better with use.
 3. Say a git rule in chat ("don't commit videos in this repo") and she saves it to `<project>/.helena/git`. From then on
    the guard hook enforces it.
 4. Before you stop, ask her to save where you stopped. `HANDOFF.md` is injected the next time you open that folder.
@@ -133,6 +134,7 @@ Restart Claude Code. On the next session start you will see Helena's brief at th
 | `/helena:budget` | Where your tokens went this week (per day, per project, what filled the context) and what Helena costs |
 | `/helena:skills` | The skills she created on her own from your repeated requests, and how often each was used |
 | `/helena:undo <skill>` | Delete a skill she created (she will not create it again) |
+| `/helena:undo <skill> learned` | Remove the last lesson she added to a skill |
 | `/painel` | A pane with context by category and Helena's own spending (Claude Code 2.1.287+) |
 
 Scripts you run from the repo:
@@ -249,7 +251,7 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys, `.env` files and anything that breaks `.helena/git` |
 | `helena/hooks/trim.js` | PreToolUse: blocks lockfiles, build output, files over 100 KB and unbounded `git log` / recursive listings |
 | `helena/hooks/check.js` | Stop: if the session touched front-end files, checks contrast on the `.html` and on live localhost URLs |
-| `helena/hooks/end.js` → `helena/distill.py` | SessionEnd: Haiku reads the session in the background and writes memory and skill candidates |
+| `helena/hooks/end.js` → `helena/distill.py` | SessionEnd (and every 6 prompts, from router.js): Haiku reads the new turns in the background and writes memory, skill candidates and "## Learned" lessons |
 | `helena/hooks/mod.mjs` | Claude Code mod: band above the prompt with context, % of the window, session cost and what `trim.js` blocked; spinner warning from 120k; `/painel` |
 | `helena/worker.py` | background, once per 20h: plugin profiles, repeated requests → skills, Inbox candidates → skills, pruning |
 | `helena/budget.py` · `helena/skills.py` · `helena/history.py` | reports behind `/helena:budget`, `/helena:skills`, `/helena:undo`; transcript reader (no LLM) |
@@ -272,6 +274,7 @@ python eval/promote.py                   # list skill candidates from the Inbox;
 python eval/test_guard.py                # guard hook, no Claude calls
 python eval/test_trim.py                 # trim hook, no Claude calls
 python eval/test_distill.py              # distillation remembers corrections, skips trivia, never stores secrets
+python eval/test_learn.py                # checkpoint offsets and "## Learned" lines (no LLM)
 ```
 
 A task folder has `prompt.md`, `fixture/`, `check.py` (exit 0 = pass), and optionally `setup.py` (prepares the folder),

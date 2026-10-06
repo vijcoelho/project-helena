@@ -121,11 +121,14 @@ def profiles(catalog, all_sessions):
 
 # ---------- 2. repeated requests -> skills
 
+NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)  # see distill.py: no visible window for claude.exe
+
+
 def ask_haiku(prompt):
     claude = shutil.which('claude') or 'claude'
     r = subprocess.run([claude, '-p', '--model', 'haiku', '--output-format', 'json', '--tools', '', '--no-session-persistence'],
                        input=prompt, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=300,
-                       env=dict(os.environ, HELENA_DISTILLING='1'), cwd=pathlib.Path.home())
+                       env=dict(os.environ, HELENA_DISTILLING='1'), cwd=pathlib.Path.home(), creationflags=NO_WINDOW)
     out = json.loads(r.stdout or '{}')
     u = out.get('usage') or {}
     ledger({'what': 'worker-skill', 'cost': out.get('total_cost_usd', 0),

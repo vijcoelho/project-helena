@@ -1,6 +1,6 @@
 ---
-description: Delete a skill Helena created by herself (she will not create it again)
-argument-hint: <skill name>
+description: Delete a skill Helena created by herself (she will not create it again), or with "learned" the last lesson she added to a skill
+argument-hint: <skill name> [learned]
 allowed-tools: Bash(python:*)
 ---
 

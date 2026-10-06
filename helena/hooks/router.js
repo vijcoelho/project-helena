@@ -4,10 +4,12 @@
 //  - turns a plugin back on when the request needs one Helena turned off in this project
 //  - warns by real context size: every message re-reads the whole context, the biggest cost there is
 //  - hints a cheaper model for routine requests and a Haiku subagent for broad searches
+//  - every 6 prompts, distills the new turns in the background, so ideas reach Obsidian mid-session
 // ponytail: word overlap for notes and kits; swap for embeddings if it starts missing obvious matches.
 const fs = require('fs'), path = require('path');
-const { HOME, LIBRARY, KITS, MEMORY } = require('./paths');
+const { bg, HOME, LIBRARY, KITS, MEMORY } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
+const CHECKPOINT = 6; // prompts between mid-session distills
 const LONG = [120e3, 250e3, 500e3]; // context tokens at which the session-length warning fires (once each)
 const STOP = new Set(('que para com uma por mais isso esse essa este esta aqui como quando onde tudo todo toda voce pode faz ' +
   'fazer tem ter vai vamos agora ainda depois the and for with this that from your you can make just then into have has are ' +
@@ -121,6 +123,14 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
     out.push('Helena: if this is a git rule that holds for this project (e.g. "never commit to main", "don\'t commit videos"), ' +
       'save it in .helena/git at the repo root, one rule per line: `main: no` and/or `never: <globs like in .gitignore>`. ' +
       'From then on the guard hook blocks any commit that breaks it.');
+
+  // ---- checkpoint: distill.py keeps its own offset, so it only reads the turns since the last run
+  if (!process.env.HELENA_EVAL && ev.transcript_path) try {
+    const f = path.join(HOME, 'warnings', `${session}-prompts`), n = (+load(f, 0) || 0) + 1;
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, String(n));
+    if (n % CHECKPOINT === 0) bg('distill.py', [ev.transcript_path], 'distill.log');
+  } catch {}
 
   try { fs.writeFileSync(path.join(HOME, 'stats.json'), JSON.stringify(stats)); } catch {}
   if (out.length) console.log(out.join('\n'));
