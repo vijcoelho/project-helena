@@ -1,0 +1,13 @@
+{
+  "name": "helena",
+  "owner": {
+    "name": "Vitor Coelho"
+  },
+  "plugins": [
+    {
+      "name": "helena",
+      "source": "./helena",
+      "description": "Starts blank and learns how you work. Memory in Obsidian, skills on demand, hooks for what must always happen."
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "web": {
+    "trigger": "\\b(site|website|landing ?page|landing|page|portfolio|hero|frontend|front-end|layout)\\b",
+    "always": [],
+    "skills": ["readability"],
+    "on_demand": ["web-design-guidelines"],
+    "note": "Copy this file to ~/.helena/kits.json and shape it to your work. Names in always/on_demand must exist in ~/.helena/library/CATALOG.md."
+  }
+}

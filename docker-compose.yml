@@ -1,0 +1,7 @@
+# Coolify: New Resource > Docker Compose, point it at this file and set the domain on the "site" service.
+services:
+  site:
+    build: .
+    restart: unless-stopped
+    expose:
+      - "80"

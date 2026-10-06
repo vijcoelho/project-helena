@@ -1,0 +1,14 @@
+# personal data: your history, notes and session state never go up
+data/
+HANDOFF.md
+/.helena/
+/.claude/
+
+# generated
+__pycache__/
+node_modules/
+helena/.claude-plugin/types/
+*.log
+.env
+.env.*
+!.env.example

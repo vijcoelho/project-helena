@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helena</title>
+<meta name="description" content="Uma camada em cima do Claude Code que aprende o seu jeito de trabalhar e só guarda o que o benchmark prova que ajuda. / A layer on top of Claude Code that learns how you work and only keeps what the benchmark proves helps.">
+<link rel="icon" type="image/png" href="favicon.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;800&display=swap" rel="stylesheet">
+<script>
+  // idioma antes do primeiro paint: ?lang=en|pt > escolha salva > idioma do navegador
+  (() => {
+    let l = new URLSearchParams(location.search).get('lang');
+    try { l = l || localStorage.getItem('helena-lang'); } catch {}
+    l = l === 'en' || l === 'pt' ? l : (navigator.language || '').toLowerCase().startsWith('pt') ? 'pt' : 'en';
+    document.documentElement.classList.add(l);
+    document.documentElement.lang = l === 'pt' ? 'pt-BR' : 'en';
+  })();
+</script>
+<style>
+  :root {
+    --bg: #000;
+    --fg: #f2f2f2;
+    --dim: #9a9a9a;
+    --line: #262626;
+    --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  html.pt .en, html.en .pt { display: none !important; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--mono); font-size: 15px; line-height: 1.6; overflow-x: hidden; }
+  ::selection { background: var(--fg); color: var(--bg); }
+  a { color: inherit; }
+
+  #campo { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  main, nav, footer, .idioma { position: relative; z-index: 1; }
+
+  nav { position: fixed; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+        padding: 14px clamp(16px, 4vw, 48px); background: #000; border-bottom: 1px solid var(--line);
+        transform: translateY(-100%); transition: transform .35s ease; z-index: 10; }
+  nav.on { transform: none; }
+  nav .marca { font-weight: 800; letter-spacing: .08em; text-decoration: none; }
+  nav ul { display: flex; gap: clamp(14px, 2.6vw, 30px); list-style: none; font-size: 13px; align-items: center; }
+  nav ul a { color: var(--dim); text-decoration: none; }
+  nav ul a:hover { color: var(--fg); }
+  .troca { background: none; border: 1px solid var(--line); color: var(--dim); font: inherit; font-size: 12px; padding: 4px 8px; cursor: pointer; }
+  .troca b { color: var(--fg); font-weight: 500; }
+  .troca:hover { border-color: var(--fg); }
+  .idioma { position: absolute; top: 20px; right: clamp(16px, 4vw, 48px); z-index: 2; }
+
+  section { min-height: 100dvh; padding: clamp(80px, 12vh, 140px) clamp(16px, 6vw, 96px); display: flex; flex-direction: column; justify-content: center; }
+  .rotulo { color: var(--dim); font-size: 13px; letter-spacing: .12em; margin-bottom: 28px; }
+  .rotulo::before { content: '// '; }
+  h1, h2 { font-weight: 800; letter-spacing: -.03em; line-height: 1.02; }
+  h2 { font-size: clamp(30px, 5vw, 64px); max-width: 18ch; margin-bottom: 40px; }
+  .texto { color: var(--dim); max-width: 62ch; font-size: clamp(15px, 1.2vw, 17px); }
+  .texto + .texto { margin-top: 18px; }
+  .texto b { color: var(--fg); font-weight: 500; }
+
+  /* hero */
+  .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(24px, 4vw, 64px); align-items: center; }
+  .hero h1 { font-size: clamp(56px, 9vw, 136px); white-space: nowrap; }
+  .hero h1 .sel { background: var(--fg); color: var(--bg); }
+  kbd.esc { display: inline-block; margin-left: 14px; padding: 1px 8px; border: 1px solid #6b6b6b; border-bottom-width: 3px; border-radius: 4px;
+            color: var(--fg); font: inherit; font-size: 11px; letter-spacing: .08em; transition: transform .08s, background .08s, color .08s; }
+  kbd.esc.on { background: var(--fg); color: var(--bg); border-color: var(--fg); transform: translateY(2px); border-bottom-width: 1px; }
+  .hero h1 .cursor { display: inline-block; width: .5em; height: .82em; background: var(--fg); vertical-align: -0.04em; margin-left: .06em; animation: pisca 1s steps(1) infinite; }
+  @keyframes pisca { 50% { opacity: 0; } }
+  .hero .sub { font-size: clamp(16px, 1.4vw, 19px); color: var(--dim); max-width: 44ch; margin: 28px 0 40px; }
+  .hero .sub b { color: var(--fg); font-weight: 500; }
+  .acoes { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 14px 22px; border: 1px solid var(--fg); text-decoration: none; font-weight: 500; white-space: nowrap; transition: background .2s, color .2s; }
+  .btn.cheio { background: var(--fg); color: var(--bg); }
+  .btn:hover { background: var(--fg); color: var(--bg); }
+  .btn.cheio:hover { background: transparent; color: var(--fg); }
+  #helena { color: var(--fg); white-space: pre; line-height: 1; letter-spacing: 0; user-select: none; cursor: crosshair; }
+  .moldura figcaption { color: var(--dim); font-size: 12px; margin-top: 14px; display: flex; justify-content: space-between; }
+
+  /* a sua */
+  .fases { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin: 48px 0; }
+  .fases li { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 26px 22px; }
+  .fases .quando { color: var(--dim); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+  .fases strong { display: block; font-size: clamp(36px, 4.6vw, 64px); font-weight: 800; letter-spacing: -.04em; line-height: 1; margin: 14px 0; }
+  .fases p { color: var(--dim); font-size: 13px; }
+  #sua .terminal { margin-bottom: 8px; }
+
+  /* por quê */
+  .numeros { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin: 56px 0; }
+  .numeros div { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 28px 22px; }
+  .numeros strong { display: block; font-size: clamp(36px, 5vw, 72px); font-weight: 800; letter-spacing: -.04em; line-height: 1; margin-bottom: 14px; }
+  .numeros span { color: var(--dim); font-size: 13px; }
+  .duas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 5vw, 80px); align-items: start; }
+  .duas h3 { font-size: 13px; color: var(--dim); font-weight: 400; letter-spacing: .12em; margin-bottom: 20px; }
+  .temas { white-space: pre; font-size: 13px; line-height: 2; overflow-x: auto; }
+  .temas .q { color: var(--dim); }
+  .correcoes { list-style: none; border-top: 1px solid var(--line); }
+  .correcoes li { padding: 16px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .correcoes q { display: block; quotes: none; margin-bottom: 6px; }
+  .correcoes small { color: var(--dim); font-size: 13px; }
+  .correcoes small::before { content: '→ '; }
+
+  /* como funciona */
+  .passos { list-style: none; border-top: 1px solid var(--line); }
+  .passos li { display: grid; grid-template-columns: 70px minmax(110px, 200px) 1fr minmax(0, 260px); gap: 24px; padding: 28px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+  .passos .n { color: var(--dim); }
+  .passos .v { font-size: clamp(22px, 2.6vw, 34px); font-weight: 800; }
+  .passos p { color: var(--dim); max-width: 52ch; }
+  .passos code { color: var(--fg); font-size: 13px; }
+
+  /* economia */
+  .contexto { margin: 8px 0 56px; max-width: 980px; }
+  .contexto .linha { display: grid; grid-template-columns: minmax(150px, 230px) 1fr; gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--line); align-items: center; }
+  .contexto .linha span { color: var(--dim); font-size: 13px; }
+  .contexto .barra { white-space: pre; font-size: 14px; overflow: hidden; }
+  .contexto .barra i { font-style: normal; color: var(--dim); }
+  .cartoes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+  .cartoes div { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 28px 22px; }
+  .cartoes strong { display: block; font-size: clamp(28px, 3.4vw, 46px); font-weight: 800; letter-spacing: -.03em; line-height: 1; margin-bottom: 14px; }
+  .cartoes p { color: var(--dim); font-size: 13px; }
+  .conta { border: 1px solid var(--line); padding: 22px; margin-top: 40px; max-width: 760px; font-size: 14px; }
+  .conta .c { color: var(--dim); }
+
+  /* frase */
+  .frase { align-items: flex-start; }
+  .frase blockquote { font-size: clamp(36px, 7vw, 104px); font-weight: 800; letter-spacing: -.04em; line-height: 1; }
+  .frase blockquote > span > span { display: block; color: var(--dim); }
+  .frase blockquote .l1 { color: var(--fg); }
+  .frase .texto { margin-top: 40px; }
+
+  /* placar */
+  .placar { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .placar th { text-align: left; color: var(--dim); font-weight: 400; padding: 0 12px 14px 0; border-bottom: 1px solid var(--line); }
+  .placar td { padding: 16px 12px 16px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .placar .barra { white-space: pre; }
+  .placar .base, .placar .dec { color: var(--dim); }
+  .nota { color: var(--dim); font-size: 13px; margin-top: 28px; max-width: 70ch; }
+
+  /* instalar */
+  .terminal { border: 1px solid var(--line); background: #000; max-width: 820px; }
+  .terminal .topo { display: flex; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--line); color: var(--dim); font-size: 12px; }
+  .terminal button { background: none; border: 1px solid var(--line); color: var(--fg); font: inherit; padding: 2px 10px; cursor: pointer; }
+  .terminal button:hover { border-color: var(--fg); }
+  .terminal pre { padding: 22px 20px; overflow-x: auto; font-size: 14px; line-height: 1.9; }
+  .terminal .c { color: var(--dim); }
+  .repo { margin-top: 48px; max-width: 820px; }
+  .repo .acoes { margin-top: 24px; }
+  .cartoes p b { color: var(--fg); font-weight: 500; }
+
+  footer { padding: 48px clamp(16px, 6vw, 96px); border-top: 1px solid var(--line); color: var(--dim); font-size: 12px; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+  .surge { opacity: 0; transform: translateY(24px); transition: opacity .8s ease, transform .8s ease; }
+  .surge.visto { opacity: 1; transform: none; }
+  .gsap .surge { transition: none; }
+  #temas .b, #linhas .b { display: inline-block; }
+
+  @media (max-width: 860px) {
+    .hero { grid-template-columns: 1fr; }
+    .moldura { order: -1; margin-top: 24px; }
+    .numeros, .fases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .duas, .cartoes { grid-template-columns: 1fr; }
+    .contexto .linha { grid-template-columns: 1fr; gap: 6px; }
+    .passos li { grid-template-columns: 44px 1fr; gap: 6px 16px; }
+    .passos p, .passos code { grid-column: 2; }
+    nav ul li.l { display: none; }
+    .placar .dec { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .surge { opacity: 1; transform: none; transition: none; }
+    .hero h1 .cursor { animation: none; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<canvas id="campo" aria-hidden="true"></canvas>
+
+<nav id="nav">
+  <a href="#topo" class="marca">HELENA_</a>
+  <ul>
+    <li class="l"><a href="#sua"><span class="pt">a sua</span><span class="en">yours</span></a></li>
+    <li class="l"><a href="#porque"><span class="pt">por quê</span><span class="en">why</span></a></li>
+    <li class="l"><a href="#sozinha"><span class="pt">sozinha</span><span class="en">on her own</span></a></li>
+    <li class="l"><a href="#economia"><span class="pt">economia</span><span class="en">savings</span></a></li>
+    <li class="l"><a href="#placar"><span class="pt">placar</span><span class="en">scoreboard</span></a></li>
+    <li class="l"><a href="#empresas"><span class="pt">empresas</span><span class="en">teams</span></a></li>
+    <li><a href="#instalar"><span class="pt">instalar</span><span class="en">install</span></a></li>
+    <li><a href="https://github.com/vijcoelho/project-helena" target="_blank" rel="noopener">github ↗</a></li>
+    <li><button type="button" class="troca" aria-label="Trocar idioma / Switch language"><span class="pt"><b>PT</b> / EN</span><span class="en">PT / <b>EN</b></span></button></li>
+  </ul>
+</nav>
+<div class="idioma"><button type="button" class="troca" aria-label="Trocar idioma / Switch language"><span class="pt"><b>PT</b> / EN</span><span class="en">PT / <b>EN</b></span></button></div>
+
+<main>
+  <section class="hero" id="topo">
+    <div>
+      <p class="rotulo">project helena · v0.7 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
+      <h1><span id="digita">Helena</span><span class="cursor"></span></h1>
+      <p class="sub">
+        <span class="pt">Uma camada em cima do Claude Code que <b>chega zerada e aprende o seu jeito de trabalhar</b>, carrega skill só quando precisa e só guarda o que o benchmark prova que ajuda.</span>
+        <span class="en">A layer on top of Claude Code that <b>starts blank and learns how you work</b>, loads skills only when they are needed and only keeps what the benchmark proves helps.</span>
+      </p>
+      <div class="acoes">
+        <a href="#instalar" class="btn cheio"><span class="pt">Instalar</span><span class="en">Install</span></a>
+        <a href="https://github.com/vijcoelho/project-helena" class="btn" target="_blank" rel="noopener">GitHub ↗</a>
+      </div>
+    </div>
+    <figure class="moldura">
+      <pre id="helena" aria-label="Helena, ASCII"></pre>
+      <figcaption><span>helena.txt · 170x85</span><span><span class="pt">passe o mouse</span><span class="en">hover me</span></span></figcaption>
+    </figure>
+  </section>
+
+  <section id="sua">
+    <p class="rotulo"><span class="pt">a sua helena</span><span class="en">your helena</span></p>
+    <h2 class="surge"><span class="pt">Ela chega zerada. Aprende com você.</span><span class="en">She arrives empty. She learns from you.</span></h2>
+    <p class="texto surge">
+      <span class="pt">Quando você instala, ela não sabe nada sobre você: nenhuma memória, nenhum kit, nenhuma skill sua. Vem só o mecanismo: os hooks que sempre rodam, a memória que se grava sozinha e o benchmark que decide o que fica. <b>Cada correção sua vira uma nota. Cada procedimento que se repete vira candidato a skill. Quanto mais você usa, melhor ela fica.</b></span>
+      <span class="en">When you install her, she knows nothing about you: no memories, no kits, none of your skills. Only the machinery ships: hooks that always run, memory that writes itself and a benchmark that decides what stays. <b>Every correction you make becomes a note. Every procedure you repeat becomes a skill candidate. The more you use her, the better she gets.</b></span>
+    </p>
+    <ol class="fases surge">
+      <li><span class="quando"><span class="pt">dia 1</span><span class="en">day 1</span></span><strong>0</strong><p><span class="pt">memórias. Os hooks já protegem: chave de API não sobe pro git, texto ilegível volta pra correção, onde você parou fica no HANDOFF.md.</span><span class="en">memories. The hooks already protect you: API keys stay out of git, unreadable text goes back for a fix, where you stopped lives in HANDOFF.md.</span></p></li>
+      <li><span class="quando"><span class="pt">semana 1</span><span class="en">week 1</span></span><strong>+</strong><p><span class="pt">Suas correções viram notas no seu Obsidian. A próxima sessão já começa sabendo.</span><span class="en">Your corrections become notes in your Obsidian vault. The next session starts already knowing.</span></p></li>
+      <li><span class="quando"><span class="pt">mês 1</span><span class="en">month 1</span></span><strong>++</strong><p><span class="pt">Kits do seu jeito: a skill certa entra quando o pedido precisa e fica fora quando não precisa.</span><span class="en">Kits shaped like your work: the right skill comes in when a request needs it and stays out when it does not.</span></p></li>
+      <li><span class="quando"><span class="pt">sempre</span><span class="en">always</span></span><strong>=</strong><p><span class="pt">Skill candidata só entra se ganhar no benchmark. O que empata sai, porque contexto custa.</span><span class="en">A skill candidate only gets in if it wins the benchmark. Ties go out, because context costs.</span></p></li>
+    </ol>
+    <div class="terminal surge">
+      <div class="topo"><span>claude code</span><span><span class="pt">comandos</span><span class="en">commands</span></span></div>
+<pre>/helena:remember <span class="c">&lt;<span class="pt">fato</span><span class="en">fact</span>&gt;   # <span class="pt">ensina algo agora</span><span class="en">teach her something now</span></span>
+/helena:forget   <span class="c">&lt;<span class="pt">fato</span><span class="en">fact</span>&gt;   # <span class="pt">apaga o que estiver errado</span><span class="en">remove what is wrong</span></span>
+/helena:status          <span class="c"># <span class="pt">mostra o que ela já sabe</span><span class="en">show what she knows so far</span></span>
+/helena:budget          <span class="c"># <span class="pt">quanto ela gasta e quanto economiza</span><span class="en">what she costs and what she saves</span></span>
+/helena:skills          <span class="c"># <span class="pt">as skills que ela criou sozinha</span><span class="en">the skills she created on her own</span></span>
+/helena:undo     <span class="c">&lt;skill&gt;  # <span class="pt">apaga uma skill que ela criou</span><span class="en">delete a skill she created</span></span></pre>
+    </div>
+    <p class="nota surge">
+      <span class="pt">Tudo que ela aprende fica nas suas pastas (o seu cofre do Obsidian e ~/.helena), nunca dentro do plugin. Atualizar não apaga nada.</span>
+      <span class="en">Everything she learns stays in your folders (your Obsidian vault and ~/.helena), never inside the plugin. Updating never wipes it.</span>
+    </p>
+  </section>
+
+  <section id="porque">
+    <p class="rotulo"><span class="pt">por que existe · a helena do criador</span><span class="en">why it exists · the creator's helena</span></p>
+    <h2 class="surge"><span class="pt">Eu estava ensinando a mesma coisa toda semana.</span><span class="en">I kept teaching the same thing every week.</span></h2>
+    <p class="texto surge">
+      <span class="pt">Li todas as minhas sessões com o Claude Code, em 15 projetos. O padrão era sempre o mesmo: eu corrigia, a IA acertava e, na sessão seguinte, esquecia. Eu tinha uns 60 skills instalados e quase nenhum era chamado na hora certa. <b>Ter skill não basta. Ela precisa aparecer quando o pedido precisa dela, e sair quando não ajuda.</b></span>
+      <span class="en">I read every Claude Code session I had, across 15 projects. The pattern never changed: I corrected the AI, it got it right, and the next session it forgot. I had about 60 skills installed and almost none were called at the right time. <b>Having a skill is not enough. It has to show up when the request needs it, and leave when it does not help.</b></span>
+    </p>
+    <div class="numeros surge">
+      <div><strong>465</strong><span><span class="pt">sessões lidas</span><span class="en">sessions read</span></span></div>
+      <div><strong>386</strong><span><span class="pt">mensagens minhas</span><span class="en">messages I wrote</span></span></div>
+      <div><strong>15</strong><span><span class="pt">projetos</span><span class="en">projects</span></span></div>
+      <div><strong>1%</strong><span><span class="pt">63 chamadas de skill contra 6.310 de Bash</span><span class="en">63 skill calls against 6,310 Bash calls</span></span></div>
+    </div>
+    <div class="duas">
+      <div class="surge">
+        <h3><span class="pt">O QUE EU MAIS PEDIA</span><span class="en">WHAT I ASKED FOR THE MOST</span></h3>
+        <div class="temas" id="temas"></div>
+      </div>
+      <div class="surge">
+        <h3><span class="pt">O QUE EU CORRIGIA DE NOVO E DE NOVO</span><span class="en">WHAT I CORRECTED OVER AND OVER</span></h3>
+        <ul class="correcoes">
+          <li><q><span class="pt">"Não tem chave do Gemini, usa o agy."</span><span class="en">"There is no Gemini key, use agy."</span></q><small><span class="pt">3 projetos. Hoje é uma skill de 20 linhas.</span><span class="en">3 projects. Now a 20-line skill.</span></small></li>
+          <li><q><span class="pt">"Continua de onde a gente parou."</span><span class="en">"Pick up where we left off."</span></q><small><span class="pt">Cada vez um arquivo com nome diferente. Hoje o HANDOFF.md entra sozinho.</span><span class="en">A different file name every time. Now HANDOFF.md loads by itself.</span></small></li>
+          <li><q><span class="pt">"Algumas letras estão difíceis de ler."</span><span class="en">"Some text is hard to read."</span></q><small><span class="pt">6 vezes. Hoje um hook mede o contraste antes de entregar.</span><span class="en">6 times. Now a hook measures contrast before delivery.</span></small></li>
+          <li><q><span class="pt">"Não commita na main, cara."</span><span class="en">"Don't commit to main, man."</span></q><small><span class="pt">A regra muda por projeto. Hoje fica em .helena/git e o hook cobra.</span><span class="en">The rule changes per project. Now it lives in .helena/git and a hook enforces it.</span></small></li>
+          <li><q><span class="pt">"Nada de API key, autentica pelo CLI."</span><span class="en">"No API keys, authenticate through the CLI."</span></q><small><span class="pt">Virou memória no Obsidian.</span><span class="en">Became a memory note in Obsidian.</span></small></li>
+        </ul>
+      </div>
+    </div>
+    <p class="texto surge" style="margin-top:48px">
+      <span class="pt">Isso é o que a <b>minha</b> Helena aprendeu comigo. A sua começa do zero e vai aprender outras coisas: as suas.</span>
+      <span class="en">That is what <b>my</b> Helena learned from me. Yours starts from zero and will learn other things: yours.</span>
+    </p>
+  </section>
+
+  <section id="como">
+    <p class="rotulo"><span class="pt">como funciona</span><span class="en">how it works</span></p>
+    <h2 class="surge"><span class="pt">Você ensina uma vez. Ela não esquece.</span><span class="en">You teach it once. It does not forget.</span></h2>
+    <ol class="passos">
+      <li class="surge"><span class="n">01</span><span class="v"><span class="pt">Observa</span><span class="en">Observe</span></span><p><span class="pt">Lê o seu histórico e acha o que você repete e o que você corrige. Segredo sai mascarado.</span><span class="en">Reads your history and finds what you repeat and what you correct. Secrets come out masked.</span></p><code>mine.py</code></li>
+      <li class="surge"><span class="n">02</span><span class="v"><span class="pt">Lembra</span><span class="en">Remember</span></span><p><span class="pt">Uma nota por fato no seu Obsidian. Entra no início de cada sessão e é gravada sozinha no fim.</span><span class="en">One note per fact in your Obsidian vault. Loaded when a session starts, written by itself when it ends.</span></p><code>vault/Memory</code></li>
+      <li class="surge"><span class="n">03</span><span class="v"><span class="pt">Carrega</span><span class="en">Load</span></span><p><span class="pt">Skills ficam fora do contexto até o pedido precisar: site, 3D, vídeo, segurança, pagamento.</span><span class="en">Skills stay out of context until a request needs them: web, 3D, video, security, payments.</span></p><code>~/.helena/kits.json</code></li>
+      <li class="surge"><span class="n">04</span><span class="v"><span class="pt">Prova</span><span class="en">Prove</span></span><p><span class="pt">Cada tarefa roda com e sem a Helena. Skill que não ganha sai, porque contexto também custa.</span><span class="en">Every task runs with and without Helena. A skill that does not win is removed, because context costs too.</span></p><code>eval/run.py</code></li>
+    </ol>
+  </section>
+
+  <section id="sozinha">
+    <p class="rotulo"><span class="pt">em segundo plano</span><span class="en">in the background</span></p>
+    <h2 class="surge"><span class="pt">Ela trabalha sozinha.</span><span class="en">She works on her own.</span></h2>
+    <p class="texto surge">
+      <span class="pt">No máximo uma vez a cada 20 horas, no Haiku, ela arruma a casa. Cada centavo gasto fica anotado e aparece no <b>/helena:budget</b>, ao lado do que ela economizou.</span>
+      <span class="en">At most once every 20 hours, on Haiku, she tidies up. Every cent she spends is logged and shows up in <b>/helena:budget</b>, next to what she saved.</span>
+    </p>
+    <ol class="passos">
+      <li class="surge"><span class="n">01</span><span class="v"><span class="pt">Cria skills</span><span class="en">Creates skills</span></span><p><span class="pt">Pedido repetido 20+ vezes, ou 5+ vezes em 2+ sessões, vai pro Haiku. Ele só escreve a skill se houver um procedimento de verdade. A skill entra na biblioteca, você é avisado com o comando pra apagar, e se ninguém usar por 30 dias ela sai.</span><span class="en">A request repeated 20+ times, or 5+ times across 2+ sessions, goes to Haiku. It only writes a skill if there is a real procedure. The skill goes to the library, you get a notice with the command to delete it, and if nobody uses it for 30 days it is removed.</span></p><code>/helena:undo</code></li>
+      <li class="surge"><span class="n">02</span><span class="v"><span class="pt">Desliga plugins</span><span class="en">Turns off plugins</span></span><p><span class="pt">Plugin que um projeto nunca usa é desligado só naquele projeto. Pediu algo que precisa dele ("vamos pôr um gateway de pagamento" → Stripe) e ela liga de novo; vale ao reiniciar a sessão. Plugin com hook nunca é desligado.</span><span class="en">A plugin a project never uses is switched off in that project only. Ask for something that needs it ("let's add a payment gateway" → Stripe) and she turns it back on; it applies when the session restarts. Plugins with hooks are never switched off.</span></p><code>.claude/settings.local.json</code></li>
+      <li class="surge"><span class="n">03</span><span class="v"><span class="pt">Anota o projeto</span><span class="en">Keeps a hub</span></span><p><span class="pt">Uma nota por projeto no seu Obsidian: como ele está agora e o registro de decisões e commits.</span><span class="en">One note per project in your Obsidian vault: what it is like now, and a log of decisions and commits.</span></p><code>vault/Projects</code></li>
+    </ol>
+  </section>
+
+  <section id="economia">
+    <p class="rotulo"><span class="pt">economia</span><span class="en">savings</span></p>
+    <h2 class="surge"><span class="pt">Menos contexto. Mesmo resultado.</span><span class="en">Less context. Same results.</span></h2>
+    <p class="texto surge">
+      <span class="pt">Em 7 dias e 3.030 mensagens, medimos <b>243k tokens de contexto por mensagem, dos quais só 39k eram fixos</b>. O resto é histórico que cresce a cada fala. Por isso ela corta nas duas pontas: skills ficam numa biblioteca até o pedido precisar, e a sessão é mantida curta.</span>
+      <span class="en">Over 7 days and 3,030 messages we measured <b>243k tokens of context per message, only 39k of them fixed</b>. The rest is history that grows with every message. So she cuts at both ends: skills stay in a library until a request needs them, and sessions are kept short.</span>
+    </p>
+    <div class="contexto surge" id="contexto"></div>
+    <div class="cartoes surge">
+      <div><strong>−11,9k</strong><p><span class="pt">tokens de contexto fixo em cada mensagem, medidos (39,7k → 27,8k). Um corte de 30%.</span><span class="en">fixed context tokens on every message, measured (39.7k → 27.8k). A 30% cut.</span></p></div>
+      <div><strong>−3k</strong><p><span class="pt">tokens a mais ao tirar as 21 skills de vídeo do contexto fixo (estimado pelo tamanho das descrições). Mesmo resultado no teste.</span><span class="en">more tokens saved by moving 21 video skills out of fixed context (estimated from description size). Same test result.</span></p></div>
+      <div><strong>2×</strong><p><span class="pt">era o custo da skill de auditoria de API pra dar o mesmo resultado. Foi pra biblioteca.</span><span class="en">was the cost of the API audit skill for the same result. It went to the library.</span></p></div>
+      <div><strong>4+</strong><p><span class="pt">falas suas por sessão antes de destilar memória, e a destilação roda no Haiku. Sessão curta não gasta nada.</span><span class="en">messages of yours per session before memory is distilled, and distillation runs on Haiku. Short sessions cost nothing.</span></p></div>
+      <div><strong>120k</strong><p><span class="pt">tokens de contexto e ela avisa (de novo em 250k e 500k): salva o HANDOFF.md e abre sessão nova. A barra de status mostra o tamanho o tempo todo.</span><span class="en">context tokens and she warns you (again at 250k and 500k): save HANDOFF.md and start fresh. The status line shows the size all the time.</span></p></div>
+      <div><strong>git</strong><p><span class="pt">resume o projeto no início da sessão (estrutura, scripts, últimos commits). Nada de reexplorar o repositório.</span><span class="en">sums up the project at session start (structure, scripts, last commits). No re-exploring the repo.</span></p></div>
+      <div><strong>2</strong><p><span class="pt">notas de memória que batem com o pedido entram inteiras. Sem ida e volta pra ler.</span><span class="en">memory notes that match the request are delivered whole. No round trip to read them.</span></p></div>
+      <div><strong>0</strong><p><span class="pt">LLM nos hooks de segredo e de git. Regex e git, em milissegundos.</span><span class="en">LLM calls in the secret and git hooks. Regex and git, in milliseconds.</span></p></div>
+      <div><strong>100 KB</strong><p><span class="pt">é o limite: lockfile, pasta de build, arquivo gigante e git log sem limite são barrados antes de inundar o contexto.</span><span class="en">is the cap: lockfiles, build output, huge files and unbounded git log are blocked before they flood the context.</span></p></div>
+    </div>
+    <div class="conta surge">
+      <span class="c"><span class="pt"># a conta que importa</span><span class="en"># the math that matters</span></span><br>
+      <span class="pt">cada mensagem relê o contexto inteiro<br>~15k tokens fixos a menos × 40 mensagens = <b>~600k tokens</b> que deixam de ser relidos numa sessão</span>
+      <span class="en">every message re-reads the whole context<br>~15k fewer fixed tokens × 40 messages = <b>~600k tokens</b> no longer re-read in one session</span>
+    </div>
+  </section>
+
+  <section class="frase">
+    <p class="rotulo"><span class="pt">a regra</span><span class="en">the rule</span></p>
+    <blockquote class="surge"><span class="pt"><span class="l1">Skill é sugestão.</span><span>Hook é garantia.</span></span><span class="en"><span class="l1">Skills suggest.</span><span>Hooks enforce.</span></span></blockquote>
+    <p class="texto surge">
+      <span class="pt">O que tem que acontecer sempre (não subir chave de API, não commitar na main, checar se o texto dá pra ler) vira hook e roda sem pedir. Skill fica pro que é conhecimento: a receita, o formato, o caminho.</span>
+      <span class="en">Whatever must always happen (no API keys in git, no commits to main, readable text) becomes a hook and runs without asking. Skills are for knowledge: the recipe, the format, the path.</span>
+    </p>
+  </section>
+
+  <section id="placar">
+    <p class="rotulo"><span class="pt">placar da helena do criador · sonnet · com e sem</span><span class="en">the creator's scoreboard · sonnet · with and without</span></p>
+    <h2 class="surge"><span class="pt">Só fica o que ganha.</span><span class="en">Only what wins stays.</span></h2>
+    <table class="placar surge">
+      <thead><tr>
+        <th><span class="pt">tarefa</span><span class="en">task</span></th>
+        <th><span class="pt">sem</span><span class="en">without</span></th>
+        <th><span class="pt">com</span><span class="en">with</span></th>
+        <th class="dec"><span class="pt">o que ficou</span><span class="en">what stayed</span></th>
+      </tr></thead>
+      <tbody id="linhas"></tbody>
+    </table>
+    <p class="nota surge">
+      <span class="pt">Empate também é resultado: a skill de rodar local e a de auditoria de API empataram e saíram do contexto. Toda falha é inspecionada antes de virar conclusão, porque o teste também erra.</span>
+      <span class="en">A tie is a result too: the run-locally skill and the API audit skill tied and were taken out of context. Every failure is inspected before it becomes a conclusion, because tests get it wrong too.</span>
+    </p>
+  </section>
+
+  <section id="instalar">
+    <p class="rotulo"><span class="pt">instalar</span><span class="en">install</span></p>
+    <h2 class="surge"><span class="pt">Instala vazia. Na próxima sessão ela já está olhando.</span><span class="en">Install her empty. By your next session she is watching.</span></h2>
+    <div class="terminal surge">
+      <div class="topo"><span>bash</span><button type="button" id="copiar"><span class="pt">copiar</span><span class="en">copy</span></button></div>
+<pre id="cmd">git clone https://github.com/vijcoelho/project-helena.git
+
+<span class="c"># <span class="pt">verificador de contraste</span><span class="en">contrast checker</span></span>
+cd project-helena/helena/tools &amp;&amp; npm install &amp;&amp; cd ../../..
+
+<span class="c"># <span class="pt">plugin do Claude Code</span><span class="en">Claude Code plugin</span></span>
+claude plugin marketplace add ./project-helena
+claude plugin install helena@helena</pre>
+    </div>
+    <div class="repo surge">
+      <p class="texto"><span class="pt">Código aberto, licença MIT. O código, o README completo e o benchmark estão no GitHub. Se ela te ajudar, deixa uma estrela: é assim que mais gente acha.</span><span class="en">Open source, MIT licensed. The code, the full README and the benchmark are on GitHub. If she helps you, leave a star: that is how more people find her.</span></p>
+      <div class="acoes">
+        <a href="https://github.com/vijcoelho/project-helena" class="btn cheio" target="_blank" rel="noopener"><span class="pt">Ver no GitHub ↗</span><span class="en">View on GitHub ↗</span></a>
+        <a href="https://github.com/vijcoelho/project-helena/stargazers" class="btn" target="_blank" rel="noopener"><span class="pt">★ Dar uma estrela</span><span class="en">★ Star it</span></a>
+      </div>
+    </div>
+  </section>
+
+  <section id="empresas">
+    <p class="rotulo"><span class="pt">para empresas</span><span class="en">for teams</span></p>
+    <h2 class="surge"><span class="pt">A Helena do seu time, montada pra ele.</span><span class="en">Your team's Helena, built for it.</span></h2>
+    <p class="texto surge">
+      <span class="pt">De graça ela aprende uma pessoa. Num time, o ganho vem de <b>todo mundo começar com as mesmas regras, os mesmos kits e a mesma memória do projeto</b>, e de provar com número que valeu o investimento.</span>
+      <span class="en">For free she learns one person. In a team the gain comes from <b>everyone starting with the same rules, the same kits and the same project memory</b>, and from proving with numbers that it paid off.</span>
+    </p>
+    <div class="cartoes surge" style="margin-top:48px">
+      <div><strong>01</strong><p><span class="pt"><b>Instalação no time.</b> Todas as máquinas configuradas, memória compartilhada do projeto num cofre do time, status line e painel ligados.</span><span class="en"><b>Team rollout.</b> Every machine set up, shared project memory in a team vault, status line and panel on.</span></p></div>
+      <div><strong>02</strong><p><span class="pt"><b>Regras da empresa em hook.</b> Branch protegida, padrão de commit, arquivos que nunca sobem, segredos do seu stack. Hook cobra, ninguém precisa lembrar.</span><span class="en"><b>Company rules as hooks.</b> Protected branches, commit conventions, files that never go up, your stack's secrets. A hook enforces it, nobody has to remember.</span></p></div>
+      <div><strong>03</strong><p><span class="pt"><b>Kits sob medida.</b> As skills do seu stack, revisadas por segurança, entrando só quando o pedido precisa. Menos contexto, menos custo.</span><span class="en"><b>Custom kits.</b> Skills for your stack, security reviewed, loaded only when a request needs them. Less context, lower cost.</span></p></div>
+      <div><strong>04</strong><p><span class="pt"><b>Benchmark com as suas tarefas.</b> O trabalho real do time rodando com e sem a Helena. Fica só o que ganha, e você vê o placar.</span><span class="en"><b>Benchmark on your tasks.</b> Your team's real work run with and without Helena. Only what wins stays, and you see the scoreboard.</span></p></div>
+      <div><strong>05</strong><p><span class="pt"><b>Relatório de tokens.</b> Onde o time gasta contexto, o que dá pra cortar e quanto isso vale no fim do mês.</span><span class="en"><b>Token report.</b> Where the team spends context, what can be cut and what that is worth at the end of the month.</span></p></div>
+      <div><strong>06</strong><p><span class="pt"><b>Treinamento.</b> Uma sessão pro time usar Claude Code com a Helena: handoff, memória, sessões curtas.</span><span class="en"><b>Training.</b> One session for the team to use Claude Code with Helena: handoffs, memory, short sessions.</span></p></div>
+    </div>
+    <div class="acoes surge" style="margin-top:40px">
+      <a href="https://github.com/vijcoelho" class="btn cheio" target="_blank" rel="noopener"><span class="pt">Falar comigo ↗</span><span class="en">Get in touch ↗</span></a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span>HELENA_ · <span class="pt">feita por Vitor Coelho em cima do Claude Code</span><span class="en">built by Vitor Coelho on top of Claude Code</span> · MIT · <a href="https://github.com/vijcoelho/project-helena" target="_blank" rel="noopener">GitHub</a></span>
+  <span><span class="pt">preto, branco e um benchmark</span><span class="en">black, white and a benchmark</span></span>
+</footer>
+
+<script type="text/plain" id="arte">
+                                                                                 ++++++++++
+                                                                         ====--::.      ::-=..:-
+                                                                     =:...    .:-==-:..   .     ....:-
+                                                           +++**+--..      .+@@@@*=.   :.       ...    ..-
+                                                         =#@@@#=:. :.:..::-@@@*=.       =--.  ...         .:
+                                                      -.#@@@*==.   -:     ++=.         :.  =-               :-
+                                                      ::*@#=*:    :.:.    .:        .::     :-            .  .+-
+                                                       .-+**  ..:...        ......::         .=            :::+%:
+                                                        .+....  :.                         .. .=      .    +:=+%@-
+                                                       -%=     : :.            . .           :..=      -:--%@-=++@==
+                                                      =@#==: :=:-:+::::. :..  : .@:  .        :: =     =--+@%#--: =-
+                                                     -@@=*: ----=##@*- :-:   : :@@%   ..: :::*:-- =  .  +:--  ...  =:
+                                                    -#*::: :.=..   -. .::   . =@@@@*   .:: -#+#--: =  :   -.        =:
+                                                   :*:- .   -         : :.  .#@@@@@@+..  :       .. -  -   :         -:
+                                                  :* =     :        . .+   +@@@@@@@@@*:=  :.         -  -             .=
+                                                 =+ -     .     .:. .*=  =@@@@@@@@@@@@#:+.  ::.       - .-.            .
+                                                 -. -          :. .** .+@@@@@@@@@@@@@@@@===   :-.      - -:         .   .
+                                                :. :         .. -#*:-#@@@@@@@@@@@@@@@@@@@%==:   :-:       -..        :  .
+                                               ::  :   .      =%*+*@@@@@@@@#+=-:..:-=+*#%@@%+:     ..     ..:        -   .
+                                              -:.:.    :     -=#@@@@@@@@%-. .-+#%@@@@@@@@@@@@@*  ..         .        .:  .=
+                                             +:. .:    . -%%#+=-=@@@@@@@@%%@@*##***#%%@@@@@@@@@@:   .   -**-         .=  :.
+                                             ..  ..   -  #@+===*%@%@@@@@@@@@=:. .     .-*@@@@@@@%.   :-@+++=*        :=...:
+                                            :.=  .. . -  . .=.. :%#%@@@@@@@@=#@+--:+-+-%@@@@@@@@@+  :==:+%@++.       :=.-.:
+                                            ..   .  ...   #+@+=--+@@@@@@@@@@@@@@*+++##@@@@@@@@@@@@::@-.::=@%%:       :-. .:
+                                           ..    . : =    *%####@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@=%@::-+ #@%        :.. .
+                                           .:    . - =    +@@@@@@@%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.:  :##  :   .  ..-=
+                                          ..     . - -    -@@@@@@%#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@:..+@%=   :   :   .
+                                          ..     . ::.    .@@@@@@+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%- =@@+   .-   :. ..
+                                          .=    - ..=      %@@@@@+=%@%#@@@@@@@@@@@@@@@@@@@@@@@@@@+:.:-:    :.   ....-
+                                          .     : . =      -@@@@@@@%@@@@@@@@@@@@@@@@@@@@@@@@@@@+--.+   .   :   ..==
+                                          .     . . -       *@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*-=*=@%  :       .-
+                                          .     . . ::       #@@@@%%*#%###%%%#@@@@@@@@@@@@*+:=*@*@@- =     ..=
+                                                .  ..:.       +@@@%@@#%@@@@%@@@@@@@@@%*+--+*%@@@@@= :  ...-
+                                           :    .  . :-   .    -@@@@@#++*@@@@@@%+-.  -+*%@@#*%@@#. :...
+                                           =    .. . .-   -     .%@@@@@@@@@@@@@#..:=#@@@#=+#@@@%#@@@- .........::-=+++
+                                            =   .:    :.   +- .-+=+@@@@@@@@@@@@@@@@@@*--=@@@@@@@@@@@+      ..:::.    .==.=
+                                                .-  . ..   #%@@@@@#-@@@@@@@@@@@@%*=::-*@@@@@@@@@@@@@%          .::::-:   :
+                                                -=  ::  .*@@@@@@#+=. =%@@@@%*=::.-=+#@@@@@@@@@@@@@@@%  .:::::::.        .=
+                                                 =  :% +@@@@@+=:.            :=++*#@@@@@@@@@@@@%+=-:...    ..           .
+                                                 -. .@%@@@*=::.::..          .@@@@@@@@@@@%*=:.                          .
+                                                 .=  @@@@% *                  @@@@@#+==-:.                             -:
+                                                 ==  %@@@@  .:..........::::::::-.....            ..                  =.:
+                                                  .: *@@@@*     +    .......    =             .:-.                   -   .-
+                                                  =- :@@@@@-.   -               -           :-:.             .......       .
+                                                   :: @@@@@*-:   =             :.:        :-.           .::--..             .
+                                                    . =@@@@.-.-  -             ..+       .           ::-:..        .::-:::. .=
+                                                     ..#@@+-   .  -             -=                ::.         :-:::     ..   .
+                                                      :.-.  -     :.            -.-            ...      .:::=:             ... ..=
+                                                     =::.    :     =             -*..              ...:: ..                   .:. ..
+                                                  --:    ..   .    .-        .:::::.                   ::                           ..
+                                                :..           -  .. -      ..      =         ..     .::.                              .:
+                                               ..             -:    :. ..::....    =   .::::      :=-:.                             -  ..
+                                              . .             --   :.            ::=:::        :=--.                  :.             =  ..
+                                             . :.             ::   : .     ....::::         .::.                     =               .=  ..
+                                            .  :.             .:   .                      .                         = . .             ::  .:
+                                           .  .-   .           .  -                                                -    .              =.  .-
+                                          ..  --  .              -.           .:.                                 ..   :                +   .
+                                         ..   =.  :             -.         . .:.                                  :    :                 -   .
+                                        .     *  =             :.       .:.  -.                                  .    -      .           ..   .
+                                       .-     - +             :.     ..:.   -..                                       -     :                 ..
+                                      :.=    : +             -.    .:.     =..                                       =      -        ..:::..::-.=
+                                      . -    :+.            -.   .        =.:                           .            =      :.     ..::.        .
+                                     .   -   %:            -.            -.:                            .           -.     ::.     ::            :
+                                    ..   -  =-            -.            -.-                              :   :      *      -::   -:          .   .
+                                   -:     :-=            :.            : -                               -   -     :-      :-: -:             .   .
+                                   :      .+            .:              =                                :   :-    +       .:::               :   .
+                                  .=      #             =              :                                  :   *:   +     ..-:   ...            :   .
+                                 .#      +.            =               :                                  :   *=  .-   :.::     .=             :   .=
+                                -+=     .*             :             :.                                    :  :+  :  .::.      ..=              =   .
+                               =:+.     +:            -              .                                         =. : .-.        .-:              .-  .:
+                              =. +      %             =             :                                           : . :          :=                -.  .
+                              .  +      #             =             :.                                          -  .          .=.                 =   .
+                             .   +      *            .-             -:                             .            :             -=                   =  .=
+                           =.    =      +  .         ::             =:                              -           . .          .*                     -  .
+                          -.     -      +   .        :.             =:  :                            -            -          #                      .: .:
+                         -.      :      +   -        :.             +:  :.                            =           =         +                        .- .
+                        =.       .      +   -:       :              =:   -.                            =          +        =                           : .
+                        .      .:       =   :-       :              =:   :-                             =         +       -                              .
+                        .        :.     =   :-       :              -:    --                             =        =      :                                .
+</script>
+<script>
+addEventListener('DOMContentLoaded', () => {
+  const calmo = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const GLIFOS = '01<>/\\{}[]=+*#%:;$&';
+  const sorteia = () => GLIFOS[(Math.random() * GLIFOS.length) | 0];
+  const raiz = document.documentElement;
+  const lang = () => raiz.classList.contains('en') ? 'en' : 'pt';
+
+  // ---------- fundo: campo de caracteres que ondula e faz onda em volta do mouse
+  const cv = document.getElementById('campo'), cx = cv.getContext('2d');
+  const RAMPA = ' .,:;-=+*';
+  let cols, rows, cel = 16, mx = -1e4, my = -1e4, t = 0;
+  function medir() {
+    const d = devicePixelRatio || 1;
+    cv.width = innerWidth * d; cv.height = innerHeight * d;
+    cx.setTransform(d, 0, 0, d, 0, 0);
+    cx.font = `12px ${getComputedStyle(document.body).fontFamily}`;
+    cx.textBaseline = 'top';
+    cols = Math.ceil(innerWidth / (cel * .75)); rows = Math.ceil(innerHeight / cel);
+  }
+  function campo() {
+    cx.clearRect(0, 0, innerWidth, innerHeight);
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+      const px = x * cel * .75, py = y * cel;
+      let v = Math.sin(x * .09 + t) + Math.cos(y * .13 - t * .7) + Math.sin((x + y) * .05 + t * .4);
+      const dm = Math.hypot(px - mx, py - my);
+      if (dm < 140) v += (1 - dm / 140) * 2.4 * Math.sin(dm * .08 - t * 6);
+      const i = Math.max(0, Math.min(RAMPA.length - 1, ((v + 3) / 6 * RAMPA.length) | 0));
+      if (i === 0) continue;
+      cx.fillStyle = `rgba(255,255,255,${.035 + i * .012})`;
+      cx.fillText(RAMPA[i], px, py);
+    }
+  }
+  medir(); campo();
+  addEventListener('resize', () => { medir(); campo(); ajustar(); });
+  addEventListener('pointermove', e => { mx = e.clientX; my = e.clientY; });
+  if (!calmo) {
+    let ultimo = 0;
+    const loop = now => {
+      if (!document.hidden && now - ultimo > 66) { t += .05; campo(); ultimo = now; } // ~15 fps: fundo não precisa de mais
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Helena em ASCII: monta decodificando e embaralha perto do mouse
+  const pre = document.getElementById('helena');
+  const alvo = document.getElementById('arte').textContent.replace(/^\n+|\n+$/g, '').split('\n');
+  const W = Math.max(...alvo.map(l => l.length)), H = alvo.length;
+  const grade = alvo.map(l => l.padEnd(W).split(''));
+  const fim = grade.map(l => l.map(() => 0));        // até quando cada célula fica embaralhada
+  const atual = grade.map(l => l.slice());
+  function ajustar() {
+    const larg = pre.parentElement.clientWidth;
+    pre.style.fontSize = '10px';
+    pre.textContent = grade[0].join('');                              // mede a largura real do caractere da fonte
+    pre.style.fontSize = (10 * larg / pre.scrollWidth).toFixed(3) + 'px';
+    pre.textContent = atual.map(l => l.join('')).join('\n');
+  }
+  ajustar();
+  document.fonts && document.fonts.ready.then(ajustar);
+
+  let ativo = false;
+  function desenha(now) {
+    let mexendo = false;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = grade[y][x];
+      if (c === ' ') continue;
+      if (now < fim[y][x]) { atual[y][x] = sorteia(); mexendo = true; } else atual[y][x] = c;
+    }
+    pre.textContent = atual.map(l => l.join('')).join('\n');
+    if (mexendo) requestAnimationFrame(desenha); else ativo = false;
+  }
+  const acorda = () => { if (!ativo) { ativo = true; requestAnimationFrame(desenha); } };
+
+  if (calmo) pre.textContent = alvo.join('\n');
+  else {
+    const t0 = performance.now();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+      fim[y][x] = t0 + 300 + (y / H) * 1400 + Math.random() * 500;   // de cima pra baixo, com ruído
+    acorda();
+    pre.addEventListener('pointermove', e => {
+      const r = pre.getBoundingClientRect();
+      const cxl = (e.clientX - r.left) / r.width * W, cyl = (e.clientY - r.top) / r.height * H;
+      const agora = performance.now();
+      for (let y = Math.max(0, cyl - 4 | 0); y < Math.min(H, cyl + 5); y++)
+        for (let x = Math.max(0, cxl - 8 | 0); x < Math.min(W, cxl + 9); x++)
+          if (Math.hypot((x - cxl) / 2, y - cyl) < 4) fim[y][x] = Math.max(fim[y][x], agora + 150 + Math.random() * 350);
+      acorda();
+    });
+  }
+
+  // ---------- dados (docs/ANALISE.md), desenhados nos dois idiomas
+  const barra = (n, d, larg = 10) => '█'.repeat(Math.round(n / d * larg)).padEnd(larg, '░');
+  const TEMAS = [
+    [65, 'visual / design', 'visual / design'],
+    [56, 'rodar local', 'run locally'],
+    [56, 'QA / segurança / LGPD', 'QA / security / privacy'],
+    [40, 'pesquisa / plano', 'research / planning'],
+    [38, 'commit / push / merge', 'commit / push / merge'],
+    [37, 'deploy / docker / coolify', 'deploy / docker / coolify'],
+    [34, 'vídeo / motion', 'video / motion'],
+    [27, 'imagem pelo agy', 'images via agy'],
+    [17, 'continuar / handoff', 'resume / handoff'],
+  ];
+  const CONTEXTO = [
+    [39.7, 'skills sempre carregados', 'skills always loaded', ''],
+    [27.8, 'com a biblioteca (medido)', 'with the library (measured)', ''],
+    [24.8, 'sem as skills de vídeo (estimado)', 'without video skills (estimated)', ''],
+  ];
+  const PLACAR = [
+    ['regra de git do projeto', 'per-project git rule', 1, 5, 5, 'hook nega commit na main e vídeo', 'hook blocks commits to main and videos'],
+    ['imagem pelo agy', 'images via agy', 0, 2, 2, 'skill imagem-agy', 'imagem-agy skill'],
+    ['salvar onde parei', 'save where I stopped', 0, 2, 2, 'skill handoff', 'handoff skill'],
+    ['continuar de onde parou', 'resume where I stopped', 1, 2, 2, 'hook injeta o HANDOFF.md', 'hook injects HANDOFF.md'],
+    ['texto difícil de ler', 'hard-to-read text', 0, 2, 2, 'hook de contraste no fim', 'contrast hook at the end'],
+    ['deploy no coolify', 'deploy to coolify', 0, 2, 2, 'só uma nota de memória', 'just a memory note'],
+    ['rodar local', 'run locally', 2, 2, 2, 'empate: skill removida', 'tie: skill removed'],
+  ];
+  function dados() {
+    const en = lang() === 'en';
+    const larg = innerWidth < 600 ? 14 : 30;
+    document.getElementById('temas').innerHTML = TEMAS.map(([n, pt, e]) =>
+      `${(en ? e : pt).padEnd(26)}<span class="b">${barra(n, 65, larg)}</span> <span class="q">${n}</span>`).join('\n');
+    document.getElementById('contexto').innerHTML = CONTEXTO.map(([k, pt, e]) =>
+      `<div class="linha"><span>${en ? e : pt}</span><div class="barra">${'█'.repeat(Math.round(k / 39.7 * larg * 1.4))}<i> ${en ? k.toFixed(1) : k.toFixed(1).replace('.', ',')}k tokens</i></div></div>`).join('');
+    document.getElementById('linhas').innerHTML = PLACAR.map(([pt, e, b, h, d, dpt, de]) =>
+      `<tr><td>${en ? e : pt}</td><td class="barra base"><span class="b">${barra(b, d)}</span> ${b}/${d}</td><td class="barra"><span class="b">${barra(h, d)}</span> ${h}/${d}</td><td class="dec">${en ? de : dpt}</td></tr>`).join('');
+  }
+  dados();
+  let largura = innerWidth;   // celular dispara resize ao esconder a barra de endereço: só redesenha se a largura mudou
+  addEventListener('resize', () => { if (innerWidth !== largura) { largura = innerWidth; dados(); cabe(); } });
+
+  // ---------- troca de idioma
+  document.querySelectorAll('.troca').forEach(b => b.addEventListener('click', () => {
+    const novo = lang() === 'en' ? 'pt' : 'en';
+    raiz.classList.remove('pt', 'en'); raiz.classList.add(novo);
+    raiz.lang = novo === 'pt' ? 'pt-BR' : 'en';
+    try { localStorage.setItem('helena-lang', novo); } catch {}
+    dados(); barras(); cabe();
+    digita.textContent = FRASES[novo][frase];
+  }));
+
+
+  // ---------- título do hero: aperta esc, a palavra fica selecionada, some, e a próxima é digitada
+  const FRASES = { pt: ['Helena', 'aprende.', 'lembra.', 'prova.', 'zerada.'], en: ['Helena', 'learns.', 'recalls.', 'proves.', 'blank.'] };
+  const h1 = document.querySelector('.hero h1'), digita = document.getElementById('digita'), esc = document.getElementById('esc');
+  let frase = 0;
+  function cabe() {   // a maior frase do idioma cabe numa linha: fonte mono tem 0,6em de largura por letra
+    const maior = Math.max(...FRASES[lang()].map(f => f.length)) + 1;
+    h1.style.fontSize = Math.min(136, innerWidth * .09, h1.parentElement.clientWidth / (maior * .6)).toFixed(1) + 'px';
+  }
+  cabe();
+  const espera = ms => new Promise(r => setTimeout(r, ms));
+  async function ciclo() {
+    await espera(2600);
+    for (;;) {
+      if (document.hidden) { await espera(600); continue; }
+      esc.classList.add('on'); digita.classList.add('sel');
+      await espera(420);
+      esc.classList.remove('on'); digita.textContent = ''; digita.classList.remove('sel');
+      await espera(280);
+      frase = (frase + 1) % FRASES.pt.length;
+      for (const ch of FRASES[lang()][frase]) { digita.textContent += ch; await espera(65 + Math.random() * 70); }
+      await espera(frase === 0 ? 3400 : 2300);
+    }
+  }
+  if (!calmo) ciclo();
+
+  // ---------- GSAP: entradas, números contando, barras crescendo, títulos decodificando, parallax
+  const g = window.gsap;
+  const uma = (trigger, start = 'top 85%') => ({ trigger, start, once: true });   // dispara uma vez: scroll rápido não quebra
+  if (g && window.ScrollTrigger && !calmo) {
+    g.registerPlugin(ScrollTrigger);
+    raiz.classList.add('gsap');
+
+    g.from(['.hero .rotulo', '.hero h1', '.hero .sub', '.hero .acoes', '.moldura figcaption'],
+      { y: 36, opacity: 0, duration: 1, stagger: .12, ease: 'power3.out', delay: .15 });
+    g.to('.moldura', { yPercent: -10, opacity: .3, ease: 'none',
+      scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom top', scrub: true } });
+
+    ScrollTrigger.batch('.surge', {
+      start: 'top 88%', once: true,
+      onEnter: lote => g.to(lote, { opacity: 1, y: 0, duration: .9, stagger: .09, ease: 'power3.out', overwrite: true }),
+    });
+
+    // títulos: cada letra passa por glifos aleatórios até assentar (fonte mono: nada pula de lugar)
+    g.utils.toArray('section h2').forEach(h => ScrollTrigger.create({ ...uma(h), onEnter: () => {
+      const alvo = h.querySelector(lang() === 'en' ? '.en' : '.pt');
+      const final = alvo.textContent, o = { p: 0 };
+      g.to(o, { p: 1, duration: 1.1, ease: 'power2.out', onUpdate: () => {
+        const k = Math.floor(o.p * final.length);
+        alvo.textContent = final.slice(0, k) + [...final.slice(k)].map(c => c === ' ' ? ' ' : sorteia()).join('');
+      }, onComplete: () => { alvo.textContent = final; } });
+    } }));
+
+    // números: contam do zero mantendo prefixo, sufixo e vírgula decimal
+    g.utils.toArray('.numeros strong, #economia .cartoes strong').forEach(el => {
+      const txt = el.textContent, m = txt.match(/\d+(?:[.,]\d+)?/);
+      if (!m || +m[0].replace(',', '.') === 0) return;
+      const alvo = +m[0].replace(',', '.'), casas = (m[0].split(/[.,]/)[1] || '').length, sep = m[0].includes(',') ? ',' : '.';
+      const antes = txt.slice(0, m.index), depois = txt.slice(m.index + m[0].length), o = { v: 0 };
+      g.to(o, { v: alvo, duration: 1.6, ease: 'power2.out', scrollTrigger: uma(el, 'top 92%'),
+        onUpdate: () => { el.textContent = antes + o.v.toFixed(casas).replace('.', sep) + depois; } });
+    });
+
+    g.from('.fases li', { y: 48, opacity: 0, duration: .8, stagger: .12, ease: 'power3.out', scrollTrigger: uma('.fases') });
+    g.utils.toArray('.passos').forEach(l => g.from(l.querySelectorAll('.v'), { x: -40, opacity: 0, duration: .8, stagger: .1, ease: 'power3.out', scrollTrigger: uma(l) }));
+    g.from('.correcoes li', { x: 32, opacity: 0, duration: .7, stagger: .08, ease: 'power2.out', scrollTrigger: uma('.correcoes') });
+
+    // "sugestão" apaga enquanto "garantia" acende, preso ao scroll
+    g.utils.toArray('.frase blockquote > span').forEach(b => {
+      const [l1, l2] = b.children;
+      const tl = g.timeline({ scrollTrigger: { trigger: '.frase', start: 'top 70%', end: 'center 45%', scrub: .6 } });
+      tl.fromTo(l1, { color: '#f2f2f2' }, { color: '#5c5c5c', ease: 'none' }, 0)
+        .fromTo(l2, { color: '#5c5c5c' }, { color: '#f2f2f2', ease: 'none' }, 0);
+    });
+  }
+  function barras() {   // barras ASCII crescem da esquerda; roda de novo quando o idioma troca
+    if (!g || !window.ScrollTrigger || calmo) return;
+    [['#temas', '#temas .b'], ['#contexto', '#contexto .barra'], ['#linhas', '#linhas .b'], ['#linhas', '#linhas tr']].forEach(([gat, sel], i) => {
+      const els = g.utils.toArray(sel);
+      if (!els.length) return;
+      const de = i === 3 ? { opacity: 0, x: -24 } : { clipPath: 'inset(0 100% 0 0)' };
+      g.from(els, { ...de, duration: i === 3 ? .6 : 1.3, stagger: .07, ease: 'power2.out', scrollTrigger: uma(gat) });
+    });
+  }
+  barras();
+
+  // ---------- navbar só depois do hero; seções surgem no scroll
+  const nav = document.getElementById('nav');
+  addEventListener('scroll', () => nav.classList.toggle('on', scrollY > innerHeight * .6), { passive: true });
+  if (!raiz.classList.contains('gsap')) {   // sem GSAP (CDN fora do ar) ou movimento reduzido: o reveal simples de antes
+    const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting && (e.target.classList.add('visto'), io.unobserve(e.target))), { threshold: .15 });
+    document.querySelectorAll('.surge').forEach(el => io.observe(el));
+  }
+
+  // ---------- copiar comandos
+  document.getElementById('copiar').addEventListener('click', e => {
+    const txt = document.getElementById('cmd').innerText.split('\n').filter(l => l && !l.startsWith('#')).join('\n');
+    const b = e.currentTarget, antes = b.innerHTML;
+    navigator.clipboard.writeText(txt).then(() => { b.textContent = lang() === 'en' ? 'copied' : 'copiado'; setTimeout(() => b.innerHTML = antes, 1500); });
+  });
+});
+</script>
+</body>
+</html>
