@@ -1,22 +1,24 @@
-"""Helena's background worker. Runs at most once every 20 hours, started by the session hooks; never blocks you.
+"""Helena's background worker. Started by the session hooks; never blocks you.
 
     python helena/worker.py          # respects the 20h throttle
     python helena/worker.py --now    # run right away
 
+0. Routines that are due run every time (see routines.py). Everything below runs at most once every 20 hours.
 1. Plugin profiles: in a project with 3+ sessions, plugins it never used are turned off there (project
    .claude/settings.local.json). Plugins with hooks are never touched. The router turns one back on when a request needs it.
 2. Repeated requests: your prompts are grouped by similarity. A group used 20+ times, or 5+ times across 2+ sessions,
    is offered to Haiku, which writes a skill only if there is a reusable procedure Claude would not do well by default.
 3. Inbox candidates from distillation that showed up in 2+ sessions become skills directly (no LLM call).
 4. Skills Helena created and nobody used for 30 days are removed.
+5. Tidy (tidy.py): merge duplicate memory notes, fold "## Learned" lessons into their skill, write the weekly review.
 New skills go to ~/.helena/library (zero context until a kit loads them) and you are told at the next session start,
 with the command to delete it.
 """
 import datetime, json, os, pathlib, re, shutil, subprocess, sys, time, unicodedata
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from history import HOME, ledger, plugin_of, sessions  # noqa: E402
-from distill import SECRET, VAULT, slug  # noqa: E402
+from history import HOME, plugin_of, sessions  # noqa: E402
+from distill import SECRET, VAULT, ask, slug  # noqa: E402
 
 LIB = HOME / 'library'
 STATE = HOME / 'patterns.json'
@@ -121,22 +123,6 @@ def profiles(catalog, all_sessions):
 
 # ---------- 2. repeated requests -> skills
 
-NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)  # see distill.py: no visible window for claude.exe
-
-
-def ask_haiku(prompt):
-    claude = shutil.which('claude') or 'claude'
-    r = subprocess.run([claude, '-p', '--model', 'haiku', '--output-format', 'json', '--tools', '', '--no-session-persistence'],
-                       input=prompt, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=300,
-                       env=dict(os.environ, HELENA_DISTILLING='1'), cwd=pathlib.Path.home(), creationflags=NO_WINDOW)
-    out = json.loads(r.stdout or '{}')
-    u = out.get('usage') or {}
-    ledger({'what': 'worker-skill', 'cost': out.get('total_cost_usd', 0),
-            'tokens': sum(u.get(x, 0) for x in ('input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens'))})
-    m = re.search(r'\{.*\}', out.get('result', ''), re.S)
-    return json.loads(m.group(0)) if m else None
-
-
 SKILL_PROMPT = """A user keeps asking an AI coding assistant for the same kind of thing. Below are their requests and what
 the assistant did each time. Decide whether a SKILL (a short recipe the assistant reads before acting) would make this
 faster or more correct next time.
@@ -210,7 +196,7 @@ def patterns(all_sessions, state):
     for c in sorted(ready, key=lambda c: -c['uses'])[:MAX_NEW_SKILLS]:
         examples = '\n\n'.join(f"REQUEST: {e['text']}\nACTIONS:\n" + '\n'.join(e['actions']) for e in c['examples'])
         try:
-            r = ask_haiku(SKILL_PROMPT.format(uses=c['uses'], n_sessions=len(c['sessions']), examples=SECRET.sub('***', examples)))
+            r = ask(SKILL_PROMPT.format(uses=c['uses'], n_sessions=len(c['sessions']), examples=SECRET.sub('***', examples)), 'worker-skill')
         except (subprocess.SubprocessError, ValueError, OSError):
             break
         if not r or not r.get('worth'):
@@ -264,9 +250,7 @@ def catalog_ok(entry):  # a catalog entry whose SKILL.md still exists
 
 
 def main():
-    stamp = HOME / 'worker.last'
-    if '--now' not in sys.argv and stamp.exists() and time.time() - stamp.stat().st_mtime < 20 * 3600:
-        return
+    HOME.mkdir(exist_ok=True)
     lock = HOME / 'worker.lock'
     try:
         fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -276,7 +260,11 @@ def main():
         lock.unlink()
         fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     try:
-        HOME.mkdir(exist_ok=True)
+        import routines  # here, not at the top: routines imports this file
+        routines.run_due()  # every session end; the rest below at most once every 20 hours
+        stamp = HOME / 'worker.last'
+        if '--now' not in sys.argv and stamp.exists() and time.time() - stamp.stat().st_mtime < 20 * 3600:
+            return
         stamp.touch()
         all_sessions = list(sessions(days=30))
         profiles(plugin_catalog(), all_sessions)
@@ -285,6 +273,8 @@ def main():
         save(STATE, state)
         inbox_candidates()
         prune()
+        import tidy
+        tidy.main()
         print(f'{datetime.datetime.now():%Y-%m-%d %H:%M} worker ok: {len(all_sessions)} sessions, {made} new skill(s)')
     finally:
         os.close(fd)

@@ -3,6 +3,7 @@
     python helena/skills.py            # list, with how often each was used
     python helena/skills.py undo <name>
     python helena/skills.py undo <name> learned   # drop the last "## Learned" line distill added to any library skill
+    python helena/skills.py undo <name> fold      # restore the skill as it was before tidy.py folded its lessons in
 """
 import json, pathlib, shutil, sys
 
@@ -40,6 +41,14 @@ def unlearn(name):
     print(f'removed from {name}: {gone[2:]}')
 
 
+def unfold(name):
+    bak = LIB / name / 'SKILL.md.bak'
+    if not bak.exists():
+        sys.exit(f'"{name}" has no folded version to undo')
+    bak.replace(LIB / name / 'SKILL.md')
+    print(f'{name}: back to the version before the lessons were folded in')
+
+
 def undo(name):
     folder = LIB / name
     if not (folder / 'SKILL.md').exists() or 'created-by: helena' not in (folder / 'SKILL.md').read_text(encoding='utf-8'):
@@ -64,6 +73,8 @@ if __name__ == '__main__':
     sys.stdout.reconfigure(encoding='utf-8')
     if sys.argv[1:2] == ['undo'] and sys.argv[3:4] == ['learned']:
         unlearn(sys.argv[2])
+    elif sys.argv[1:2] == ['undo'] and sys.argv[3:4] == ['fold']:
+        unfold(sys.argv[2])
     elif sys.argv[1:2] == ['undo'] and len(sys.argv) > 2:
         undo(sys.argv[2])
     else:

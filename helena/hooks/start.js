@@ -53,7 +53,13 @@ try {
     'If the user corrects you or says something that holds from now on, create/update a note there: frontmatter `type` and ' +
     '`description` (plus `project: <folder>` when it only applies here), one fact per note, [[links]] to related notes, ' +
     'written in the language the user writes in.');
-} catch {}
+  else if (!fs.readdirSync(MEMORY).length) throw 0;
+} catch {
+  try { fs.statSync(path.join(HOME, 'setup-hint')); } catch {  // once: a fresh Helena offers to learn from past sessions
+    out.push('Helena has no memory yet. At the end of your first reply, tell the user in one line that /helena:setup lets her learn from their past sessions.');
+    try { fs.mkdirSync(HOME, { recursive: true }); fs.writeFileSync(path.join(HOME, 'setup-hint'), ''); } catch {}
+  }
+}
 
 try {
   const news = JSON.parse(fs.readFileSync(path.join(HOME, 'news.json'), 'utf8'));

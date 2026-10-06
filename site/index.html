@@ -198,7 +198,7 @@
 <main>
   <section class="hero" id="topo">
     <div>
-      <p class="rotulo">project helena · v0.7 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
+      <p class="rotulo">project helena · v1.0 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
       <h1><span id="digita">Helena</span><span class="cursor"></span></h1>
       <p class="sub">
         <span class="pt">Uma camada em cima do Claude Code que <b>chega zerada e aprende o seu jeito de trabalhar</b>, carrega skill só quando precisa e só guarda o que o benchmark prova que ajuda.</span>
@@ -223,19 +223,21 @@
       <span class="en">When you install her, she knows nothing about you: no memories, no kits, none of your skills. Only the machinery ships: hooks that always run, memory that writes itself and a benchmark that decides what stays. <b>Every correction you make becomes a note. Every procedure you repeat becomes a skill candidate. The more you use her, the better she gets.</b></span>
     </p>
     <ol class="fases surge">
-      <li><span class="quando"><span class="pt">dia 1</span><span class="en">day 1</span></span><strong>0</strong><p><span class="pt">memórias. Os hooks já protegem: chave de API não sobe pro git, texto ilegível volta pra correção, onde você parou fica no HANDOFF.md.</span><span class="en">memories. The hooks already protect you: API keys stay out of git, unreadable text goes back for a fix, where you stopped lives in HANDOFF.md.</span></p></li>
+      <li><span class="quando"><span class="pt">dia 1</span><span class="en">day 1</span></span><strong>0</strong><p><span class="pt">memórias, ou um começo pronto com o /helena:setup, que lê as suas sessões antigas. Os hooks já protegem: chave de API não sobe pro git, texto ilegível volta pra correção, onde você parou fica no HANDOFF.md.</span><span class="en">memories, or a head start with /helena:setup, which reads your past sessions. The hooks already protect you: API keys stay out of git, unreadable text goes back for a fix, where you stopped lives in HANDOFF.md.</span></p></li>
       <li><span class="quando"><span class="pt">semana 1</span><span class="en">week 1</span></span><strong>+</strong><p><span class="pt">Suas correções viram notas no seu Obsidian. A próxima sessão já começa sabendo.</span><span class="en">Your corrections become notes in your Obsidian vault. The next session starts already knowing.</span></p></li>
       <li><span class="quando"><span class="pt">mês 1</span><span class="en">month 1</span></span><strong>++</strong><p><span class="pt">Kits do seu jeito: a skill certa entra quando o pedido precisa e fica fora quando não precisa.</span><span class="en">Kits shaped like your work: the right skill comes in when a request needs it and stays out when it does not.</span></p></li>
       <li><span class="quando"><span class="pt">sempre</span><span class="en">always</span></span><strong>=</strong><p><span class="pt">Skill candidata só entra se ganhar no benchmark. O que empata sai, porque contexto custa.</span><span class="en">A skill candidate only gets in if it wins the benchmark. Ties go out, because context costs.</span></p></li>
     </ol>
     <div class="terminal surge">
       <div class="topo"><span>claude code</span><span><span class="pt">comandos</span><span class="en">commands</span></span></div>
-<pre>/helena:remember <span class="c">&lt;<span class="pt">fato</span><span class="en">fact</span>&gt;   # <span class="pt">ensina algo agora</span><span class="en">teach her something now</span></span>
+<pre>/helena:setup           <span class="c"># <span class="pt">primeiro dia: aprende com as sessões antigas</span><span class="en">first day: learn from past sessions</span></span>
+/helena:remember <span class="c">&lt;<span class="pt">fato</span><span class="en">fact</span>&gt;   # <span class="pt">ensina algo agora</span><span class="en">teach her something now</span></span>
 /helena:forget   <span class="c">&lt;<span class="pt">fato</span><span class="en">fact</span>&gt;   # <span class="pt">apaga o que estiver errado</span><span class="en">remove what is wrong</span></span>
 /helena:status          <span class="c"># <span class="pt">mostra o que ela já sabe</span><span class="en">show what she knows so far</span></span>
 /helena:budget          <span class="c"># <span class="pt">quanto ela gasta e quanto economiza</span><span class="en">what she costs and what she saves</span></span>
 /helena:skills          <span class="c"># <span class="pt">as skills que ela criou sozinha</span><span class="en">the skills she created on her own</span></span>
-/helena:undo     <span class="c">&lt;skill&gt;  # <span class="pt">apaga uma skill que ela criou</span><span class="en">delete a skill she created</span></span></pre>
+/helena:undo     <span class="c">&lt;skill&gt;  # <span class="pt">apaga uma skill que ela criou</span><span class="en">delete a skill she created</span></span>
+/helena:routines        <span class="c"># <span class="pt">tarefas que ela roda sozinha, com teto de gasto</span><span class="en">tasks she runs on her own, with a spending cap</span></span></pre>
     </div>
     <p class="nota surge">
       <span class="pt">Tudo que ela aprende fica nas suas pastas (o seu cofre do Obsidian e ~/.helena), nunca dentro do plugin. Atualizar não apaga nada.</span>
@@ -293,13 +295,17 @@
     <p class="rotulo"><span class="pt">em segundo plano</span><span class="en">in the background</span></p>
     <h2 class="surge"><span class="pt">Ela trabalha sozinha.</span><span class="en">She works on her own.</span></h2>
     <p class="texto surge">
-      <span class="pt">No máximo uma vez a cada 20 horas, no Haiku, ela arruma a casa. Cada centavo gasto fica anotado e aparece no <b>/helena:budget</b>, ao lado do que ela economizou.</span>
-      <span class="en">At most once every 20 hours, on Haiku, she tidies up. Every cent she spends is logged and shows up in <b>/helena:budget</b>, next to what she saved.</span>
+      <span class="pt">No máximo uma vez a cada 20 horas, no Haiku e sem carregar plugin nenhum, ela arruma a casa. Cada centavo gasto fica anotado e aparece no <b>/helena:budget</b>, ao lado do que ela economizou.</span>
+      <span class="en">At most once every 20 hours, on Haiku and with no plugins loaded, she tidies up. Every cent she spends is logged and shows up in <b>/helena:budget</b>, next to what she saved.</span>
     </p>
     <ol class="passos">
       <li class="surge"><span class="n">01</span><span class="v"><span class="pt">Cria skills</span><span class="en">Creates skills</span></span><p><span class="pt">Pedido repetido 20+ vezes, ou 5+ vezes em 2+ sessões, vai pro Haiku. Ele só escreve a skill se houver um procedimento de verdade. A skill entra na biblioteca, você é avisado com o comando pra apagar, e se ninguém usar por 30 dias ela sai.</span><span class="en">A request repeated 20+ times, or 5+ times across 2+ sessions, goes to Haiku. It only writes a skill if there is a real procedure. The skill goes to the library, you get a notice with the command to delete it, and if nobody uses it for 30 days it is removed.</span></p><code>/helena:undo</code></li>
       <li class="surge"><span class="n">02</span><span class="v"><span class="pt">Desliga plugins</span><span class="en">Turns off plugins</span></span><p><span class="pt">Plugin que um projeto nunca usa é desligado só naquele projeto. Pediu algo que precisa dele ("vamos pôr um gateway de pagamento" → Stripe) e ela liga de novo; vale ao reiniciar a sessão. Plugin com hook nunca é desligado.</span><span class="en">A plugin a project never uses is switched off in that project only. Ask for something that needs it ("let's add a payment gateway" → Stripe) and she turns it back on; it applies when the session restarts. Plugins with hooks are never switched off.</span></p><code>.claude/settings.local.json</code></li>
       <li class="surge"><span class="n">03</span><span class="v"><span class="pt">Anota o projeto</span><span class="en">Keeps a hub</span></span><p><span class="pt">Uma nota por projeto no seu Obsidian: como ele está agora e o registro de decisões e commits.</span><span class="en">One note per project in your Obsidian vault: what it is like now, and a log of decisions and commits.</span></p><code>vault/Projects</code></li>
+      <li class="surge"><span class="n">04</span><span class="v"><span class="pt">Arruma a memória</span><span class="en">Tidies memory</span></span><p><span class="pt">Notas repetidas ou que se contradizem viram uma só, e o fato mais novo vence. A versão antiga vai pra pasta Archive; nota que parece velha só é avisada, nunca apagada.</span><span class="en">Notes that repeat or contradict each other become one, and the newer fact wins. The old version goes to the Archive folder; a note that looks outdated is only flagged, never deleted.</span></p><code>vault/Archive</code></li>
+      <li class="surge"><span class="n">05</span><span class="v"><span class="pt">Skills que melhoram</span><span class="en">Skills that improve</span></span><p><span class="pt">Você corrigiu um resultado feito com uma skill? A lição entra na skill. Com 5 lições, ela é reescrita com elas dentro, pra continuar curta. Dá pra desfazer.</span><span class="en">Corrected a result made with a skill? The lesson goes into the skill. At 5 lessons it is rewritten with them inside, so it stays short. You can undo it.</span></p><code>## Learned</code></li>
+      <li class="surge"><span class="n">06</span><span class="v"><span class="pt">Rotinas</span><span class="en">Routines</span></span><p><span class="pt">"Toda segunda, checa as dependências deste projeto." Roda no Haiku quando uma sessão termina, só lê, e para no teto de gasto. O que precisar de decisão sua vira um item "precisa de você" no Obsidian e no início da próxima sessão; ela nunca decide sozinha.</span><span class="en">"Every Monday, check this project's dependencies." Runs on Haiku when a session ends, read-only, and stops at its spending cap. Anything that needs your decision becomes a "needs you" item in Obsidian and at the start of your next session; she never decides on her own.</span></p><code>/helena:routines</code></li>
+      <li class="surge"><span class="n">07</span><span class="v"><span class="pt">Resumo da semana</span><span class="en">Weekly review</span></span><p><span class="pt">Uma nota por semana: o que ela aprendeu, as skills novas, o que está esperando você e quanto ela custou. Sem LLM.</span><span class="en">One note a week: what she learned, new skills, what is waiting on you, and what she cost. No LLM.</span></p><code>vault/Weekly</code></li>
     </ol>
   </section>
 
@@ -319,6 +325,7 @@
       <div><strong>120k</strong><p><span class="pt">tokens de contexto e ela avisa (de novo em 250k e 500k): salva o HANDOFF.md e abre sessão nova. A barra de status mostra o tamanho o tempo todo.</span><span class="en">context tokens and she warns you (again at 250k and 500k): save HANDOFF.md and start fresh. The status line shows the size all the time.</span></p></div>
       <div><strong>git</strong><p><span class="pt">resume o projeto no início da sessão (estrutura, scripts, últimos commits). Nada de reexplorar o repositório.</span><span class="en">sums up the project at session start (structure, scripts, last commits). No re-exploring the repo.</span></p></div>
       <div><strong>2</strong><p><span class="pt">notas de memória que batem com o pedido entram inteiras. Sem ida e volta pra ler.</span><span class="en">memory notes that match the request are delivered whole. No round trip to read them.</span></p></div>
+      <div><strong>4×</strong><p><span class="pt">mais barato o trabalho dela em segundo plano: as chamadas no Haiku não carregam plugin, skill nem MCP (~48k → ~12k tokens por destilação).</span><span class="en">cheaper background work: her Haiku calls load no plugins, skills or MCP (~48k → ~12k tokens per distillation).</span></p></div>
       <div><strong>0</strong><p><span class="pt">LLM nos hooks de segredo e de git. Regex e git, em milissegundos.</span><span class="en">LLM calls in the secret and git hooks. Regex and git, in milliseconds.</span></p></div>
       <div><strong>100 KB</strong><p><span class="pt">é o limite: lockfile, pasta de build, arquivo gigante e git log sem limite são barrados antes de inundar o contexto.</span><span class="en">is the cap: lockfiles, build output, huge files and unbounded git log are blocked before they flood the context.</span></p></div>
     </div>
@@ -370,6 +377,10 @@ cd project-helena/helena/tools &amp;&amp; npm install &amp;&amp; cd ../../..
 claude plugin marketplace add ./project-helena
 claude plugin install helena@helena</pre>
     </div>
+    <p class="nota surge">
+      <span class="pt">Depois, dentro do Claude Code, rode <b>/helena:setup</b>: ela lê as suas últimas sessões e já começa sabendo como você trabalha.</span>
+      <span class="en">Then, inside Claude Code, run <b>/helena:setup</b>: she reads your last sessions and starts already knowing how you work.</span>
+    </p>
     <div class="repo surge">
       <p class="texto"><span class="pt">Código aberto, licença MIT. O código, o README completo e o benchmark estão no GitHub. Se ela te ajudar, deixa uma estrela: é assim que mais gente acha.</span><span class="en">Open source, MIT licensed. The code, the full README and the benchmark are on GitHub. If she helps you, leave a star: that is how more people find her.</span></p>
       <div class="acoes">

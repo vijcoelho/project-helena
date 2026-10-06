@@ -1,6 +1,7 @@
 """Distills a Claude Code session: what is worth remembering goes to Obsidian, what looks like a skill goes to the Inbox.
 
     python helena/distill.py <transcript.jsonl> [vault]
+    python helena/distill.py --backfill [n]      # your last n project sessions (default 10), for /helena:setup
 
 Runs by itself in the background, on Haiku: every 6 prompts (router.js checkpoint) and at SessionEnd.
 Each run only reads the turns after the last one (offset per transcript in ~/.helena/distilled.json).
@@ -96,21 +97,27 @@ def index(memory):
     return '\n'.join(lines) or '(none)'
 
 
-def ask(prompt):
+# no plugins, skills or MCP in Helena's own calls: ~4x cheaper per turn (measured $0.087 -> $0.022 for "say ok")
+LEAN = ['--strict-mcp-config', '--disable-slash-commands', '--setting-sources', 'project']
+
+
+def ask(prompt, what='distill'):
+    """One Haiku call with no tools; returns the JSON object in its answer (None when there is none)."""
     claude = shutil.which('claude') or 'claude'
     r = subprocess.run([claude, '-p', '--model', 'haiku', '--output-format', 'json', '--tools', '',
-                        '--no-session-persistence'], input=prompt, capture_output=True, text=True,
+                        '--no-session-persistence', *LEAN], input=prompt, capture_output=True, text=True,
                        encoding='utf-8', errors='replace', timeout=300,
                        env=dict(os.environ, HELENA_DISTILLING='1'), cwd=pathlib.Path.home(), creationflags=NO_WINDOW)
-    if not r.stdout.strip():  # empty answer: leave the reason in ~/.helena/distill.log instead of a bare JSON error
-        sys.exit(f'{datetime.datetime.now():%Y-%m-%d %H:%M} claude -p returned nothing (exit {r.returncode}): {r.stderr.strip()[-500:]}')
+    if not r.stdout.strip():  # empty answer: say why (it lands in the log) instead of a bare JSON error
+        raise ValueError(f'claude -p returned nothing (exit {r.returncode}): {r.stderr.strip()[-500:]}')
     out = json.loads(r.stdout)
     u = out.get('usage') or {}
-    with open(pathlib.Path.home() / '.helena' / 'ledger.jsonl', 'a', encoding='utf-8') as f:  # Helena's own spending
-        f.write(json.dumps({'ts': datetime.datetime.now().isoformat(timespec='seconds'), 'what': 'distill',
+    with open(HOME / 'ledger.jsonl', 'a', encoding='utf-8') as f:  # Helena's own spending
+        f.write(json.dumps({'ts': datetime.datetime.now().isoformat(timespec='seconds'), 'what': what,
                             'cost': out.get('total_cost_usd', 0), 'tokens': sum(u.get(x, 0) for x in (
                                 'input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens'))}) + '\n')
-    return json.loads(re.search(r'\{.*\}', out.get('result', ''), re.S).group(0))
+    m = re.search(r'\{.*\}', out.get('result', ''), re.S)
+    return json.loads(m.group(0)) if m else None
 
 
 def slug(s):
@@ -201,27 +208,54 @@ def project_of(transcript):
 
 
 def main():
-    transcript = sys.argv[1]
-    vault = pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else VAULT
+    if sys.argv[1] == '--backfill':
+        return backfill(int(sys.argv[2]) if len(sys.argv) > 2 else 10)
+    try:
+        distill(sys.argv[1], pathlib.Path(sys.argv[2]) if len(sys.argv) > 2 else VAULT)
+    except (ValueError, OSError, subprocess.SubprocessError) as e:
+        sys.exit(f'{datetime.datetime.now():%Y-%m-%d %H:%M} {e}')
+
+
+def backfill(n):
+    """/helena:setup: distills your last n project sessions, so a fresh Helena starts knowing how you work."""
+    import glob
+    done = 0
+    for f in sorted(glob.glob(str(pathlib.Path.home() / '.claude' / 'projects' / '*' / '*.jsonl')), key=os.path.getmtime, reverse=True):
+        if done >= n:
+            break
+        if not project_of(f)[0]:
+            continue  # ponytail: skips sessions in the home folder and in deleted (temp/benchmark) folders alike
+        try:
+            if distill(f, VAULT):
+                done += 1
+                print(f'{done}/{n} {pathlib.Path(f).stem}', flush=True)
+        except (ValueError, OSError, subprocess.SubprocessError) as e:
+            print(f'skipped {pathlib.Path(f).stem}: {e}', flush=True)
+    print(f'done: {done} session(s) distilled into {VAULT}')
+
+
+def distill(transcript, vault):
+    """Returns True when it called the LLM (the session had new turns worth reading)."""
     parts = turns(transcript)
     if sum(p.startswith('USER:') for p in parts) < MIN_TURNS:  # short sessions rarely teach anything; saves the plan limit
-        return
+        return False
     # claim the new turns before the slow LLM call, so a checkpoint and SessionEnd never distill the same turns twice
     # ponytail: a failed call loses its turns; keep the offset until success if that ever matters
     state = {k: v for k, v in json.loads(STATE.read_text() if STATE.exists() else '{}').items() if os.path.exists(k)}
     key = str(pathlib.Path(transcript).resolve())
     new, state[key] = parts[state.get(key, 0):], len(parts)
     if not any(p.startswith('USER:') for p in new):
-        return
+        return False
     STATE.parent.mkdir(parents=True, exist_ok=True)
     STATE.write_text(json.dumps(state, indent=1))
     text = SECRET.sub('***', '\n\n'.join(new))[-MAX_CHARS:]
     project, commits = project_of(transcript)
     used = used_skills(transcript)
     data = ask(PROMPT.format(index=index(vault / 'Memory'), session=text, project=project or 'none',
-                             learned=LEARNED.format(names=', '.join(used)) if used else ''))
+                             learned=LEARNED.format(names=', '.join(used)) if used else '')) or {}
     for f in write(data, vault, pathlib.Path(transcript).stem, project, commits, used):
         print(f)
+    return True
 
 
 if __name__ == '__main__':

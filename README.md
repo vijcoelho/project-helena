@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-0.7.0-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.0.0-black">
 </p>
 
 ---
@@ -68,7 +68,7 @@ become skills after they beat the baseline.
 
 | When | What you get |
 |---|---|
-| Day 1 | 0 memories. The hooks already protect you: API keys stay out of git, unreadable text goes back for a fix, where you stopped lives in `HANDOFF.md`. |
+| Day 1 | 0 memories, or a head start from your past sessions with `/helena:setup`. The hooks already protect you: API keys stay out of git, unreadable text goes back for a fix, where you stopped lives in `HANDOFF.md`. |
 | Week 1 | Your corrections become notes in your vault. The next session starts already knowing. |
 | Month 1 | Kits shaped like your work: the right skill comes in when a request needs it and stays out when it does not. |
 | Always | A skill candidate only gets in if it wins the benchmark. Ties go out, because context costs. |
@@ -115,19 +115,22 @@ Restart Claude Code. On the next session start you will see Helena's brief at th
 
 ## Your first day
 
-1. Open Claude Code in any project and work as usual.
-2. Correct her when she gets something wrong ("no, we deploy with Docker", "never commit to main here").
+1. Run `/helena:setup` once. She asks where your Obsidian vault is and reads your last 10 project sessions (a few cents on
+   Haiku), so she starts already knowing your corrections and preferences instead of empty.
+2. Work as usual in any project.
+3. Correct her when she gets something wrong ("no, we deploy with Docker", "never commit to main here").
    Every 6 prompts and when the session ends (4+ messages of yours), Haiku reads the new turns in the background and writes what is worth remembering.
    When a library skill was used and you corrected the result, the lesson is added under "## Learned" in that skill, so it gets better with use.
-3. Say a git rule in chat ("don't commit videos in this repo") and she saves it to `<project>/.helena/git`. From then on
+4. Say a git rule in chat ("don't commit videos in this repo") and she saves it to `<project>/.helena/git`. From then on
    the guard hook enforces it.
-4. Before you stop, ask her to save where you stopped. `HANDOFF.md` is injected the next time you open that folder.
-5. Run `/helena:status` the next day to see what she learned.
+5. Before you stop, ask her to save where you stopped. `HANDOFF.md` is injected the next time you open that folder.
+6. Run `/helena:status` the next day to see what she learned, or open `<vault>/Weekly/` for the week.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
+| `/helena:setup` | First day: point her at your vault and let her learn from your past sessions |
 | `/helena:remember <fact>` | Teach her something right now (a rule, a preference, a project fact) |
 | `/helena:forget <fact>` | Remove a memory that is wrong or outdated |
 | `/helena:status` | What she has learned: memories, kits, library, skill candidates |
@@ -135,6 +138,8 @@ Restart Claude Code. On the next session start you will see Helena's brief at th
 | `/helena:skills` | The skills she created on her own from your repeated requests, and how often each was used |
 | `/helena:undo <skill>` | Delete a skill she created (she will not create it again) |
 | `/helena:undo <skill> learned` | Remove the last lesson she added to a skill |
+| `/helena:undo <skill> fold` | Restore a skill from before she folded its lessons into the recipe |
+| `/helena:routines [what, how often]` | List routines, or add one in plain words ("every Monday check this project's dependencies"); `remove <name>`, `run <name>` |
 | `/painel` | A pane with context by category and Helena's own spending (Claude Code 2.1.287+) |
 
 Scripts you run from the repo:
@@ -164,9 +169,20 @@ python extras/measure_context.py            # how many tokens each enabled plugi
   which writes a skill only if there is a real procedure in them. New skills live in the library (zero context until a
   request needs them), you are told at the next session start with the command to delete it, and a skill nobody uses for
   30 days is removed.
+- **Runs your routines.** A routine is a prompt with a schedule (`12h`, `1d`, `7d`) and a spending cap (default $0.10
+  per run). Due ones run on Haiku when a session ends (no scheduler, nothing always on). They can only read files and
+  the web; anything that needs a decision becomes a "needs you" line in `<vault>/Inbox/needs-you.md` and in the next
+  session's brief, never acted on. Each run is logged in `<vault>/Routines/<name>.md`; a routine with a goal logs its
+  progress in the project's hub note.
 - **Keeps a hub note per project** in `<vault>/Projects/`: what it is like now, and a log of decisions and commits.
+- **Tidies her memory.** When notes changed, Haiku looks for duplicates and contradictions and merges them into one note
+  (the newer fact wins). The old versions go to `<vault>/Archive/`; notes that look outdated are only flagged to you.
+- **Skills that tidy themselves.** When a skill collects 5 lessons under "## Learned", Haiku folds them into the recipe
+  so the skill stays short. The previous version stays as `SKILL.md.bak` (`/helena:undo <skill> fold`).
+- **Writes a weekly review** in `<vault>/Weekly/<year>-W<week>.md`, no LLM: notes new or changed, skills created,
+  lessons learned, open "needs you" items, and what she cost.
 
-All background work runs in `helena/worker.py`, at most once every 20 hours, on Haiku, with its spending in
+All background work runs in `helena/worker.py`, at most once every 20 hours (routines: whenever they are due), on Haiku, with its spending in
 `~/.helena/ledger.jsonl` so `/helena:budget` can show what she costs next to what she saves.
 
 ## Token savings
@@ -179,6 +195,7 @@ and sessions are kept short.
 |---|---|
 | **−11.9k** | fixed context tokens on every message, measured (39.7k → 27.8k), a 30% cut |
 | **4+** | messages of yours per session before memory is distilled, on Haiku. Short sessions cost nothing |
+| **4x** | cheaper background calls: Helena's own Haiku runs load no plugins, skills or MCP (~48k → ~12k tokens per distillation) |
 | **0** | LLM calls in the secret and git hooks: regex and git, in milliseconds |
 | **100 KB** | the cap: lockfiles, build output, huge files and unbounded `git log` are blocked before they reach the context |
 
@@ -232,6 +249,10 @@ never: *.mp4 renders/ .env.production
 | `<vault>/Memory/` | one note per fact (`type`, `description` frontmatter). The index is injected at every session start |
 | `<vault>/Inbox/` | skill candidates found by distillation, waiting for a benchmark |
 | `<vault>/Projects/` | one hub note per project |
+| `<vault>/Weekly/` | the weekly review |
+| `<vault>/Archive/` | memory notes merged away by the tidy step (move one back to undo) |
+| `<vault>/Routines/` | one log per routine; decisions they left you go to `Inbox/needs-you.md` |
+| `~/.helena/routines.json` | your routines |
 | `~/.helena/kits.json` | your kits |
 | `~/.helena/library/` | skills that cost zero context until a kit asks for them (`CATALOG.md` is the index) |
 | `~/.helena/eval/tasks/` | your own benchmark tasks (they can depend on your memory and kits) |
@@ -253,7 +274,9 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 | `helena/hooks/check.js` | Stop: if the session touched front-end files, checks contrast on the `.html` and on live localhost URLs |
 | `helena/hooks/end.js` → `helena/distill.py` | SessionEnd (and every 6 prompts, from router.js): Haiku reads the new turns in the background and writes memory, skill candidates and "## Learned" lessons |
 | `helena/hooks/mod.mjs` | Claude Code mod: band above the prompt with context, % of the window, session cost and what `trim.js` blocked; spinner warning from 120k; `/painel` |
-| `helena/worker.py` | background, once per 20h: plugin profiles, repeated requests → skills, Inbox candidates → skills, pruning |
+| `helena/routines.py` | routines: runs the due ones read-only on Haiku with `--max-budget-usd`; log, "needs you", goal progress |
+| `helena/worker.py` | background, once per 20h: plugin profiles, repeated requests → skills, Inbox candidates → skills, pruning, then `tidy.py` |
+| `helena/tidy.py` | memory merge, folding lessons into skills, weekly review |
 | `helena/budget.py` · `helena/skills.py` · `helena/history.py` | reports behind `/helena:budget`, `/helena:skills`, `/helena:undo`; transcript reader (no LLM) |
 | `helena/statusline.js` | `helena · ctx 85k · Opus` |
 | `helena/tools/contrast.mjs` | WCAG AA for every visible text, desktop and phone |
@@ -275,6 +298,8 @@ python eval/test_guard.py                # guard hook, no Claude calls
 python eval/test_trim.py                 # trim hook, no Claude calls
 python eval/test_distill.py              # distillation remembers corrections, skips trivia, never stores secrets
 python eval/test_learn.py                # checkpoint offsets and "## Learned" lines (no LLM)
+python eval/test_routines.py             # routines: schedule, log, "needs you", goal progress (no LLM)
+python eval/test_tidy.py                 # memory merge, folding lessons, weekly review (no LLM)
 ```
 
 A task folder has `prompt.md`, `fixture/`, `check.py` (exit 0 = pass), and optionally `setup.py` (prepares the folder),
@@ -321,7 +346,7 @@ Your memory, kits and library stay in your folders; delete `~/.helena` and the v
 **Does she need an API key?** No. Background work runs through your logged-in `claude` CLI on Haiku.
 
 **How much does she cost?** Distillation only runs on sessions with 4+ of your messages, and the worker at most once
-every 20 hours, both on Haiku. `/helena:budget` shows her spending next to what she saved.
+every 20 hours, both on Haiku with nothing extra loaded (a few cents a call). Routines stop at their own cap. `/helena:budget` shows her spending next to what she saved.
 
 **Do I need Obsidian?** No. The memory is a folder of Markdown notes. Obsidian is just a nice way to read and edit it.
 
