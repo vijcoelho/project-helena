@@ -20,8 +20,18 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
       } catch {}
     }
   } catch {}
+  // the plan's usage limits come in this JSON (subscribers only); limits.js reads the copy to warn before they run out
+  let lim = '';
+  try {
+    const r = ev.rate_limits;
+    if (r) {
+      fs.writeFileSync(require('path').join(require('os').homedir(), '.helena', 'limits-claude.json'), JSON.stringify(r));
+      const pct = Math.round(Math.max(...Object.values(r).map(w => (w && w.used_percentage) || 0)));
+      lim = ` · limit ${pct}%`;
+    }
+  } catch {}
   const k = Math.round(ctx / 1000);
   const tip = k >= 250 ? '  /clear?' : k >= 120 ? '  heavy' : '';
   const model = (ev.model && (ev.model.display_name || ev.model.id)) || '';
-  process.stdout.write(`helena · ctx ${k}k${tip} · ${model}`);
+  process.stdout.write(`helena · ctx ${k}k${tip}${lim} · ${model}`);
 });

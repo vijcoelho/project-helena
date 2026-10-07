@@ -1,7 +1,8 @@
-"""Distills a Claude Code session: what is worth remembering goes to Obsidian, what looks like a skill goes to the Inbox.
+"""Distills a Claude Code (or Codex) session: what is worth remembering goes to Obsidian, what looks like a skill goes to the Inbox.
 
     python helena/distill.py <transcript.jsonl> [vault]
     python helena/distill.py --backfill [n]      # your last n project sessions (default 10), for /helena:setup
+    echo {"memories": [...]} | python helena/distill.py --remember <source>   # helena-mcp writes a note
 
 Runs by itself in the background, on Haiku: every 6 prompts (router.js checkpoint) and at SessionEnd.
 Each run only reads the turns after the last one (offset per transcript in ~/.helena/distilled.json).
@@ -65,7 +66,14 @@ def turns(transcript):
         except ValueError:
             continue
         c = (d.get('message') or {}).get('content')
-        if d.get('type') == 'user' and isinstance(c, str) and not c.startswith('<'):
+        p = d.get('payload') or {}
+        if d.get('type') == 'response_item' and p.get('type') == 'message':  # Codex rollout (~/.codex/sessions)
+            text = ' '.join(b.get('text', '') for b in p.get('content') or []).strip()
+            if p.get('role') == 'user' and text and not text.startswith(('<', '# AGENTS.md')):
+                parts.append('USER: ' + text)
+            elif p.get('role') == 'assistant' and text:
+                parts.append('AI: ' + text[:1500])
+        elif d.get('type') == 'user' and isinstance(c, str) and not c.startswith('<'):
             parts.append('USER: ' + c.strip())
         elif d.get('type') == 'assistant' and isinstance(c, list):
             text = ' '.join(b.get('text', '') for b in c if b.get('type') == 'text').strip()
@@ -78,7 +86,7 @@ def used_skills(transcript):
     """Library skills the assistant opened this session (its own tool calls, not paths the hooks merely listed)."""
     names = set()
     for line in open(transcript, encoding='utf-8', errors='ignore'):
-        if '"assistant"' in line and 'library' in line:
+        if ('"assistant"' in line or 'tool_call"' in line) and 'library' in line:
             names |= {n for n in USED.findall(line) if (LIB / n / 'SKILL.md').exists()}
     return sorted(names)
 
@@ -194,7 +202,7 @@ def project_of(transcript):
             d = json.loads(line)
         except ValueError:
             continue
-        cwd, started = cwd or d.get('cwd'), started or d.get('timestamp')
+        cwd, started = cwd or d.get('cwd') or (d.get('payload') or {}).get('cwd'), started or d.get('timestamp')
         if cwd and started:
             break
     if not cwd or not os.path.isdir(cwd) or pathlib.Path(cwd) == pathlib.Path.home():
@@ -208,6 +216,10 @@ def project_of(transcript):
 
 
 def main():
+    if sys.argv[1] == '--remember':  # helena-mcp: {"memories": [...]} on stdin, written like a distill would
+        for f in write(json.load(sys.stdin), VAULT, sys.argv[2] if len(sys.argv) > 2 else 'mcp'):
+            print(f)
+        return
     if sys.argv[1] == '--backfill':
         return backfill(int(sys.argv[2]) if len(sys.argv) > 2 else 10)
     try:

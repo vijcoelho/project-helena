@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.0.0-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.1.0-black">
 </p>
 
 ---
@@ -39,6 +39,7 @@ Prove     eval/run.py          every task runs with and without Helena; a skill 
 - [She arrives empty](#she-arrives-empty)
 - [Requirements](#requirements)
 - [Install](#install)
+- [Other AIs](#other-ais)
 - [Your first day](#your-first-day)
 - [Commands](#commands)
 - [What she does on her own](#what-she-does-on-her-own)
@@ -112,6 +113,25 @@ session; then add this to `~/.claude/settings.json`:
 ```
 
 Restart Claude Code. On the next session start you will see Helena's brief at the top.
+
+## Other AIs
+
+One memory, every model. Helena is not tied to Claude: the same vault and library work in Codex, Antigravity (Gemini),
+Qwen Code, Kimi, Grok CLI and opencode (which runs any provider: Llama, DeepSeek, Grok, Kimi, Qwen...).
+
+```bash
+python project-helena/helena/connect.py            # connects every CLI it finds
+python project-helena/helena/connect.py --remove   # undoes it
+```
+
+- **Codex** reads Claude Code plugins, so it gets the whole plugin (brief, kits, memory notes, guard) plus the MCP server.
+  Its sessions are distilled into the same vault.
+- **The others** get `helena/mcp.js`, a dependency-free MCP server with four tools: `helena_start` (session brief),
+  `helena_context` (notes and kits for a request), `helena_skill` (a library skill) and `helena_remember` (save a fact).
+  The "how to use Helena" block goes into their global instruction file (`GEMINI.md`, `QWEN.md`, opencode `AGENTS.md`).
+- **Any other MCP client** (Cursor, Claude Desktop, Windsurf, LM Studio): paste the JSON `connect.py` prints.
+
+Something you teach her in Codex shows up in Claude the next session, and the other way around.
 
 ## Your first day
 

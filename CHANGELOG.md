@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.0 (2026-10-06)
+
+- Helena in any AI: `helena/mcp.js` (MCP server, no dependencies) and `helena/connect.py`, which registers it in every
+  CLI it finds (Codex, Antigravity, Gemini, Qwen, Kimi, Grok, opencode). Codex also installs the full plugin.
+- `distill.py` reads Codex sessions (`~/.codex/sessions`), so what you teach in Codex lands in the same vault.
+- Plan limits (`hooks/limits.js`): reads Claude's limit from the status line and Codex's from its sessions. At 80% she asks
+  for HANDOFF.md and /clear; at 95% she saves HANDOFF.md and names the installed AI with room to continue in.
+  The status line shows `limit N%`.
+- Helena comes first: MCP instructions and the Codex AGENTS.md block put her before any other memory tool.
+- Site: "any AI" section with every supported AI.
+- `distill.py --remember`: writes a note from JSON on stdin (used by `helena_remember`).
+
 ## 1.0.0 (2026-10-06)
 
 - `/helena:setup`: first day with value. Points Helena at your vault and distills your last project sessions

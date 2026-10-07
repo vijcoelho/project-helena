@@ -3,6 +3,7 @@
 //  - hands over the 2 memory notes that match the request, so Claude does not spend a round trip reading them
 //  - turns a plugin back on when the request needs one Helena turned off in this project
 //  - warns by real context size: every message re-reads the whole context, the biggest cost there is
+//  - warns near the plan's usage limit and names another installed AI with room (limits.js)
 //  - hints a cheaper model for routine requests and a Haiku subagent for broad searches
 //  - every 6 prompts, distills the new turns in the background, so ideas reach Obsidian mid-session
 // ponytail: word overlap for notes and kits; swap for embeddings if it starts missing obvious matches.
@@ -109,6 +110,13 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
     out.push(`Helena: this session's context is ${Math.round(ctx / 1000)}k tokens and every message re-reads all of it. ` +
       (mark >= 250e3 ? 'Before answering anything else, write HANDOFF.md (Done / Next / How to run / Decisions) and ' : 'When this request is done, ') +
       'tell the user in one line to start fresh with /clear: HANDOFF.md and memory carry over, the cost resets.');
+
+  // ---- plan limit: save the work and point at an AI with room before this one runs out (once per level per session)
+  try {
+    const me = !ev.transcript_path ? '' : /[\\/]\.codex[\\/]/.test(ev.transcript_path) ? 'codex' : 'claude';
+    const w = me && require('./limits').warn(me);
+    if (w && once(session, 'limit-' + w.level)) out.push(w.text);
+  } catch {}
 
   // ---- cheaper paths for cheap work
   if (/opus/i.test(model) && prompt.length < 120 &&

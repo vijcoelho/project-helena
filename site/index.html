@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Helena</title>
-<meta name="description" content="Uma camada em cima do Claude Code que aprende o seu jeito de trabalhar e só guarda o que o benchmark prova que ajuda. / A layer on top of Claude Code that learns how you work and only keeps what the benchmark proves helps.">
+<meta name="description" content="Uma camada em cima do Claude Code, do Codex, do Gemini e de qualquer IA que aprende o seu jeito de trabalhar e só guarda o que o benchmark prova que ajuda. / A layer on top of Claude Code, Codex, Gemini and any AI that learns how you work and only keeps what the benchmark proves helps.">
 <link rel="icon" type="image/png" href="favicon.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js" defer></script>
@@ -104,6 +104,25 @@
   .correcoes small { color: var(--dim); font-size: 13px; }
   .correcoes small::before { content: '→ '; }
 
+  /* qualquer ia */
+  .ias { list-style: none; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin: 48px 0; }
+  .ias li { position: relative; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 26px 18px 22px; display: flex; flex-direction: column; gap: 6px; transition: background .25s; }
+  .ias svg { width: 36px; height: 36px; margin-bottom: 14px; color: var(--fg); transition: color .25s, transform .25s; }
+  .ias li:hover { background: #0b0b0b; }
+  .ias li:hover svg { color: var(--marca); transform: translateY(-3px); }
+  .ias strong { font-size: 15px; font-weight: 800; }
+  .ias span { color: var(--dim); font-size: 12px; }
+  .ias em { position: absolute; top: 12px; right: 12px; font-style: normal; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg); border: 1px solid #6b6b6b; padding: 1px 6px; }
+  .limites { border: 1px solid var(--line); padding: 22px; font-size: 14px; }
+  .limites p { display: grid; grid-template-columns: 70px 1fr 44px; gap: 12px; padding: 4px 0; }
+  .limites .c, .limites .aviso { display: block; color: var(--dim); }
+  .limites .c { margin-bottom: 10px; }
+  .limites .aviso { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+  .limites .aviso b { color: var(--fg); font-weight: 500; }
+  .limites .b { align-self: center; height: 8px; border: 1px solid #6b6b6b; }
+  .limites .b i { display: block; height: 100%; background: var(--fg); }
+  #ias .duas > * { min-width: 0; }
+
   /* como funciona */
   .passos { list-style: none; border-top: 1px solid var(--line); }
   .passos li { display: grid; grid-template-columns: 70px minmax(110px, 200px) 1fr minmax(0, 260px); gap: 24px; padding: 28px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
@@ -161,7 +180,7 @@
   @media (max-width: 860px) {
     .hero { grid-template-columns: 1fr; }
     .moldura { order: -1; margin-top: 24px; }
-    .numeros, .fases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .numeros, .fases, .ias { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .duas, .cartoes { grid-template-columns: 1fr; }
     .contexto .linha { grid-template-columns: 1fr; gap: 6px; }
     .passos li { grid-template-columns: 44px 1fr; gap: 6px 16px; }
@@ -169,6 +188,7 @@
     nav ul li.l { display: none; }
     .placar .dec { display: none; }
   }
+  @media (min-width: 861px) and (max-width: 1200px) { .ias { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   @media (prefers-reduced-motion: reduce) {
     .surge { opacity: 1; transform: none; transition: none; }
     .hero h1 .cursor { animation: none; }
@@ -183,6 +203,7 @@
   <a href="#topo" class="marca">HELENA_</a>
   <ul>
     <li class="l"><a href="#sua"><span class="pt">a sua</span><span class="en">yours</span></a></li>
+    <li class="l"><a href="#ias"><span class="pt">qualquer ia</span><span class="en">any ai</span></a></li>
     <li class="l"><a href="#porque"><span class="pt">por quê</span><span class="en">why</span></a></li>
     <li class="l"><a href="#sozinha"><span class="pt">sozinha</span><span class="en">on her own</span></a></li>
     <li class="l"><a href="#economia"><span class="pt">economia</span><span class="en">savings</span></a></li>
@@ -198,11 +219,11 @@
 <main>
   <section class="hero" id="topo">
     <div>
-      <p class="rotulo">project helena · v1.0 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
+      <p class="rotulo">project helena · v1.1 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
       <h1><span id="digita">Helena</span><span class="cursor"></span></h1>
       <p class="sub">
-        <span class="pt">Uma camada em cima do Claude Code que <b>chega zerada e aprende o seu jeito de trabalhar</b>, carrega skill só quando precisa e só guarda o que o benchmark prova que ajuda.</span>
-        <span class="en">A layer on top of Claude Code that <b>starts blank and learns how you work</b>, loads skills only when they are needed and only keeps what the benchmark proves helps.</span>
+        <span class="pt">Uma camada em cima do Claude Code, do Codex, do Gemini e de qualquer IA que <b>chega zerada e aprende o seu jeito de trabalhar</b>, carrega skill só quando precisa e só guarda o que o benchmark prova que ajuda.</span>
+        <span class="en">A layer on top of Claude Code, Codex, Gemini and any AI that <b>starts blank and learns how you work</b>, loads skills only when they are needed and only keeps what the benchmark proves helps.</span>
       </p>
       <div class="acoes">
         <a href="#instalar" class="btn cheio"><span class="pt">Instalar</span><span class="en">Install</span></a>
@@ -278,6 +299,44 @@
       <span class="pt">Isso é o que a <b>minha</b> Helena aprendeu comigo. A sua começa do zero e vai aprender outras coisas: as suas.</span>
       <span class="en">That is what <b>my</b> Helena learned from me. Yours starts from zero and will learn other things: yours.</span>
     </p>
+  </section>
+
+  <section id="ias">
+    <p class="rotulo"><span class="pt">qualquer ia</span><span class="en">any ai</span></p>
+    <h2 class="surge"><span class="pt">Uma memória. Todas as IAs.</span><span class="en">One memory. Every AI.</span></h2>
+    <p class="texto surge">
+      <span class="pt">Ensinou no Claude, o Codex já sabe. Corrigiu no Antigravity, o Claude lembra na próxima sessão. É o mesmo cofre do Obsidian e a mesma biblioteca de skills, servidos por um <b>servidor MCP sem dependências</b>. Um comando conecta todas as IAs que você tem instaladas.</span>
+      <span class="en">Teach it in Claude and Codex already knows. Correct it in Antigravity and Claude remembers next session. Same Obsidian vault, same skill library, served by a <b>dependency-free MCP server</b>. One command connects every AI you have installed.</span>
+    </p>
+    <ul class="ias">
+      <li class="surge" style="--marca:#d97757"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"></path></svg><strong>Claude Code</strong><span><span class="pt">plugin completo</span><span class="en">full plugin</span></span><em><span class="pt">testado</span><span class="en">tested</span></em></li>
+      <li class="surge" style="--marca:#f2f2f2"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path clip-rule="evenodd" d="M8.086.457a6.105 6.105 0 013.046-.415c1.333.153 2.521.72 3.564 1.7a.117.117 0 00.107.029c1.408-.346 2.762-.224 4.061.366l.063.03.154.076c1.357.703 2.33 1.77 2.918 3.198.278.679.418 1.388.421 2.126a5.655 5.655 0 01-.18 1.631.167.167 0 00.04.155 5.982 5.982 0 011.578 2.891c.385 1.901-.01 3.615-1.183 5.14l-.182.22a6.063 6.063 0 01-2.934 1.851.162.162 0 00-.108.102c-.255.736-.511 1.364-.987 1.992-1.199 1.582-2.962 2.462-4.948 2.451-1.583-.008-2.986-.587-4.21-1.736a.145.145 0 00-.14-.032c-.518.167-1.04.191-1.604.185a5.924 5.924 0 01-2.595-.622 6.058 6.058 0 01-2.146-1.781c-.203-.269-.404-.522-.551-.821a7.74 7.74 0 01-.495-1.283 6.11 6.11 0 01-.017-3.064.166.166 0 00.008-.074.115.115 0 00-.037-.064 5.958 5.958 0 01-1.38-2.202 5.196 5.196 0 01-.333-1.589 6.915 6.915 0 01.188-2.132c.45-1.484 1.309-2.648 2.577-3.493.282-.188.55-.334.802-.438.286-.12.573-.22.861-.304a.129.129 0 00.087-.087A6.016 6.016 0 015.635 2.31C6.315 1.464 7.132.846 8.086.457zm-.804 7.85a.848.848 0 00-1.473.842l1.694 2.965-1.688 2.848a.849.849 0 001.46.864l1.94-3.272a.849.849 0 00.007-.854l-1.94-3.393zm5.446 6.24a.849.849 0 000 1.695h4.848a.849.849 0 000-1.696h-4.848z"></path></svg><strong>Codex</strong><span><span class="pt">plugin + MCP</span><span class="en">plugin + MCP</span></span><em><span class="pt">testado</span><span class="en">tested</span></em></li>
+      <li class="surge" style="--marca:#5b9bff"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z"></path></svg><strong>Antigravity</strong><span><span class="pt">MCP</span><span class="en">MCP</span></span><em><span class="pt">testado</span><span class="en">tested</span></em></li>
+      <li class="surge" style="--marca:#8ab4ff"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M20.616 10.835a14.147 14.147 0 01-4.45-3.001 14.111 14.111 0 01-3.678-6.452.503.503 0 00-.975 0 14.134 14.134 0 01-3.679 6.452 14.155 14.155 0 01-4.45 3.001c-.65.28-1.318.505-2.002.678a.502.502 0 000 .975c.684.172 1.35.397 2.002.677a14.147 14.147 0 014.45 3.001 14.112 14.112 0 013.679 6.453.502.502 0 00.975 0c.172-.685.397-1.351.677-2.003a14.145 14.145 0 013.001-4.45 14.113 14.113 0 016.453-3.678.503.503 0 000-.975 13.245 13.245 0 01-2.003-.678z"></path></svg><strong>Gemini</strong><span><span class="pt">pelo Antigravity</span><span class="en">via Antigravity</span></span><em><span class="pt">testado</span><span class="en">tested</span></em></li>
+      <li class="surge" style="--marca:#f2f2f2"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M16 6H8v12h8V6zm4 16H4V2h16v20z"></path></svg><strong>opencode</strong><span><span class="pt">MCP · qualquer modelo</span><span class="en">MCP · any model</span></span><em><span class="pt">testado</span><span class="en">tested</span></em></li>
+      <li class="surge" style="--marca:#8c88ff"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12.604 1.34c.393.69.784 1.382 1.174 2.075a.18.18 0 00.157.091h5.552c.174 0 .322.11.446.327l1.454 2.57c.19.337.24.478.024.837-.26.43-.513.864-.76 1.3l-.367.658c-.106.196-.223.28-.04.512l2.652 4.637c.172.301.111.494-.043.77-.437.785-.882 1.564-1.335 2.34-.159.272-.352.375-.68.37-.777-.016-1.552-.01-2.327.016a.099.099 0 00-.081.05 575.097 575.097 0 01-2.705 4.74c-.169.293-.38.363-.725.364-.997.003-2.002.004-3.017.002a.537.537 0 01-.465-.271l-1.335-2.323a.09.09 0 00-.083-.049H4.982c-.285.03-.553-.001-.805-.092l-1.603-2.77a.543.543 0 01-.002-.54l1.207-2.12a.198.198 0 000-.197 550.951 550.951 0 01-1.875-3.272l-.79-1.395c-.16-.31-.173-.496.095-.965.465-.813.927-1.625 1.387-2.436.132-.234.304-.334.584-.335a338.3 338.3 0 012.589-.001.124.124 0 00.107-.063l2.806-4.895a.488.488 0 01.422-.246c.524-.001 1.053 0 1.583-.006L11.704 1c.341-.003.724.032.9.34zm-3.432.403a.06.06 0 00-.052.03L6.254 6.788a.157.157 0 01-.135.078H3.253c-.056 0-.07.025-.041.074l5.81 10.156c.025.042.013.062-.034.063l-2.795.015a.218.218 0 00-.2.116l-1.32 2.31c-.044.078-.021.118.068.118l5.716.008c.046 0 .08.02.104.061l1.403 2.454c.046.081.092.082.139 0l5.006-8.76.783-1.382a.055.055 0 01.096 0l1.424 2.53a.122.122 0 00.107.062l2.763-.02a.04.04 0 00.035-.02.041.041 0 000-.04l-2.9-5.086a.108.108 0 010-.113l.293-.507 1.12-1.977c.024-.041.012-.062-.035-.062H9.2c-.059 0-.073-.026-.043-.077l1.434-2.505a.107.107 0 000-.114L9.225 1.774a.06.06 0 00-.053-.031zm6.29 8.02c.046 0 .058.02.034.06l-.832 1.465-2.613 4.585a.056.056 0 01-.05.029.058.058 0 01-.05-.029L8.498 9.841c-.02-.034-.01-.052.028-.054l.216-.012 6.722-.012z"></path></svg><strong>Qwen</strong><span><span class="pt">Qwen Code · MCP</span><span class="en">Qwen Code · MCP</span></span></li>
+      <li class="surge" style="--marca:#5aa9ff"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21.846 0a1.923 1.923 0 110 3.846H20.15a.226.226 0 01-.227-.226V1.923C19.923.861 20.784 0 21.846 0z"></path><path d="M11.065 11.199l7.257-7.2c.137-.136.06-.41-.116-.41H14.3a.164.164 0 00-.117.051l-7.82 7.756c-.122.12-.302.013-.302-.179V3.82c0-.127-.083-.23-.185-.23H3.186c-.103 0-.186.103-.186.23V19.77c0 .128.083.23.186.23h2.69c.103 0 .186-.102.186-.23v-3.25c0-.069.025-.135.069-.178l2.424-2.406a.158.158 0 01.205-.023l6.484 4.772a7.677 7.677 0 003.453 1.283c.108.012.2-.095.2-.23v-3.06c0-.117-.07-.212-.164-.227a5.028 5.028 0 01-2.027-.807l-5.613-4.064c-.117-.078-.132-.279-.028-.381z"></path></svg><strong>Kimi</strong><span><span class="pt">Kimi CLI · MCP</span><span class="en">Kimi CLI · MCP</span></span></li>
+      <li class="surge" style="--marca:#f2f2f2"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"></path></svg><strong>Grok</strong><span><span class="pt">Grok CLI · MCP</span><span class="en">Grok CLI · MCP</span></span></li>
+      <li class="surge" style="--marca:#4d8dff"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6.897 4c1.915 0 3.516.932 5.43 3.376l.282-.373c.19-.246.383-.484.58-.71l.313-.35C14.588 4.788 15.792 4 17.225 4c1.273 0 2.469.557 3.491 1.516l.218.213c1.73 1.765 2.917 4.71 3.053 8.026l.011.392.002.25c0 1.501-.28 2.759-.818 3.7l-.14.23-.108.153c-.301.42-.664.758-1.086 1.009l-.265.142-.087.04a3.493 3.493 0 01-.302.118 4.117 4.117 0 01-1.33.208c-.524 0-.996-.067-1.438-.215-.614-.204-1.163-.56-1.726-1.116l-.227-.235c-.753-.812-1.534-1.976-2.493-3.586l-1.43-2.41-.544-.895-1.766 3.13-.343.592C7.597 19.156 6.227 20 4.356 20c-1.21 0-2.205-.42-2.936-1.182l-.168-.184c-.484-.573-.837-1.311-1.043-2.189l-.067-.32a8.69 8.69 0 01-.136-1.288L0 14.468c.002-.745.06-1.49.174-2.23l.1-.573c.298-1.53.828-2.958 1.536-4.157l.209-.34c1.177-1.83 2.789-3.053 4.615-3.16L6.897 4zm-.033 2.615l-.201.01c-.83.083-1.606.673-2.252 1.577l-.138.199-.01.018c-.67 1.017-1.185 2.378-1.456 3.845l-.004.022a12.591 12.591 0 00-.207 2.254l.002.188c.004.18.017.36.04.54l.043.291c.092.503.257.908.486 1.208l.117.137c.303.323.698.492 1.17.492 1.1 0 1.796-.676 3.696-3.641l2.175-3.4.454-.701-.139-.198C9.11 7.3 8.084 6.616 6.864 6.616zm10.196-.552l-.176.007c-.635.048-1.223.359-1.82.933l-.196.198c-.439.462-.887 1.064-1.367 1.807l.266.398c.18.274.362.56.55.858l.293.475 1.396 2.335.695 1.114c.583.926 1.03 1.6 1.408 2.082l.213.262c.282.326.529.54.777.673l.102.05c.227.1.457.138.718.138.176.002.35-.023.518-.073.338-.104.61-.32.813-.637l.095-.163.077-.162c.194-.459.29-1.06.29-1.785l-.006-.449c-.08-2.871-.938-5.372-2.2-6.798l-.176-.189c-.67-.683-1.444-1.074-2.27-1.074z"></path></svg><strong>Llama</strong><span><span class="pt">pelo opencode</span><span class="en">via opencode</span></span></li>
+      <li class="surge" style="--marca:#7c93ff"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M23.748 4.482c-.254-.124-.364.113-.512.234-.051.039-.094.09-.137.136-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.156-.708-.311-.955-.65-.172-.241-.219-.51-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.093.172.187.129.323-.082.28-.18.552-.266.833-.055.179-.137.217-.329.14a5.526 5.526 0 01-1.736-1.18c-.857-.828-1.631-1.742-2.597-2.458a11.365 11.365 0 00-.689-.471c-.985-.957.13-1.743.388-1.836.27-.098.093-.432-.779-.428-.872.004-1.67.295-2.687.684a3.055 3.055 0 01-.465.137 9.597 9.597 0 00-2.883-.102c-1.885.21-3.39 1.102-4.497 2.623C.082 8.606-.231 10.684.152 12.85c.403 2.284 1.569 4.175 3.36 5.653 1.858 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.133-.284 4.994-1.86.47.234.962.327 1.78.397.63.059 1.236-.03 1.705-.128.735-.156.684-.837.419-.961-2.155-1.004-1.682-.595-2.113-.926 1.096-1.296 2.746-2.642 3.392-7.003.05-.347.007-.565 0-.845-.004-.17.035-.237.23-.256a4.173 4.173 0 001.545-.475c1.396-.763 1.96-2.015 2.093-3.517.02-.23-.004-.467-.247-.588zM11.581 18c-2.089-1.642-3.102-2.183-3.52-2.16-.392.024-.321.471-.235.763.09.288.207.486.371.739.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.167-1.361-.802-2.5-1.86-3.301-3.307-.774-1.393-1.224-2.887-1.298-4.482-.02-.386.093-.522.477-.592a4.696 4.696 0 011.529-.039c2.132.312 3.946 1.265 5.468 2.774.868.86 1.525 1.887 2.202 2.891.72 1.066 1.494 2.082 2.48 2.914.348.292.625.514.891.677-.802.09-2.14.11-3.054-.614zm1-6.44a.306.306 0 01.415-.287.302.302 0 01.2.288.306.306 0 01-.31.307.303.303 0 01-.304-.308zm3.11 1.596c-.2.081-.399.151-.59.16a1.245 1.245 0 01-.798-.254c-.274-.23-.47-.358-.552-.758a1.73 1.73 0 01.016-.588c.07-.327-.008-.537-.239-.727-.187-.156-.426-.199-.688-.199a.559.559 0 01-.254-.078c-.11-.054-.2-.19-.114-.358.028-.054.16-.186.192-.21.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.391.451.462.576.685.914.176.265.336.537.445.848.067.195-.019.354-.25.452z"></path></svg><strong>DeepSeek</strong><span><span class="pt">pelo opencode</span><span class="en">via opencode</span></span></li>
+      <li class="surge" style="--marca:#f2f2f2"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z"></path></svg><strong>Cursor</strong><span><span class="pt">MCP</span><span class="en">MCP</span></span></li>
+      <li class="surge" style="--marca:#f2f2f2"><svg aria-hidden="true" fill="currentColor" fill-rule="evenodd" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z"></path></svg><strong>ChatGPT</strong><span><span class="pt">limite lido pelo Codex</span><span class="en">limit read via Codex</span></span></li>
+    </ul>
+    <div class="duas">
+      <div class="terminal surge">
+        <div class="topo"><span>bash</span><span><span class="pt">conecta todas</span><span class="en">connect them all</span></span></div>
+<pre>python project-helena/helena/connect.py
+
+<span class="c"># <span class="pt">desfazer</span><span class="en">undo</span></span>
+python project-helena/helena/connect.py --remove</pre>
+      </div>
+      <div class="limites surge">
+        <p class="c"><span class="pt"># acabou o limite? continua em outra</span><span class="en"># out of limit? keep going in another</span></p>
+        <p><span class="n">Claude</span><span class="b"><i style="width:92%"></i></span><span>92%</span></p>
+        <p><span class="n">Codex</span><span class="b"><i style="width:3%"></i></span><span>3%</span></p>
+        <p class="aviso"><span class="pt">Helena: o Claude usou 92% do plano. HANDOFF.md salvo, continua no <b>codex</b> com a mesma memória.</span><span class="en">Helena: Claude has used 92% of its plan. HANDOFF.md saved, continue in <b>codex</b> with the same memory.</span></p>
+      </div>
+    </div>
   </section>
 
   <section id="como">
@@ -375,7 +434,10 @@ cd project-helena/helena/tools &amp;&amp; npm install &amp;&amp; cd ../../..
 
 <span class="c"># <span class="pt">plugin do Claude Code</span><span class="en">Claude Code plugin</span></span>
 claude plugin marketplace add ./project-helena
-claude plugin install helena@helena</pre>
+claude plugin install helena@helena
+
+<span class="c"># <span class="pt">Codex, Antigravity, opencode, Qwen, Kimi, Grok (opcional)</span><span class="en">Codex, Antigravity, opencode, Qwen, Kimi, Grok (optional)</span></span>
+python project-helena/helena/connect.py</pre>
     </div>
     <p class="nota surge">
       <span class="pt">Depois, dentro do Claude Code, rode <b>/helena:setup</b>: ela lê as suas últimas sessões e já começa sabendo como você trabalha.</span>
