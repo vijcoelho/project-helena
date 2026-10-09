@@ -28,7 +28,7 @@ with tempfile.TemporaryDirectory() as vault:
                        env=dict(os.environ, HELENA_VAULT=vault, HELENA_EVAL='1'))
     out = {d['id']: d for d in map(json.loads, r.stdout.splitlines())}
     assert out[1]['result']['serverInfo']['name'] == 'helena', out[1]
-    assert {t['name'] for t in out[2]['result']['tools']} == {'helena_start', 'helena_context', 'helena_skill', 'helena_remember'}
+    assert {t['name'] for t in out[2]['result']['tools']} == {'helena_start', 'helena_context', 'helena_skill', 'helena_remember', 'helena_limits', 'helena_rewind'}
     assert 'Saved' in out[3]['result']['content'][0]['text'], out[3]
     note = (pathlib.Path(vault) / 'Memory' / 'deploy-coolify.md').read_text(encoding='utf-8')
     assert KEY not in note and '***' in note, note

@@ -36,6 +36,7 @@
   body { background: var(--bg); color: var(--fg); font-family: var(--mono); font-size: 15px; line-height: 1.6; overflow-x: hidden; }
   ::selection { background: var(--fg); color: var(--bg); }
   a { color: inherit; }
+  main { overflow-x: clip; }
 
   #campo { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
   main, nav, footer, .idioma { position: relative; z-index: 1; }
@@ -78,8 +79,9 @@
   .btn.cheio { background: var(--fg); color: var(--bg); }
   .btn:hover { background: var(--fg); color: var(--bg); }
   .btn.cheio:hover { background: transparent; color: var(--fg); }
-  #helena { color: var(--fg); white-space: pre; line-height: 1; letter-spacing: 0; user-select: none; cursor: crosshair; }
-  .moldura figcaption { color: var(--dim); font-size: 12px; margin-top: 14px; display: flex; justify-content: space-between; }
+  #helena { color: #bfbfbf; font-weight: 800; -webkit-text-stroke: .4px #bfbfbf; white-space: pre; line-height: 1; letter-spacing: 0; user-select: none; cursor: crosshair; }
+  .moldura figcaption { color: var(--dim); font-size: 12px; margin-top: 14px; display: flex; justify-content: space-between; gap: 16px; }
+  #legenda { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
   /* a sua */
   .fases { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); margin: 48px 0; }
@@ -175,7 +177,7 @@
   .surge { opacity: 0; transform: translateY(24px); transition: opacity .8s ease, transform .8s ease; }
   .surge.visto { opacity: 1; transform: none; }
   .gsap .surge { transition: none; }
-  #temas .b, #linhas .b { display: inline-block; }
+  #temas .b, #linhas .b, #registro-linhas .b { display: inline-block; }
 
   @media (max-width: 860px) {
     .hero { grid-template-columns: 1fr; }
@@ -187,6 +189,7 @@
     .passos p, .passos code { grid-column: 2; }
     nav ul li.l { display: none; }
     .placar .dec { display: none; }
+    .placar td, .placar th { overflow-wrap: anywhere; }
   }
   @media (min-width: 861px) and (max-width: 1200px) { .ias { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   @media (prefers-reduced-motion: reduce) {
@@ -202,12 +205,15 @@
 <nav id="nav">
   <a href="#topo" class="marca">HELENA_</a>
   <ul>
+    <li class="l"><a href="#vale"><span class="pt">por que ela</span><span class="en">why her</span></a></li>
     <li class="l"><a href="#sua"><span class="pt">a sua</span><span class="en">yours</span></a></li>
     <li class="l"><a href="#ias"><span class="pt">qualquer ia</span><span class="en">any ai</span></a></li>
-    <li class="l"><a href="#porque"><span class="pt">por quê</span><span class="en">why</span></a></li>
+    <li class="l"><a href="#confere"><span class="pt">confere</span><span class="en">checks</span></a></li>
+    <li class="l"><a href="#porque"><span class="pt">história</span><span class="en">story</span></a></li>
     <li class="l"><a href="#sozinha"><span class="pt">sozinha</span><span class="en">on her own</span></a></li>
     <li class="l"><a href="#economia"><span class="pt">economia</span><span class="en">savings</span></a></li>
     <li class="l"><a href="#placar"><span class="pt">placar</span><span class="en">scoreboard</span></a></li>
+    <li class="l"><a href="#registro"><span class="pt">registro</span><span class="en">registry</span></a></li>
     <li class="l"><a href="#empresas"><span class="pt">empresas</span><span class="en">teams</span></a></li>
     <li><a href="#instalar"><span class="pt">instalar</span><span class="en">install</span></a></li>
     <li><a href="https://github.com/vijcoelho/project-helena" target="_blank" rel="noopener">github ↗</a></li>
@@ -219,11 +225,11 @@
 <main>
   <section class="hero" id="topo">
     <div>
-      <p class="rotulo">project helena · v1.1 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
+      <p class="rotulo">project helena · v1.2 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
       <h1><span id="digita">Helena</span><span class="cursor"></span></h1>
       <p class="sub">
-        <span class="pt">Uma camada em cima do Claude Code, do Codex, do Gemini e de qualquer IA que <b>chega zerada e aprende o seu jeito de trabalhar</b>, carrega skill só quando precisa e só guarda o que o benchmark prova que ajuda.</span>
-        <span class="en">A layer on top of Claude Code, Codex, Gemini and any AI that <b>starts blank and learns how you work</b>, loads skills only when they are needed and only keeps what the benchmark proves helps.</span>
+        <span class="pt">A camada que <b>confere</b>, em cima do Claude Code, do Codex e de qualquer IA. Memória que se confere contra o código, troca de IA sem perder nada, <b>nada de "pronto" com teste falhando</b>, e um benchmark que prova o que fica.</span>
+        <span class="en">The layer that <b>checks</b>, on top of Claude Code, Codex and any AI. Memory that checks itself against the code, a switch to another AI that loses nothing, <b>no "done" with failing tests</b>, and a benchmark that proves what stays.</span>
       </p>
       <div class="acoes">
         <a href="#instalar" class="btn cheio"><span class="pt">Instalar</span><span class="en">Install</span></a>
@@ -232,8 +238,40 @@
     </div>
     <figure class="moldura">
       <pre id="helena" aria-label="Helena, ASCII"></pre>
-      <figcaption><span>helena.txt · 170x85</span><span><span class="pt">passe o mouse</span><span class="en">hover me</span></span></figcaption>
+      <figcaption><span id="legenda" aria-live="off">helena.txt</span><span><span class="pt">passe o mouse</span><span class="en">hover me</span></span></figcaption>
     </figure>
+  </section>
+
+  <section id="vale">
+    <p class="rotulo"><span class="pt">por que a helena · em uma tela</span><span class="en">why helena · on one screen</span></p>
+    <h2 class="surge"><span class="pt">Sem ela, a IA esquece, gasta e diz "pronto".</span><span class="en">Without her, the AI forgets, overspends and says "done".</span></h2>
+    <p class="texto surge">
+      <span class="pt">A Helena não é mais um prompt nem mais um servidor pra manter. São hooks que rodam sempre, uma memória em arquivos seus e um benchmark que mede tudo. <b>Ela não pede que a IA se comporte: ela confere.</b></span>
+      <span class="en">Helena is not another prompt or another server to babysit. It is hooks that always run, a memory in your own files and a benchmark that measures everything. <b>She does not ask the AI to behave: she checks.</b></span>
+    </p>
+    <div class="numeros surge">
+      <div><strong>7/7</strong><span><span class="pt">tarefas no benchmark com a Helena, contra 2/7 sem (Sonnet)</span><span class="en">benchmark tasks with Helena, against 2/7 without (Sonnet)</span></span></div>
+      <div><strong>12</strong><span><span class="pt">IAs com a mesma memória, pelo MCP</span><span class="en">AIs sharing one memory, over MCP</span></span></div>
+      <div><strong>−30%</strong><span><span class="pt">de contexto fixo em toda mensagem</span><span class="en">fixed context on every message</span></span></div>
+      <div><strong>0</strong><span><span class="pt">banco, Docker, API key ou servidor ligado. Arquivos, git e hooks</span><span class="en">databases, Docker, API keys or servers. Files, git and hooks</span></span></div>
+    </div>
+    <table class="placar surge">
+      <thead><tr>
+        <th></th>
+        <th><span class="pt">sem a Helena</span><span class="en">without Helena</span></th>
+        <th><span class="pt">com a Helena</span><span class="en">with Helena</span></th>
+      </tr></thead>
+      <tbody>
+        <tr><td><span class="pt">memória</span><span class="en">memory</span></td><td class="base"><span class="pt">esquece a cada sessão</span><span class="en">forgets every session</span></td><td><span class="pt">notas no seu Obsidian, conferidas contra o código</span><span class="en">notes in your Obsidian, checked against the code</span></td></tr>
+        <tr><td><span class="pt">trocar de IA</span><span class="en">switching AI</span></td><td class="base"><span class="pt">explicar tudo de novo</span><span class="en">explain it all again</span></td><td><span class="pt">HANDOFF.md conferido com o repo, mesma memória</span><span class="en">HANDOFF.md checked against the repo, same memory</span></td></tr>
+        <tr><td><span class="pt">"pronto"</span><span class="en">"done"</span></td><td class="base"><span class="pt">com teste falhando</span><span class="en">with failing tests</span></td><td><span class="pt">os testes rodam antes de terminar</span><span class="en">tests run before the turn ends</span></td></tr>
+        <tr><td><span class="pt">segredos</span><span class="en">secrets</span></td><td class="base"><span class="pt">o .env inteiro no contexto</span><span class="en">the whole .env in context</span></td><td><span class="pt">só os nomes das chaves; nada sobe pro git</span><span class="en">key names only; nothing reaches git</span></td></tr>
+        <tr><td><span class="pt">pacotes</span><span class="en">packages</span></td><td class="base"><span class="pt">nome inventado instala</span><span class="en">a made-up name installs</span></td><td><span class="pt">barrado no npm e no PyPI</span><span class="en">blocked against npm and PyPI</span></td></tr>
+        <tr><td><span class="pt">contexto</span><span class="en">context</span></td><td class="base"><span class="pt">toda skill em toda mensagem</span><span class="en">every skill on every message</span></td><td><span class="pt">a skill entra quando o pedido precisa, uma vez</span><span class="en">a skill comes in when a request needs it, once</span></td></tr>
+        <tr><td><span class="pt">limite do plano</span><span class="en">plan limit</span></td><td class="base"><span class="pt">descobre quando acabou</span><span class="en">you find out when it is gone</span></td><td><span class="pt">avisa no ritmo da semana e aponta a IA com folga</span><span class="en">warns at the weekly pace and points to an AI with room</span></td></tr>
+        <tr><td><span class="pt">deu errado</span><span class="en">went wrong</span></td><td class="base"><span class="pt">desfazer na mão</span><span class="en">undo by hand</span></td><td>/helena:rewind</td></tr>
+      </tbody>
+    </table>
   </section>
 
   <section id="sua">
@@ -258,7 +296,11 @@
 /helena:budget          <span class="c"># <span class="pt">quanto ela gasta e quanto economiza</span><span class="en">what she costs and what she saves</span></span>
 /helena:skills          <span class="c"># <span class="pt">as skills que ela criou sozinha</span><span class="en">the skills she created on her own</span></span>
 /helena:undo     <span class="c">&lt;skill&gt;  # <span class="pt">apaga uma skill que ela criou</span><span class="en">delete a skill she created</span></span>
-/helena:routines        <span class="c"># <span class="pt">tarefas que ela roda sozinha, com teto de gasto</span><span class="en">tasks she runs on her own, with a spending cap</span></span></pre>
+/helena:routines        <span class="c"># <span class="pt">tarefas que ela roda sozinha, com teto de gasto</span><span class="en">tasks she runs on her own, with a spending cap</span></span>
+/helena:rewind   <span class="c">[n]      # <span class="pt">desfaz o que a IA fez no último pedido</span><span class="en">undo what the AI did on the last request</span></span>
+/helena:limits          <span class="c"># <span class="pt">o plano de cada IA e se a semana dura</span><span class="en">every AI's plan and whether the week lasts</span></span>
+/helena:audit           <span class="c"># <span class="pt">o que os hooks barraram</span><span class="en">what the hooks stopped</span></span>
+/helena:share    <span class="c">&lt;<span class="pt">nota</span><span class="en">note</span>&gt;   # <span class="pt">passa uma nota sua pro time</span><span class="en">hand one of your notes to the team</span></span></pre>
     </div>
     <p class="nota surge">
       <span class="pt">Tudo que ela aprende fica nas suas pastas (o seu cofre do Obsidian e ~/.helena), nunca dentro do plugin. Atualizar não apaga nada.</span>
@@ -332,10 +374,46 @@ python project-helena/helena/connect.py --remove</pre>
       </div>
       <div class="limites surge">
         <p class="c"><span class="pt"># acabou o limite? continua em outra</span><span class="en"># out of limit? keep going in another</span></p>
-        <p><span class="n">Claude</span><span class="b"><i style="width:92%"></i></span><span>92%</span></p>
+        <p><span class="n">Claude</span><span class="b"><i style="width:96%"></i></span><span>96%</span></p>
         <p><span class="n">Codex</span><span class="b"><i style="width:3%"></i></span><span>3%</span></p>
-        <p class="aviso"><span class="pt">Helena: o Claude usou 92% do plano. HANDOFF.md salvo, continua no <b>codex</b> com a mesma memória.</span><span class="en">Helena: Claude has used 92% of its plan. HANDOFF.md saved, continue in <b>codex</b> with the same memory.</span></p>
+        <p class="aviso"><span class="pt">Helena: o Claude usou 96% do plano. HANDOFF.md salvo. Cola isto aqui: <b>codex "Read HANDOFF.md and continue from Next"</b></span><span class="en">Helena: Claude has used 96% of its plan. HANDOFF.md saved. Paste this here: <b>codex "Read HANDOFF.md and continue from Next"</b></span></p>
+        <p class="aviso"><span class="pt">No Codex: HANDOFF.md conferido com o repo. Mudou depois dele: src/cart.js. A IA repete o próximo passo numa linha antes de começar.</span><span class="en">In Codex: HANDOFF.md checked against the repo. Changed after it: src/cart.js. The AI restates the next step in one line before it starts.</span></p>
       </div>
+    </div>
+    <div class="cartoes surge" style="margin-top:48px">
+      <div><strong><span class="pt">conferido</span><span class="en">checked</span></strong><p><span class="pt">O HANDOFF.md não é só lido: ela compara com o repo (o que mudou depois, commits novos, arquivos citados que sumiram) e a próxima IA confirma o próximo passo.</span><span class="en">HANDOFF.md is not just read: she compares it with the repo (what changed after, new commits, named files that are gone) and the next AI confirms the next step.</span></p></div>
+      <div><strong><span class="pt">ritmo</span><span class="en">pace</span></strong><p><span class="pt">A semana está acabando antes de renovar? Ela avisa quando acaba nesse ritmo e quanto por dia dura até o reset. <b>/helena:limits</b> mostra todas as IAs.</span><span class="en">Week running out before it resets? She says when it ends at this pace and how much a day lasts until the reset. <b>/helena:limits</b> shows every AI.</span></p></div>
+      <div><strong><span class="pt">1 arquivo</span><span class="en">1 file</span></strong><p><span class="pt">O Codex lê AGENTS.md, o Claude lê CLAUDE.md. Tenha um só: ela entrega pra IA que não lê.</span><span class="en">Codex reads AGENTS.md, Claude reads CLAUDE.md. Keep one: she hands it to the AI that does not read it.</span></p></div>
+    </div>
+  </section>
+
+  <section id="confere">
+    <p class="rotulo"><span class="pt">confere · dentro do loop do agente</span><span class="en">checks · inside the agent's loop</span></p>
+    <h2 class="surge"><span class="pt">Ela confere antes de você confiar.</span><span class="en">She checks before you trust it.</span></h2>
+    <p class="texto surge">
+      <span class="pt">A maior frustração de quem programa com IA é código <b>"quase certo"</b>: 66% dos devs, na pesquisa do Stack Overflow de 2025. Revisor de PR só vê depois que entrou. Estes hooks param o problema dentro do loop do agente, sem LLM, em qualquer CLI que roda hooks de plugin.</span>
+      <span class="en">The top frustration of coding with AI is <b>"almost right"</b> code: 66% of developers, Stack Overflow 2025 survey. PR review bots see it after it lands. These hooks stop it inside the agent's loop, no LLM, in any CLI that runs plugin hooks.</span>
+    </p>
+    <ol class="passos">
+      <li class="surge"><span class="n">01</span><span class="v"><span class="pt">Memória que se confere</span><span class="en">Memory that checks itself</span></span><p><span class="pt">Uma nota diz de qual código depende. Se o arquivo ou a função sumiu, a nota aparece marcada STALE com o motivo. Fato que substitui outro ("trocamos Redis por Postgres") arquiva o velho em vez de guardar os dois.</span><span class="en">A note says which code it depends on. If the file or function is gone, it shows up marked STALE with the reason. A fact that replaces another ("we moved from Redis to Postgres") archives the old one instead of keeping both.</span></p><code>checks: src/db.js#connectPostgres</code></li>
+      <li class="surge"><span class="n">02</span><span class="v"><span class="pt">Nada de "pronto" com teste falhando</span><span class="en">No "done" with failing tests</span></span><p><span class="pt">O turno mexeu em código? Os testes rodam antes de terminar. Falhou, volta pra IA corrigir o código, não o teste.</span><span class="en">Did the turn touch code? The tests run before it ends. A failure goes back to the AI to fix the code, not the test.</span></p><code>done.js</code></li>
+      <li class="surge"><span class="n">03</span><span class="v"><span class="pt">Teste não enfraquece</span><span class="en">Tests stay strong</span></span><p><span class="pt">Edição que tira assert de um teste ou põe skip pergunta pra você antes.</span><span class="en">An edit that removes an assertion or adds a skip asks you first.</span></p><code>.skip / -assert</code></li>
+      <li class="surge"><span class="n">04</span><span class="v"><span class="pt">Pacote inventado não entra</span><span class="en">No made-up packages</span></span><p><span class="pt">IA inventa nome de pacote, e atacante registra exatamente esse nome. Nome que não existe no npm ou no PyPI é barrado; pacote de dias atrás ou quase sem download pergunta antes.</span><span class="en">AIs invent package names, and attackers register exactly those names. A name that is not on npm or PyPI is blocked; one published days ago or barely downloaded asks first.</span></p><code>npm i · pip install</code></li>
+      <li class="surge"><span class="n">05</span><span class="v"><span class="pt">.env fora do contexto</span><span class="en">.env out of context</span></span><p><span class="pt">Não é só no commit: ler o .env é barrado e a IA recebe só os nomes das chaves, nunca os valores.</span><span class="en">Not just at commit time: reading .env is blocked and the AI gets the key names only, never the values.</span></p><code>STRIPE_KEY, DATABASE_URL</code></li>
+      <li class="surge"><span class="n">06</span><span class="v"><span class="pt">Destrutivo pergunta</span><span class="en">Destructive asks</span></span><p><span class="pt">DROP TABLE, DELETE sem WHERE, rm -rf /, push --force, reset --hard, banco de produção: pergunta mesmo quando a permissão deixaria passar.</span><span class="en">DROP TABLE, DELETE without WHERE, rm -rf /, push --force, reset --hard, a production database: asks even when permissions would let it run.</span></p><code>gate.js</code></li>
+      <li class="surge"><span class="n">07</span><span class="v"><span class="pt">Desfazer em qualquer IA</span><span class="en">Undo in any AI</span></span><p><span class="pt">Antes de cada pedido ela tira um snapshot da pasta (git, sem tocar no seu index nem na branch). Deu errado? Volta.</span><span class="en">Before each request she snapshots the folder (git, without touching your index or branch). Went wrong? Go back.</span></p><code>/helena:rewind</code></li>
+    </ol>
+    <div class="terminal surge" style="margin-top:48px">
+      <div class="topo"><span>claude code</span><span><span class="pt">o que a IA vê</span><span class="en">what the AI sees</span></span></div>
+<pre><span class="c"># <span class="pt">início da sessão</span><span class="en">session start</span></span>
+- cache-redis: cache uses redis  [STALE: src/cache/redis.js no longer exists. Check the code before relying on it, …]
+
+<span class="c"># npm i express-rate-limiter-pro-max</span>
+Helena / packages: "express-rate-limiter-pro-max" does not exist on npm. AIs invent package names,
+and attackers register exactly those names. Check the real name in the docs before installing.
+
+<span class="c"># cat .env</span>
+Helena / secrets: .env holds secret values, … Its keys are: STRIPE_KEY, DATABASE_URL. Work with the key names; …</pre>
     </div>
   </section>
 
@@ -387,6 +465,8 @@ python project-helena/helena/connect.py --remove</pre>
       <div><strong>4×</strong><p><span class="pt">mais barato o trabalho dela em segundo plano: as chamadas no Haiku não carregam plugin, skill nem MCP (~48k → ~12k tokens por destilação).</span><span class="en">cheaper background work: her Haiku calls load no plugins, skills or MCP (~48k → ~12k tokens per distillation).</span></p></div>
       <div><strong>0</strong><p><span class="pt">LLM nos hooks de segredo e de git. Regex e git, em milissegundos.</span><span class="en">LLM calls in the secret and git hooks. Regex and git, in milliseconds.</span></p></div>
       <div><strong>100 KB</strong><p><span class="pt">é o limite: lockfile, pasta de build, arquivo gigante e git log sem limite são barrados antes de inundar o contexto.</span><span class="en">is the cap: lockfiles, build output, huge files and unbounded git log are blocked before they flood the context.</span></p></div>
+      <div><strong>1×</strong><p><span class="pt">por sessão: o kit entra no primeiro pedido que precisa dele, não em todos. O índice de memória corta cada descrição em 90 caracteres.</span><span class="en">per session: a kit comes in on the first request that needs it, not on every one. The memory index cuts each description at 90 characters.</span></p></div>
+      <div><strong><span class="pt">turno</span><span class="en">turn</span></strong><p><span class="pt">Os hooks de fim leem só o último turno, de trás pra frente, numa sessão de 8 MB. O contraste roda só nas páginas mexidas agora, sem rebloquear o que já passou.</span><span class="en">The end-of-turn hooks read only the last turn, from the end, in an 8 MB session. Contrast runs only on pages touched now, without re-blocking what already passed.</span></p></div>
     </div>
     <div class="conta surge">
       <span class="c"><span class="pt"># a conta que importa</span><span class="en"># the math that matters</span></span><br>
@@ -419,6 +499,28 @@ python project-helena/helena/connect.py --remove</pre>
     <p class="nota surge">
       <span class="pt">Empate também é resultado: a skill de rodar local e a de auditoria de API empataram e saíram do contexto. Toda falha é inspecionada antes de virar conclusão, porque o teste também erra.</span>
       <span class="en">A tie is a result too: the run-locally skill and the API audit skill tied and were taken out of context. Every failure is inspected before it becomes a conclusion, because tests get it wrong too.</span>
+    </p>
+  </section>
+
+  <section id="registro">
+    <p class="rotulo"><span class="pt">registro · gerado pelo eval/registry.py</span><span class="en">registry · generated by eval/registry.py</span></p>
+    <h2 class="surge"><span class="pt">Cada peça com o preço na etiqueta.</span><span class="en">Every piece, price on the label.</span></h2>
+    <p class="texto surge">
+      <span class="pt">Nos marketplaces de skills ninguém mostra se a skill ajuda nem quanto contexto ela come, e a Snyk achou falha crítica em 13% das skills que analisou. Aqui cada peça da Helena vem com <b>o custo em tokens, o resultado do scan de segurança e o ganho medido no benchmark</b>. Peça sem benchmark diz isso, em vez de prometer.</span>
+      <span class="en">Skill marketplaces show neither whether a skill helps nor how much context it eats, and Snyk found a critical flaw in 13% of the skills it scanned. Here every piece of Helena comes with <b>its token cost, its security scan and the lift the benchmark measured</b>. A piece with no benchmark says so instead of promising.</span>
+    </p>
+    <table class="placar surge" style="margin-top:40px">
+      <thead><tr>
+        <th><span class="pt">peça</span><span class="en">piece</span></th>
+        <th><span class="pt">contexto</span><span class="en">context</span></th>
+        <th class="dec"><span class="pt">segurança</span><span class="en">security</span></th>
+        <th><span class="pt">sem → com</span><span class="en">without → with</span></th>
+      </tr></thead>
+      <tbody id="registro-linhas"></tbody>
+    </table>
+    <p class="nota surge">
+      <span class="pt">Hook roda fora do modelo: só custa contexto quando fala. Skill custa a descrição em toda sessão e o texto inteiro só quando um pedido carrega. Toda skill que entra na biblioteca passa pelo scan (helena/scan.py); achado crítico só entra com --trust.</span>
+      <span class="en">A hook runs outside the model: it only costs context when it speaks. A skill costs its description every session and its full text only when a request loads it. Every skill that joins the library goes through the scan (helena/scan.py); a critical finding only gets in with --trust.</span>
     </p>
   </section>
 
@@ -459,7 +561,14 @@ python project-helena/helena/connect.py</pre>
       <span class="pt">De graça ela aprende uma pessoa. Num time, o ganho vem de <b>todo mundo começar com as mesmas regras, os mesmos kits e a mesma memória do projeto</b>, e de provar com número que valeu o investimento.</span>
       <span class="en">For free she learns one person. In a team the gain comes from <b>everyone starting with the same rules, the same kits and the same project memory</b>, and from proving with numbers that it paid off.</span>
     </p>
-    <div class="cartoes surge" style="margin-top:48px">
+    <p class="rotulo surge" style="margin-top:48px;margin-bottom:0"><span class="pt">vem de graça</span><span class="en">ships free</span></p>
+    <div class="cartoes surge" style="margin-top:20px">
+      <div><strong><span class="pt">memória</span><span class="en">memory</span></strong><p><span class="pt"><b>Memória do time no repo.</b> Notas em .helena/memory entram pra todo mundo que abre o projeto, em qualquer IA. Nota nova passa por pull request, igual código. /helena:share transforma uma nota sua em arquivo pra revisão.</span><span class="en"><b>Team memory in the repo.</b> Notes in .helena/memory load for everyone who opens the project, in any AI. A new note goes through a pull request, like code. /helena:share turns one of your notes into a file for review.</span></p></div>
+      <div><strong><span class="pt">política</span><span class="en">policy</span></strong><p><span class="pt"><b>Regras pra IA como código.</b> .helena/policy diz o que a IA não pode rodar, o que precisa de OK e quais servidores MCP valem neste repo.</span><span class="en"><b>Rules for AIs as code.</b> .helena/policy says what AIs may not run, what needs an OK and which MCP servers are allowed in this repo.</span></p></div>
+      <div><strong><span class="pt">auditoria</span><span class="en">audit</span></strong><p><span class="pt"><b>Log de cada decisão.</b> Cada bloqueio vira uma linha em ~/.helena/audit.jsonl. /helena:audit --json alimenta as ferramentas de log do time.</span><span class="en"><b>A log of every decision.</b> Each block is a line in ~/.helena/audit.jsonl. /helena:audit --json feeds the team's own log tools.</span></p></div>
+    </div>
+    <p class="rotulo surge" style="margin-top:48px;margin-bottom:0"><span class="pt">eu monto pro seu time</span><span class="en">I set it up for your team</span></p>
+    <div class="cartoes surge" style="margin-top:20px">
       <div><strong>01</strong><p><span class="pt"><b>Instalação no time.</b> Todas as máquinas configuradas, memória compartilhada do projeto num cofre do time, status line e painel ligados.</span><span class="en"><b>Team rollout.</b> Every machine set up, shared project memory in a team vault, status line and panel on.</span></p></div>
       <div><strong>02</strong><p><span class="pt"><b>Regras da empresa em hook.</b> Branch protegida, padrão de commit, arquivos que nunca sobem, segredos do seu stack. Hook cobra, ninguém precisa lembrar.</span><span class="en"><b>Company rules as hooks.</b> Protected branches, commit conventions, files that never go up, your stack's secrets. A hook enforces it, nobody has to remember.</span></p></div>
       <div><strong>03</strong><p><span class="pt"><b>Kits sob medida.</b> As skills do seu stack, revisadas por segurança, entrando só quando o pedido precisa. Menos contexto, menos custo.</span><span class="en"><b>Custom kits.</b> Skills for your stack, security reviewed, loaded only when a request needs them. Less context, lower cost.</span></p></div>
@@ -610,6 +719,7 @@ addEventListener('DOMContentLoaded', () => {
   const W = Math.max(...alvo.map(l => l.length)), H = alvo.length;
   const grade = alvo.map(l => l.padEnd(W).split(''));
   const fim = grade.map(l => l.map(() => 0));        // até quando cada célula fica embaralhada
+  const inicio = grade.map(l => l.map(() => 0));     // a partir de quando (a varredura chega linha a linha)
   const atual = grade.map(l => l.slice());
   function ajustar() {
     const larg = pre.parentElement.clientWidth;
@@ -626,8 +736,8 @@ addEventListener('DOMContentLoaded', () => {
     let mexendo = false;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const c = grade[y][x];
-      if (c === ' ') continue;
-      if (now < fim[y][x]) { atual[y][x] = sorteia(); mexendo = true; } else atual[y][x] = c;
+      if (c === ' ') { atual[y][x] = c; continue; }
+      if (now < fim[y][x]) { atual[y][x] = now >= inicio[y][x] ? sorteia() : c; mexendo = true; } else atual[y][x] = c;
     }
     pre.textContent = atual.map(l => l.join('')).join('\n');
     if (mexendo) requestAnimationFrame(desenha); else ativo = false;
@@ -646,9 +756,58 @@ addEventListener('DOMContentLoaded', () => {
       const agora = performance.now();
       for (let y = Math.max(0, cyl - 4 | 0); y < Math.min(H, cyl + 5); y++)
         for (let x = Math.max(0, cxl - 8 | 0); x < Math.min(W, cxl + 9); x++)
-          if (Math.hypot((x - cxl) / 2, y - cyl) < 4) fim[y][x] = Math.max(fim[y][x], agora + 150 + Math.random() * 350);
+          if (Math.hypot((x - cxl) / 2, y - cyl) < 4) { inicio[y][x] = 0; fim[y][x] = Math.max(fim[y][x], agora + 150 + Math.random() * 350); }
       acorda();
     });
+
+    // ela pisca: o escuro dos olhos (linhas 21-22 da arte) vira pele em cima e cílio embaixo por ~130 ms
+    const OLHOS = [[57, 66], [76, 88]], aberto = [21, 22].map(y => grade[y].slice()), pele = c => '@%#'.includes(c);
+    const pisca = () => {
+      for (const [a, b] of OLHOS) for (let x = a; x <= b; x++) {
+        if (!pele(grade[21][x])) grade[21][x] = '@';
+        if (!pele(grade[22][x])) grade[22][x] = '-';
+      }
+      acorda();
+      setTimeout(() => { grade[21] = aberto[0].slice(); grade[22] = aberto[1].slice(); acorda(); }, 130);
+    };
+    (function proxima() {
+      setTimeout(() => { if (!document.hidden) { pisca(); if (Math.random() < .25) setTimeout(pisca, 260); } proxima(); }, 2500 + Math.random() * 3500);
+    })();
+
+    // ela confere: uma faixa varre o retrato de cima a baixo e a legenda diz o que está sendo conferido
+    const leg = document.getElementById('legenda');
+    const CONFERE = [
+      ['conferindo HANDOFF.md', 'checking HANDOFF.md', 'ok, nada mudou', 'ok, nothing changed'],
+      ['lendo a memória', 'reading memory', '0 notas STALE', '0 STALE notes'],
+      ['rodando os testes', 'running tests', '11/11 passam', '11/11 pass'],
+      ['abrindo o .env', 'opening .env', 'só os nomes das chaves', 'key names only'],
+      ['npm i express-pro-max', 'npm i express-pro-max', 'não existe, barrado', 'does not exist, blocked'],
+      ['olhando o limite', 'checking the limit', 'a semana dura', 'the week lasts'],
+    ];
+    let vez = 0;
+    const digita = (txt, ms) => new Promise(ok => {
+      let i = 0;
+      const t = setInterval(() => { leg.textContent = txt.slice(0, ++i) + (i < txt.length ? '_' : ''); if (i >= txt.length) { clearInterval(t); ok(); } }, ms);
+    });
+    const espera = ms => new Promise(ok => setTimeout(ok, ms));
+    (async function confere() {
+      await espera(4000);
+      for (;;) {
+        if (document.hidden || pre.getBoundingClientRect().bottom < 0) { await espera(1500); continue; }
+        const en = document.documentElement.classList.contains('en') ? 1 : 0, p = CONFERE[vez][en], r = CONFERE[vez][2 + en];
+        vez = (vez + 1) % CONFERE.length;
+        await digita('> ' + p + '…', 28);
+        const t0 = performance.now(), dur = 1300;
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {   // a faixa chega na linha y em t0 + y/H*dur e fica ~120 ms
+          inicio[y][x] = t0 + (y / H) * dur;
+          fim[y][x] = Math.max(fim[y][x], inicio[y][x] + 90 + Math.random() * 60);
+        }
+        acorda();
+        await espera(dur + 200);
+        leg.textContent = '> ' + p + '… ' + r + ' ✓';
+        await espera(3200);
+      }
+    })();
   }
 
   // ---------- dados (docs/ANALISE.md), desenhados nos dois idiomas
@@ -670,6 +829,7 @@ addEventListener('DOMContentLoaded', () => {
     [24.8, 'sem as skills de vídeo (estimado)', 'without video skills (estimated)', ''],
   ];
   const PLACAR = [
+    ['ler o .env', 'reading .env', 0, 1, 1, 'gate entrega só os nomes das chaves', 'gate hands over key names only'],
     ['regra de git do projeto', 'per-project git rule', 1, 5, 5, 'hook nega commit na main e vídeo', 'hook blocks commits to main and videos'],
     ['imagem pelo agy', 'images via agy', 0, 2, 2, 'skill imagem-agy', 'imagem-agy skill'],
     ['salvar onde parei', 'save where I stopped', 0, 2, 2, 'skill handoff', 'handoff skill'],
@@ -678,8 +838,38 @@ addEventListener('DOMContentLoaded', () => {
     ['deploy no coolify', 'deploy to coolify', 0, 2, 2, 'só uma nota de memória', 'just a memory note'],
     ['rodar local', 'run locally', 2, 2, 2, 'empate: skill removida', 'tie: skill removed'],
   ];
+  // registro: registry.json, gerado pelo eval/registry.py; sem ele a tabela diz isso em vez de inventar número
+  const PECA = {
+    start: ['início de sessão: HANDOFF conferido, memória, brief do git', 'session start: checked HANDOFF, memory, git brief'],
+    router: ['cada pedido: kits, notas, avisos de limite, snapshot', 'every request: kits, notes, limit warnings, snapshot'],
+    guard: ['commit e push: chave, .env, regras de git', 'commit and push: keys, .env, git rules'],
+    gate: ['.env, pacotes, destrutivo, testes, política', '.env, packages, destructive, tests, policy'],
+    trim: ['barra lockfile, build e arquivo gigante', 'blocks lockfiles, builds and huge files'],
+    check: ['contraste do texto antes de entregar', 'text contrast before delivery'],
+    done: ['testes antes do "pronto"', 'tests before "done"'],
+    end: ['fim de sessão: destila a memória', 'session end: distills memory'],
+    handoff: ['salvar onde parou', 'save where you stopped'],
+    readability: ['texto legível', 'readable text'],
+    library: ['carregar skill da biblioteca', 'load a library skill'],
+  };
+  let REG = null;
+  fetch('registry.json').then(r => r.json()).then(j => { REG = j; dados(); }).catch(() => { REG = []; dados(); });
+  function registro(en) {
+    const tb = document.getElementById('registro-linhas');
+    if (!REG) return;
+    tb.innerHTML = REG.length ? REG.map(p => {
+      const ctx = p.kind === 'hook' ? (en ? '0 until it speaks' : '0 até falar')
+        : `${p.always} ${en ? 'always' : 'sempre'} · ${p.on_use} ${en ? 'on use' : 'ao usar'}`;
+      const scan = p.scan === 'n/a' ? (en ? 'code, no LLM' : 'código, sem LLM') : p.scan === 'clean' ? (en ? 'clean' : 'limpo') : p.scan;
+      const lift = p.runs ? `<span class="b">${barra(p.helena, p.runs)}</span> ${p.base}/${p.runs} → ${p.helena}/${p.runs}`
+        : `<span class="base">${en ? 'not benchmarked yet' : 'sem benchmark ainda'}</span>`;
+      return `<tr><td>${p.name} <span class="base">· ${p.kind}</span><br><span class="base">${(PECA[p.name] || ['', ''])[en ? 1 : 0]}</span></td>` +
+        `<td class="base">${ctx}</td><td class="dec">${scan}</td><td class="barra">${lift}</td></tr>`;
+    }).join('') : `<tr><td colspan="4" class="base">${en ? 'registry.json not generated yet: python eval/registry.py' : 'registry.json ainda não gerado: python eval/registry.py'}</td></tr>`;
+  }
   function dados() {
     const en = lang() === 'en';
+    registro(en);
     const larg = innerWidth < 600 ? 14 : 30;
     document.getElementById('temas').innerHTML = TEMAS.map(([n, pt, e]) =>
       `${(en ? e : pt).padEnd(26)}<span class="b">${barra(n, 65, larg)}</span> <span class="q">${n}</span>`).join('\n');

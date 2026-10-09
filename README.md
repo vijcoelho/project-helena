@@ -5,15 +5,15 @@
 <h1 align="center">Helena</h1>
 
 <p align="center">
-  <b>A layer on top of Claude Code that starts blank and learns how you work.</b><br>
-  Memory that writes itself, skills that load only when a request needs them,<br>
-  hooks for what must always happen, and a benchmark that decides what stays.
+  <b>The layer that checks, on top of Claude Code, Codex and any AI. It starts blank and learns how you work.</b><br>
+  Memory that checks itself against the code, a switch to another AI that loses nothing,<br>
+  hooks that stop "done" with failing tests, and a benchmark that proves what stays.
 </p>
 
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.1.0-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.2.0-black">
 </p>
 
 ---
@@ -43,6 +43,7 @@ Prove     eval/run.py          every task runs with and without Helena; a skill 
 - [Your first day](#your-first-day)
 - [Commands](#commands)
 - [What she does on her own](#what-she-does-on-her-own)
+- [She checks the work](#she-checks-the-work)
 - [Token savings](#token-savings)
 - [Configuration](#configuration)
 - [Where your Helena lives](#where-your-helena-lives)
@@ -126,12 +127,24 @@ python project-helena/helena/connect.py --remove   # undoes it
 
 - **Codex** reads Claude Code plugins, so it gets the whole plugin (brief, kits, memory notes, guard) plus the MCP server.
   Its sessions are distilled into the same vault.
-- **The others** get `helena/mcp.js`, a dependency-free MCP server with four tools: `helena_start` (session brief),
-  `helena_context` (notes and kits for a request), `helena_skill` (a library skill) and `helena_remember` (save a fact).
+- **The others** get `helena/mcp.js`, a dependency-free MCP server with six tools: `helena_start` (session brief),
+  `helena_context` (notes and kits for a request), `helena_skill` (a library skill), `helena_remember` (save a fact),
+  `helena_limits` (every plan's usage and weekly pace) and `helena_rewind` (undo the last request).
   The "how to use Helena" block goes into their global instruction file (`GEMINI.md`, `QWEN.md`, opencode `AGENTS.md`).
 - **Any other MCP client** (Cursor, Claude Desktop, Windsurf, LM Studio): paste the JSON `connect.py` prints.
 
 Something you teach her in Codex shows up in Claude the next session, and the other way around.
+
+**Out of limit? Keep going in another AI, without losing the thread.** Helena reads each plan's usage from disk (Claude
+from the status line, Codex from its sessions; ChatGPT shares Codex's limit). At 80% she asks for `HANDOFF.md` and
+`/clear`; at 95% she saves `HANDOFF.md` and hands you the command for the AI with room, ready to paste:
+`codex "Read HANDOFF.md and continue from Next"`. The next AI does not just read the handoff, Helena **checks it against
+the repo** first (files changed after it was written, commits since, files it names that are gone) and asks the AI to
+restate the next step in one line, so you see it picked up the right thing. She also watches the **weekly pace**: when the
+week is going faster than it resets, she says when it runs out and how much a day lasts. `/helena:limits` shows every AI.
+
+**One instruction file.** Codex reads `AGENTS.md`, Claude reads `CLAUDE.md`. Keep one: Helena hands it to the AI that does
+not read it.
 
 ## Your first day
 
@@ -160,6 +173,10 @@ Something you teach her in Codex shows up in Claude the next session, and the ot
 | `/helena:undo <skill> learned` | Remove the last lesson she added to a skill |
 | `/helena:undo <skill> fold` | Restore a skill from before she folded its lessons into the recipe |
 | `/helena:routines [what, how often]` | List routines, or add one in plain words ("every Monday check this project's dependencies"); `remove <name>`, `run <name>` |
+| `/helena:rewind [n]` | Undo: the folder as it was before the last request (or n back). Run it again to undo the rewind |
+| `/helena:limits` | Every AI plan's usage (5 hours and week) and whether the week lasts at this pace |
+| `/helena:audit [days]` | What the hooks blocked or asked about; `--json` for a team's own log tools |
+| `/helena:share <note>` | Copy one of your memory notes into the repo's `.helena/memory/`, reviewed like code |
 | `/painel` | A pane with context by category and Helena's own spending (Claude Code 2.1.287+) |
 
 Scripts you run from the repo:
@@ -172,6 +189,7 @@ python library.py restore <skill>           # the opposite
 python library.py catalog                   # rebuild ~/.helena/library/CATALOG.md
 python helena/worker.py --now               # run the background work now
 python helena/budget.py 7                   # token report for the last 7 days
+python helena/scan.py <skill-folder>        # security scan of a skill (library.py install runs it; --trust to override)
 python extras/measure_context.py            # how many tokens each enabled plugin adds to every message
 ```
 
@@ -204,6 +222,31 @@ python extras/measure_context.py            # how many tokens each enabled plugi
 
 All background work runs in `helena/worker.py`, at most once every 20 hours (routines: whenever they are due), on Haiku, with its spending in
 `~/.helena/ledger.jsonl` so `/helena:budget` can show what she costs next to what she saves.
+
+## She checks the work
+
+The top complaint about AI code is "almost right, but not quite" (66% of developers, Stack Overflow 2025). PR review bots
+see it after it lands; these hooks stop it inside the agent's own loop, with no LLM and in any CLI that runs plugin hooks.
+
+- **Memory that checks itself.** A note can name the code it depends on (`checks: src/db.js#connectPostgres`) or a date
+  it stops holding (`until: 2026-12-31`). When the file or the name is gone, the note still shows up, marked
+  **STALE** with the reason, so the AI checks the code before trusting it. A fact that replaces another
+  (`supersedes:`, "we moved from Redis to Postgres") archives the old note instead of keeping both. Distillation fills
+  these fields by itself.
+- **No "done" with failing tests.** When a turn edited code, the Stop hook runs the project's tests (`npm test`, pytest,
+  `cargo test`, `go test`, or the command in `.helena/test`) and sends the failure back once. The agent is told to fix the
+  code, not the test, or to say plainly the failure was already there.
+- **Tests are not weakened.** An edit that removes assertions from a test file or adds a skip asks you first.
+- **Made-up packages are stopped.** `npm i` / `pip install` of a name that does not exist on the registry is denied (AIs
+  invent package names; attackers register them). A package published days ago or barely downloaded asks first.
+- **Secrets stay out of the context, not only out of git.** Reading a `.env` (Read, Grep, `cat`) is denied and the AI
+  gets the key names, never the values.
+- **Destructive commands ask first**, even when permissions would let them run: `DROP TABLE`, `DELETE` without `WHERE`,
+  `rm -rf /`, `git push --force`, `git reset --hard`, `terraform destroy`, a production database URL.
+- **Undo in any CLI.** Before each request she snapshots the folder (git, without touching your index or branch);
+  `/helena:rewind` puts it back.
+
+Every decision lands in `~/.helena/audit.jsonl` (`/helena:audit`).
 
 ## Token savings
 
@@ -255,6 +298,19 @@ never: *.mp4 renders/ .env.production
 `main: no` denies direct commits on `main`/`master` (merges and pushes stay free). `never:` takes globs like
 `.gitignore`. The guard hook also denies API keys and `.env` files in anything about to be committed or pushed.
 
+### Team policy (`<repo>/.helena/policy`) and tests (`<repo>/.helena/test`)
+
+Versioned with the code, so a change to the rules goes through review like any other.
+
+```
+deny: terraform apply      # regex per line: AIs may not run it here
+ask: kubectl               # AIs must get an OK first
+mcp: github, helena        # the only MCP servers AIs may use in this repo
+```
+
+`.helena/test` holds the test command the done check runs (or `off`). Without it, Helena uses what the project has.
+These are guardrails for the AI, not a sandbox: whoever owns the machine can turn hooks off.
+
 ### Environment variables
 
 | Variable | Effect |
@@ -277,8 +333,12 @@ never: *.mp4 renders/ .env.production
 | `~/.helena/library/` | skills that cost zero context until a kit asks for them (`CATALOG.md` is the index) |
 | `~/.helena/eval/tasks/` | your own benchmark tasks (they can depend on your memory and kits) |
 | `~/.helena/ledger.jsonl` | what Helena's background work cost |
-| `<project>/HANDOFF.md` | where you stopped; injected at session start in that folder |
+| `<project>/HANDOFF.md` | where you stopped; injected at session start in that folder, checked against the repo |
 | `<project>/.helena/git` | that project's git rules |
+| `<project>/.helena/memory/` | the team's memory notes, committed with the code |
+| `<project>/.helena/policy` · `.helena/test` | the team's rules for AIs · the done check's test command |
+| `~/.helena/audit.jsonl` | every hook decision (`/helena:audit`) |
+| `refs/helena/turns` | the undo snapshots, in each repo's reflog (never pushed) |
 
 ## How it is built
 
@@ -287,11 +347,16 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 
 | Where | What |
 |---|---|
-| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md`, the memory index, news (new skills), runs the worker if overdue |
-| `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context warnings |
+| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo, the instruction file the AI does not read, the memory index (yours + the team's, STALE marks), news, runs the worker if overdue |
+| `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the undo snapshot. Subagent reports and notifications are not treated as requests |
+| `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, and their `checks:` / `until:` |
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys, `.env` files and anything that breaks `.helena/git` |
+| `helena/hooks/gate.js` | PreToolUse: `.env` reads, made-up or brand-new packages, destructive commands, weakened tests, `.helena/policy` |
 | `helena/hooks/trim.js` | PreToolUse: blocks lockfiles, build output, files over 100 KB and unbounded `git log` / recursive listings |
 | `helena/hooks/check.js` | Stop: if the session touched front-end files, checks contrast on the `.html` and on live localhost URLs |
+| `helena/hooks/done.js` | Stop: if this turn edited code, runs the tests and sends a failure back |
+| `helena/hooks/limits.js` · `rewind.js` | plan usage and weekly pace (`/helena:limits`) · undo snapshots (`/helena:rewind`) |
+| `helena/scan.py` · `helena/audit.py` | skill security scan · hook decision report |
 | `helena/hooks/end.js` → `helena/distill.py` | SessionEnd (and every 6 prompts, from router.js): Haiku reads the new turns in the background and writes memory, skill candidates and "## Learned" lessons |
 | `helena/hooks/mod.mjs` | Claude Code mod: band above the prompt with context, % of the window, session cost and what `trim.js` blocked; spinner warning from 120k; `/painel` |
 | `helena/routines.py` | routines: runs the due ones read-only on Haiku with `--max-budget-usd`; log, "needs you", goal progress |
@@ -320,7 +385,17 @@ python eval/test_distill.py              # distillation remembers corrections, s
 python eval/test_learn.py                # checkpoint offsets and "## Learned" lines (no LLM)
 python eval/test_routines.py             # routines: schedule, log, "needs you", goal progress (no LLM)
 python eval/test_tidy.py                 # memory merge, folding lessons, weekly review (no LLM)
+python eval/test_verify.py               # STALE notes, supersedes, handoff check, one instruction file (no LLM)
+python eval/test_gate.py                 # .env, packages, destructive commands, tests, team policy, audit (no LLM)
+python eval/test_rewind.py               # undo snapshots and the done check (no LLM)
+python eval/test_limits.py               # limit warning, ready command, weekly pace (no LLM)
+python eval/test_scan.py                 # skill security scan on install, registry (no LLM)
+python eval/registry.py                  # site/registry.json: every piece, its context cost, scan and measured lift
 ```
+
+Each run records its tokens and cost too; `eval/results.json` keeps the last result per task (pass rate per column,
+tokens per run), and a task's `uses` file names the hook or skill it measures. `eval/registry.py` joins that with each
+piece's context cost and security scan: a piece with no benchmark says so instead of claiming a win.
 
 A task folder has `prompt.md`, `fixture/`, `check.py` (exit 0 = pass), and optionally `setup.py` (prepares the folder),
 `prepare.py` (runs alongside the session) and `ab.json` (what differs between columns). Benchmark sessions never distill
@@ -344,7 +419,10 @@ Tests get it wrong too: every failure is inspected before it becomes a conclusio
 - Everything stays on your machine: your vault, `~/.helena`, your project folders. Nothing is sent anywhere except the
   Claude Code sessions you already run (and the Haiku calls Helena makes through your own `claude` CLI).
 - Secrets are masked before anything is written to memory, and the distillation test checks that keys never reach it.
-- The guard hook blocks API keys and `.env` files before they reach git.
+- The guard hook blocks API keys and `.env` files before they reach git, and the gate hook keeps `.env` values out of the
+  AI's context in the first place.
+- The only network call a hook makes is the package registry check (`registry.npmjs.org` downloads count, `pypi.org`),
+  with the package name only, when the AI installs a package.
 
 ## Update and uninstall
 
@@ -380,6 +458,15 @@ every 20 hours, both on Haiku with nothing extra loaded (a few cents a call). Ro
 
 Free, Helena learns one person. In a team, the gain comes from everyone starting with the same rules, the same kits and
 the same project memory, and from proving with numbers that it paid off. I set that up for companies:
+
+What ships for teams, free:
+
+- **Shared memory, reviewed like code.** Notes in `<repo>/.helena/memory/` load for everyone who opens the repo, in any
+  AI. `/helena:share <note>` turns one of yours into a file for a pull request.
+- **Policy as code.** `.helena/policy` says what AIs may run, what needs an OK and which MCP servers are allowed.
+- **Audit log.** `~/.helena/audit.jsonl`, one line per decision; `/helena:audit --json` feeds your own log tools.
+
+What I set up for companies:
 
 - **Team rollout**: every machine configured, shared project memory in a team vault, status line and panel on.
 - **Company rules as hooks**: protected branches, commit conventions, files that never go up, your stack's secrets.

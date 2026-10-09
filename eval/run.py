@@ -6,13 +6,15 @@
 
 Each round happens in a clean copy of the fixture, in a temp folder outside the repo.
 A skill only joins Helena if the "helena" column beats "base".
+Each run also records its tokens and cost; the per-task result (pass rate, tokens, lift) is saved in eval/results.json,
+which eval/registry.py turns into the public registry. A task's `uses` file names what it measures (e.g. `skill:handoff`).
 
 Tasks come from eval/tasks/ (ship with Helena) and ~/.helena/eval/tasks/ (yours: they depend on your memory and kits).
 A task folder: prompt.md, fixture/, check.py (exit 0 = pass; last printed line shows up in the table), and optionally
 setup.py (prepares the folder before the session), prepare.py (runs alongside the session) and ab.json (what differs
 between the columns; {helena} and {task} become paths). Fake CLIs for tasks go in eval/shims/ or ~/.helena/eval/shims/.
 """
-import argparse, json, os, pathlib, shutil, subprocess, sys, tempfile
+import argparse, datetime, json, os, pathlib, shutil, subprocess, sys, tempfile
 
 # built at runtime so no key-shaped string lives in the repo (secret scanners and the guard hook)
 FAKE_KEY = 'sk_' + 'live_' + '51FakeX9' + 'X9' * 12
@@ -20,6 +22,7 @@ FAKE_KEY = 'sk_' + 'live_' + '51FakeX9' + 'X9' * 12
 ROOT = pathlib.Path(__file__).resolve().parent
 HELENA = ROOT.parent / 'helena'
 MINE = pathlib.Path.home() / '.helena' / 'eval'
+RESULTS = ROOT / 'results.json'
 CLAUDE = shutil.which('claude') or 'claude'
 
 
@@ -53,7 +56,9 @@ def run(task, with_helena, model):
         prep.kill()
         kill_ports(folder)
     note = (chk.stdout.strip().splitlines() or [''])[-1][:90]
-    return chk.returncode == 0, result.get('total_cost_usd') or 0, folder, note
+    u = result.get('usage') or {}
+    tokens = sum(u.get(k) or 0 for k in ('input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens'))
+    return chk.returncode == 0, result.get('total_cost_usd') or 0, folder, note, tokens
 
 
 def kill_ports(folder):
@@ -80,14 +85,27 @@ def main():
                    key=lambda p: p.name)
     chosen = [t for t in found if not a.tasks or t.name in a.tasks]
     score = {False: [0, 0], True: [0, 0]}
+    saved = json.loads(RESULTS.read_text(encoding='utf-8')) if RESULTS.exists() else {}
     for t in chosen:
+        col = {}
         for with_helena in (False, True):
-            for _ in range(a.n):
-                ok, cost, folder, note = run(t, with_helena, a.model)
-                score[with_helena][0] += ok
-                score[with_helena][1] += 1
+            runs = [run(t, with_helena, a.model) for _ in range(a.n)]
+            for ok, cost, folder, note, tokens in runs:
                 print(f"{t.name:24} {'helena' if with_helena else 'base':7} {'PASS' if ok else 'fail':5} "
-                      f"${cost:.3f}  {note}  {folder}", flush=True)
+                      f"${cost:.3f} {tokens // 1000:>4}k tok  {note}  {folder}", flush=True)
+            score[with_helena][0] += sum(r[0] for r in runs)
+            score[with_helena][1] += len(runs)
+            col['helena' if with_helena else 'base'] = {'pass': sum(r[0] for r in runs), 'runs': len(runs),
+                                                        'cost': round(sum(r[1] for r in runs) / len(runs), 4),
+                                                        'tokens': sum(r[4] for r in runs) // len(runs)}
+        b, h = col['base'], col['helena']
+        print(f"{t.name:24} lift {h['pass'] / h['runs'] - b['pass'] / b['runs']:+.0%}, "
+              f"tokens {h['tokens'] - b['tokens']:+,} per run", flush=True)
+        if t.parent == ROOT / 'tasks':  # your own tasks (~/.helena/eval) stay out of the shared results file
+            uses = (t / 'uses').read_text().strip() if (t / 'uses').exists() else ''
+            saved[t.name] = {'uses': uses, 'model': a.model, 'date': datetime.date.today().isoformat(), **col}
+    if saved:
+        RESULTS.write_text(json.dumps(saved, indent=1, sort_keys=True) + '\n', encoding='utf-8')
     for with_helena, (ok, total) in score.items():
         print(f"{'helena' if with_helena else 'base':7} {ok}/{total}")
 

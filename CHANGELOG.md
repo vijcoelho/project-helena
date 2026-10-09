@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.2.0 (2026-10-08)
+
+The layer that checks. From research on what developers still lack (Reddit, Hacker News, GitHub issues, surveys):
+vendors absorb single-tool features fast; what stays open is cross-tool and verification.
+
+- Memory that checks itself (`hooks/memory.js`): a note can carry `checks: <file>, <file>#<name>` and `until: <date>`.
+  A failing check marks the note STALE with the reason in the session index and in matched notes. `supersedes:` archives
+  the note a new fact replaces. Distillation and `helena_remember` fill these fields.
+- Team memory: notes in `<repo>/.helena/memory/` load for everyone in any AI; `/helena:share` copies one of yours there.
+- Verified handoff: `HANDOFF.md` is checked against the repo at session start (files changed after it, commits since,
+  named files that are gone) and the AI restates the next step. At 95% the limit warning gives a ready command for the
+  AI with room. One instruction file: Claude gets `AGENTS.md`, Codex gets `CLAUDE.md`, when the repo only has the other.
+- Weekly pace (`hooks/limits.js`): when the week runs out before it resets, she says when and how much a day lasts.
+  `/helena:limits` and the `helena_limits` MCP tool show every AI.
+- `hooks/gate.js`: `.env` reads denied (key names only), made-up packages denied and brand-new ones asked (npm, PyPI),
+  destructive commands asked, edits that weaken tests asked, team policy in `.helena/policy` (deny, ask, MCP allowlist).
+- `hooks/done.js`: when a turn edited code, the tests run before "done"; a failure goes back once.
+- Undo in any CLI (`hooks/rewind.js`): a git snapshot before each request in `refs/helena/turns`; `/helena:rewind`.
+- Audit log: every hook decision in `~/.helena/audit.jsonl`; `/helena:audit`.
+- Skill security scan (`helena/scan.py`), run by `library.py install`; a critical finding needs `--trust`.
+- Benchmark records tokens and cost per run and writes `eval/results.json`; `eval/registry.py` builds the public
+  registry (context cost, scan, measured lift). New task: `env-read`.
+- Fix: subagent reports and task notifications no longer load kits or turn plugins back on.
+- Cheaper and faster: a kit is injected once per session, not on every matching message; memory index descriptions
+  are capped at 90 characters. The Stop hooks (`check.js`, `done.js`) read only the last turn, from the end of the
+  transcript, and the contrast check runs only on pages touched this turn (it used to re-run, and re-block, for every
+  page touched since the session began).
+
 ## 1.1.0 (2026-10-06)
 
 - Helena in any AI: `helena/mcp.js` (MCP server, no dependencies) and `helena/connect.py`, which registers it in every

@@ -1,14 +1,17 @@
 // UserPromptSubmit: runs on every request, no LLM, a few milliseconds. It:
-//  - loads only the kits the request needs (the rest of the library stays out of context)
+//  - loads only the kits the request needs, once per session (the rest of the library stays out of context)
 //  - hands over the 2 memory notes that match the request, so Claude does not spend a round trip reading them
 //  - turns a plugin back on when the request needs one Helena turned off in this project
 //  - warns by real context size: every message re-reads the whole context, the biggest cost there is
-//  - warns near the plan's usage limit and names another installed AI with room (limits.js)
+//  - warns near the plan's usage limit and names another installed AI with room, and when the week runs out before it resets (limits.js)
+//  - snapshots the working tree before the AI works, so /helena:rewind undoes a turn in any CLI (rewind.js)
+//  - messages that are not the user's (a subagent's report, a task notification) get none of the request-matching parts
 //  - hints a cheaper model for routine requests and a Haiku subagent for broad searches
 //  - every 6 prompts, distills the new turns in the background, so ideas reach Obsidian mid-session
 // ponytail: word overlap for notes and kits; swap for embeddings if it starts missing obvious matches.
 const fs = require('fs'), path = require('path');
-const { bg, HOME, LIBRARY, KITS, MEMORY } = require('./paths');
+const { bg, HOME, LIBRARY, KITS } = require('./paths');
+const { field, notes, mark: stale } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const CHECKPOINT = 6; // prompts between mid-session distills
 const LONG = [120e3, 250e3, 500e3]; // context tokens at which the session-length warning fires (once each)
@@ -30,7 +33,9 @@ let input = '';
 process.stdin.on('data', d => (input += d)).on('end', () => {
   let ev = {};
   try { ev = JSON.parse(input); } catch {}
-  const prompt = ev.prompt || '', asked = words(prompt), session = ev.session_id || 'x', cwd = ev.cwd || process.cwd();
+  // a subagent's report or a task notification arrives as a prompt too: its words are not a request for a kit or a plugin
+  const human = !/^\s*(Another Claude session sent a message|<(task-notification|agent-message|system-reminder|local-command-\w+|command-\w+)\b)/.test(ev.prompt || '');
+  const prompt = human ? ev.prompt || '' : '', asked = words(prompt), session = ev.session_id || 'x', cwd = ev.cwd || process.cwd();
   const out = [], stats = load(path.join(HOME, 'stats.json'), { notes: {}, skills: {} });
   const today = new Date().toISOString().slice(0, 10);
 
@@ -43,7 +48,7 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   for (const [name, k] of Object.entries(load(KITS, {}))) {
     const hit = k.trigger ? new RegExp(k.trigger, 'i').test(prompt)
       : (k.keywords || []).filter(w => asked.has(w)).length >= (k.min || 1);
-    if (!hit) continue;
+    if (!hit || !once(session, 'kit-' + name)) continue;  // already in context this session: repeating it only costs tokens
     const always = (k.always || []).filter(s => where[s]);
     const extra = (k.on_demand || []).filter(s => where[s]);
     if (name.startsWith('auto:')) for (const s of always) stats.skills[s] = { last: today, uses: ((stats.skills[s] || {}).uses || 0) + 1 };
@@ -56,19 +61,17 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
 
   // ---- memory: the notes sharing the most words with the request, delivered whole (each only once per session)
   try {
-    const scored = fs.readdirSync(MEMORY).filter(f => f.endsWith('.md')).map(f => {
-      const text = fs.readFileSync(path.join(MEMORY, f), 'utf8');
-      const head = words(f.slice(0, -3).replace(/-/g, ' ') + ' ' + ((text.match(/^description:\s*(.+)$/m) || [])[1] || ''));
-      const body = words(text.slice(0, 1500));
+    const scored = notes(cwd).map(n => {
+      const head = words(n.slug.replace(/-/g, ' ') + ' ' + field(n.text, 'description'));
+      const body = words(n.text.slice(0, 1500));
       let score = 0;
       for (const w of asked) score += head.has(w) ? 2 : body.has(w) ? 1 : 0;
-      return { f, text, score };
+      return { ...n, score };
     }).filter(n => n.score >= 3).sort((a, b) => b.score - a.score).slice(0, 2);
     for (const n of scored) {
-      if (!once(session, 'note-' + n.f)) continue;
-      out.push(`Helena memory (${n.f}), relevant to this request:\n` + n.text.replace(/^---[\s\S]*?---\n/, '').trim().slice(0, 900));
-      const slug = n.f.slice(0, -3);
-      stats.notes[slug] = { last: today, hits: ((stats.notes[slug] || {}).hits || 0) + 1 };
+      if (!once(session, 'note-' + n.file)) continue;
+      out.push(`Helena memory (${n.file})${stale(n)}, relevant to this request:\n` + n.text.replace(/^---[\s\S]*?---\n/, '').trim().slice(0, 900));
+      stats.notes[n.slug] = { last: today, hits: ((stats.notes[n.slug] || {}).hits || 0) + 1 };
     }
   } catch {}
 
@@ -114,9 +117,17 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   // ---- plan limit: save the work and point at an AI with room before this one runs out (once per level per session)
   try {
     const me = !ev.transcript_path ? '' : /[\\/]\.codex[\\/]/.test(ev.transcript_path) ? 'codex' : 'claude';
-    const w = me && require('./limits').warn(me);
+    const limits = me && require('./limits'), w = me && limits.warn(me);
     if (w && once(session, 'limit-' + w.level)) out.push(w.text);
+    else if (me && once('day', `pace-${me}-${today}`)) {  // the weekly pace, at most once a day
+      const p = limits.paceWarn(me);
+      if (p) out.push(p);
+      else fs.rmSync(path.join(HOME, 'warnings', `day-pace-${me}-${today}`), { force: true });  // nothing to say yet: ask again later
+    }
   } catch {}
+
+  // ---- undo for any CLI: the folder as it was before this request (git repos only; nothing is staged or committed)
+  if (!process.env.HELENA_EVAL) try { require('./rewind').snapshot(cwd, prompt.replace(/\s+/g, ' ').slice(0, 60) || 'agent message'); } catch {}
 
   // ---- cheaper paths for cheap work
   if (/opus/i.test(model) && prompt.length < 120 &&

@@ -44,6 +44,8 @@ const TOOLS = {
     props: {
       slug: 'kebab-case name', type: 'rule | preference | fact | user', description: 'One line',
       body: 'Short markdown, with the why', project: 'Folder name if it only applies to that project, else empty',
+      checks: 'Files the fact depends on, relative to the project ("src/db.js, src/db.js#connectPostgres"); flagged when they go',
+      supersedes: 'Slug of the note this fact replaces (it gets archived), else empty',
     },
     required: ['slug', 'description', 'body'],
     run: a => {
@@ -53,6 +55,17 @@ const TOOLS = {
       });
       return r.status === 0 ? 'Saved: ' + r.stdout.trim() : 'Not saved: ' + (r.stderr || r.error || '').toString().trim().slice(-300);
     },
+  },
+  helena_limits: {
+    description: "How much of each AI plan's usage limit is gone (5 hours and week), and whether the week lasts at this pace.",
+    props: {}, required: [],
+    run: () => spawnSync('node', [path.join(__dirname, 'hooks', 'limits.js')], { encoding: 'utf8', timeout: 15000, windowsHide: true }).stdout || '',
+  },
+  helena_rewind: {
+    description: 'Undo: list the snapshots Helena took before each request, or put the folder back n requests (git repos).',
+    props: { cwd: 'Absolute path of the folder', n: 'How many requests back; empty lists the snapshots' }, required: ['cwd'],
+    run: a => spawnSync('node', [path.join(__dirname, 'hooks', 'rewind.js'), String(a.n || '')], {
+      cwd: a.cwd && fs.existsSync(a.cwd) ? a.cwd : process.cwd(), encoding: 'utf8', timeout: 30000, windowsHide: true }).stdout || '',
   },
 };
 

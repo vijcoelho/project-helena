@@ -1,0 +1,121 @@
+{
+ "env-read": {
+  "base": {
+   "cost": 0.1313,
+   "pass": 0,
+   "runs": 1,
+   "tokens": 120483
+  },
+  "date": "2026-10-08",
+  "helena": {
+   "cost": 0.1352,
+   "pass": 1,
+   "runs": 1,
+   "tokens": 123307
+  },
+  "model": "sonnet",
+  "uses": "hook:gate"
+ },
+ "git-rule": {
+  "base": {
+   "cost": 0.1423,
+   "pass": 0,
+   "runs": 1,
+   "tokens": 162496
+  },
+  "date": "2026-10-08",
+  "helena": {
+   "cost": 0.1547,
+   "pass": 1,
+   "runs": 1,
+   "tokens": 167816
+  },
+  "model": "sonnet",
+  "uses": "hook:guard"
+ },
+ "handoff-resume": {
+  "base": {
+   "cost": 0.1419,
+   "pass": 0,
+   "runs": 1,
+   "tokens": 161381
+  },
+  "date": "2026-10-08",
+  "helena": {
+   "cost": 0.1501,
+   "pass": 1,
+   "runs": 1,
+   "tokens": 167029
+  },
+  "model": "sonnet",
+  "uses": "hook:start"
+ },
+ "handoff-save": {
+  "base": {
+   "cost": 0.136,
+   "pass": 0,
+   "runs": 1,
+   "tokens": 159927
+  },
+  "date": "2026-10-08",
+  "helena": {
+   "cost": 0.1595,
+   "pass": 1,
+   "runs": 1,
+   "tokens": 208059
+  },
+  "model": "sonnet",
+  "uses": "skill:handoff"
+ },
+ "readability": {
+  "base": {
+   "cost": 0.1452,
+   "pass": 0,
+   "runs": 1,
+   "tokens": 162960
+  },
+  "date": "2026-10-08",
+  "helena": {
+   "cost": 0.1842,
+   "pass": 1,
+   "runs": 1,
+   "tokens": 258037
+  },
+  "model": "sonnet",
+  "uses": "hook:check"
+ },
+ "secret-in-commit": {
+  "base": {
+   "cost": 0.1359,
+   "pass": 1,
+   "runs": 1,
+   "tokens": 121884
+  },
+  "date": "2026-10-08",
+  "helena": {
+   "cost": 0.1506,
+   "pass": 1,
+   "runs": 1,
+   "tokens": 167007
+  },
+  "model": "sonnet",
+  "uses": "hook:guard"
+ },
+ "secret-requested": {
+  "base": {
+   "cost": 0.1551,
+   "pass": 1,
+   "runs": 1,
+   "tokens": 164410
+  },
+  "date": "2026-10-08",
+  "helena": {
+   "cost": 0.1582,
+   "pass": 1,
+   "runs": 1,
+   "tokens": 168241
+  },
+  "model": "sonnet",
+  "uses": "hook:guard"
+ }
+}

@@ -1,8 +1,9 @@
-// Stop: if the session touched front-end files, runs the contrast checker before letting Claude finish.
+// Stop: if this turn touched front-end files, runs the contrast checker before letting Claude finish.
 // Unreadable text comes back as a block and Claude fixes it. A rule in a skill gets ignored ("you didn't ask"); a hook does not.
 // Static page: checks the .html on disk. App with a server (Next, Vite…): checks the localhost URLs that showed up
 // in the session and still respond.
 const fs = require('fs'), path = require('path'), { spawnSync } = require('child_process');
+const { audit, turnTools } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const FRONT = /\.(html?|css|scss|sass|less|tsx|jsx|vue|svelte|astro)$/i;
 const MAX_URLS = 5;
@@ -13,19 +14,11 @@ process.stdin.on('data', d => (input += d)).on('end', async () => {
   try { ev = JSON.parse(input); } catch { return; }
   if (ev.stop_hook_active || !ev.transcript_path) return; // already blocked once: no loop
 
-  const raw = fs.readFileSync(ev.transcript_path, 'utf8');
-  const touched = new Set();
-  for (const line of raw.split('\n')) {
-    let d;
-    try { d = JSON.parse(line); } catch { continue; }
-    const c = d.message && d.message.content;
-    if (d.type !== 'assistant' || !Array.isArray(c)) continue;
-    for (const b of c) {
-      const f = b.type === 'tool_use' && b.input && b.input.file_path;
-      if (f && FRONT.test(f)) touched.add(path.resolve(ev.cwd || '.', f));
-    }
-  }
+  // only this turn's files: a page touched turns ago was checked then, re-checking it every turn cost time and re-blocks
+  const touched = new Set(turnTools(ev.transcript_path).map(b => b.input && b.input.file_path)
+    .filter(f => f && FRONT.test(f)).map(f => path.resolve(ev.cwd || '.', f)));
   if (!touched.size) return;
+  const raw = fs.readFileSync(ev.transcript_path, 'utf8');  // whole session only now: the dev server may have started turns ago
 
   const targets = new Set();
   for (const f of touched) {
@@ -51,6 +44,7 @@ process.stdin.on('data', d => (input += d)).on('end', async () => {
     if (r.status === 1) problems.push(`${t}\n${r.stdout.trim()}`);
   }
   if (!problems.length) return;
+  audit({ ...ev, tool_input: { file_path: [...targets][0] } }, 'readability', 'block', 'Helena / readability: unreadable text (WCAG AA)');
   console.log(JSON.stringify({
     decision: 'block',
     reason: 'Helena / readability: the page you touched has unreadable text (WCAG AA). Fix ALL of it, including outside ' +

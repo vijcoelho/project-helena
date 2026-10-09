@@ -1,25 +1,54 @@
 // SessionStart: puts in context, without anyone asking:
-//  1. the folder's HANDOFF.md
-//  2. a project brief built from git (structure, scripts, README line), so Claude doesn't re-explore the repo every session
-//  3. the memory index, minus notes that belong to other projects
-//  4. news from the background worker (a skill Helena created, plugins she turned off), to tell the user
+//  1. the folder's HANDOFF.md, checked against the repo (what changed after it was written, files it names that are gone)
+//  2. the project's instruction file for an AI that does not read it (Codex reads AGENTS.md, Claude reads CLAUDE.md)
+//  3. a project brief built from git (structure, scripts, README line), so Claude doesn't re-explore the repo every session
+//  4. the memory index (yours + the team's in .helena/memory), minus other projects' notes; notes whose checks fail come marked STALE
+//  5. news from the background worker (a skill Helena created, plugins she turned off), to tell the user
 // It also starts the worker when it is overdue (SessionEnd does not fire if the terminal is killed).
 const fs = require('fs'), path = require('path'), { execSync, spawn } = require('child_process');
 const { HOME, MEMORY } = require('./paths');
+const { field, notes, mark } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
-const out = [], cwd = process.cwd(), project = path.basename(cwd);
+const out = [], cwd = process.cwd();
+let ev = {};
+try { ev = JSON.parse(fs.readFileSync(0, 'utf8')); } catch {}  // empty when helena-mcp runs this for another AI
+const git = a => execSync(`git ${a}`, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500, maxBuffer: 32 << 20 });
 
 // ONDE-PAREI.md: the creator's handoff name before v0.5, still read so older projects keep working
 for (const name of ['HANDOFF.md', 'ONDE-PAREI.md']) {
+  let text;
+  try { text = fs.readFileSync(name, 'utf8'); } catch { continue; }
+  out.push(`There is a ${name} in this folder (handoff from the last session):\n\n${text}` +
+    `\nWhen you finish any item under "Next", update ${name}: move it to "Done" and write the next step.\n`);
+  // the next AI (or the same one after /clear) picks up from what is true now, not from what was true when it was written
+  const check = [], at = fs.statSync(name).mtimeMs;
   try {
-    out.push(`There is a ${name} in this folder (handoff from the last session):\n\n` + fs.readFileSync(name, 'utf8') +
-      `\nWhen you finish any item under "Next", update ${name}: move it to "Done" and write the next step.\n`);
-    break;
+    const after = git('status --porcelain').split('\n').map(l => l.slice(3).replace(/^"|"$/g, '').split(' -> ').pop())
+      .filter(f => f && f !== name && (() => { try { return fs.statSync(f).mtimeMs > at + 1000; } catch { return true; } })());
+    if (after.length) check.push(`changed after it was written: ${after.slice(0, 10).join(', ')}${after.length > 10 ? ' …' : ''} (read them first)`);
+    const commits = git(`log --oneline --since=@${Math.floor(at / 1000) + 1}`).trim();
+    if (commits) check.push('commits after it: ' + commits.split('\n').slice(0, 5).join(' | '));
   } catch {}
+  // file paths it names (with a folder, so plain words are left alone) that are gone now
+  const gone = [...new Set([...text.matchAll(/`([\w.-]+(?:\/[\w.-]+)+\.\w{1,5})`|(?:^|[\s(])((?:[\w-]+\/)+[\w.-]+\.\w{1,5})\b/gm)]
+    .map(m => m[1] || m[2]))].filter(f => !fs.existsSync(f));
+  if (gone.length) check.push('names files that no longer exist: ' + gone.slice(0, 8).join(', '));
+  out.push(`Helena checked ${name} against the repo: ${check.length ? check.join('; ') : 'nothing changed since it was written'}.\n` +
+    `In your first reply, restate in one line the next step you are picking up from ${name}, so the user can confirm it.`);
+  break;
 }
 
+// one instruction file for every AI: hand it over when this AI reads a different one (capped, it is re-read every message)
+const who = /[\\/]\.codex[\\/]/.test(ev.transcript_path || '') ? 'codex' : ev.transcript_path ? 'claude' : 'other';
+const own = { claude: ['CLAUDE.md'], codex: ['AGENTS.md'], other: [] }[who];
+const rules = ['AGENTS.md', 'CLAUDE.md'].find(f => fs.existsSync(f));
+if (rules && !own.some(f => fs.existsSync(f)))
+  out.push(`This project's instructions (${rules}, written for every AI that works here; follow them):\n\n` +
+    fs.readFileSync(rules, 'utf8').slice(0, 8000));
+
+
+
 try {
-  const git = a => execSync(`git ${a}`, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500, maxBuffer: 32 << 20 });
   const files = git('ls-files').split('\n').filter(Boolean);
   if (files.length && path.resolve(git('rev-parse --show-toplevel').trim()) === path.resolve(cwd)) {
     const count = (key, top) => Object.entries(files.reduce((m, f) => (m[key(f)] = (m[key(f)] || 0) + 1, m), {}))
@@ -39,22 +68,16 @@ try {
   }
 } catch {}
 
-try {
-  // ponytail: whole index every session; switch to retrieval only (router.js already injects matching notes) past ~150 notes
-  const lines = fs.readdirSync(MEMORY).filter(f => f.endsWith('.md')).flatMap(f => {
-    const text = fs.readFileSync(path.join(MEMORY, f), 'utf8');
-    const owner = (text.match(/^project:\s*(.+)$/m) || [])[1];
-    if (owner && owner.trim().toLowerCase() !== project.toLowerCase()) return [];
-    return [`- ${f.slice(0, -3)}: ${(text.match(/^description:\s*(.+)$/m) || [])[1] || ''}`];
-  });
-  if (lines.length) out.push(
-    `Helena's memory (${MEMORY.split(path.sep).join('/')}). Read the full note when it is relevant to the request:`,
-    ...lines,
-    'If the user corrects you or says something that holds from now on, create/update a note there: frontmatter `type` and ' +
-    '`description` (plus `project: <folder>` when it only applies here), one fact per note, [[links]] to related notes, ' +
-    'written in the language the user writes in.');
-  else if (!fs.readdirSync(MEMORY).length) throw 0;
-} catch {
+// ponytail: whole index every session; switch to retrieval only (router.js already injects matching notes) past ~150 notes
+const mem = notes(cwd);
+if (mem.length) out.push(
+  `Helena's memory (${MEMORY.split(path.sep).join('/')}` + (mem.some(n => n.team) ? ', and the team\'s in .helena/memory/' : '') +
+  '). Read the full note when it is relevant to the request:',
+  // descriptions capped: this index is re-read on every message of the session
+  ...mem.map(n => { const d = field(n.text, 'description'); return `- ${n.slug}: ${d.length > 90 ? d.slice(0, 89) + '…' : d}${mark(n)}`; }),
+  'A correction or lasting rule from the user becomes a note there: frontmatter `type`, `description` (+ `project: <folder>` ' +
+  'if only for here, `checks: <file>#<name>` if it depends on code), one fact, [[links]], in the user\'s language.');
+else {
   try { fs.statSync(path.join(HOME, 'setup-hint')); } catch {  // once: a fresh Helena offers to learn from past sessions
     out.push('Helena has no memory yet. At the end of your first reply, tell the user in one line that /helena:setup lets her learn from their past sessions.');
     try { fs.mkdirSync(HOME, { recursive: true }); fs.writeFileSync(path.join(HOME, 'setup-hint'), ''); } catch {}
