@@ -6,13 +6,15 @@
     ],
     "PreToolUse": [
       { "matcher": "Bash|PowerShell", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/guard.js\"" }] },
-      { "matcher": "Bash|PowerShell|Read", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/trim.js\"" }] }
+      { "matcher": "Bash|PowerShell|Read", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/trim.js\"" }] },
+      { "matcher": "Bash|PowerShell|Read|Grep|Edit|Write|MultiEdit|mcp__.*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/gate.js\"", "timeout": 15 }] }
     ],
     "UserPromptSubmit": [
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/router.js\"" }] }
     ],
     "Stop": [
-      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/check.js\"", "timeout": 200 }] }
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/check.js\"", "timeout": 200 }] },
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/done.js\"", "timeout": 300 }] }
     ],
     "SessionEnd": [
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/end.js\"" }] }

@@ -43,13 +43,17 @@ PROJECT ({project}): if the session changed something durable about this project
 
 Write every note in the language the user writes in. A memory that only applies to this project gets "project": "{project}";
 one that holds everywhere gets "project": "".
+When a fact depends on code that can change, put in "checks" the files (or "file#Name" for a function, class or setting
+inside a file) that must still exist for it to hold, with paths relative to the project folder; Helena flags the note when they go.
+When a new fact REPLACES an existing memory (moved from X to Y, a rule that changed), write a NEW slug and put the old
+slug in "supersedes": the old note is archived. Never append a contradicting fact to the old note.
 
 Memories that already exist (slug: description). If it is the same thing, use the SAME slug to add to it:
 {index}
 
 Answer ONLY with JSON, no text around it:
 {{"memories": [{{"slug": "kebab-case", "type": "rule|preference|fact|user", "description": "one line",
-  "body": "short markdown", "links": ["related-slug"], "project": ""}}],
+  "body": "short markdown", "links": ["related-slug"], "project": "", "checks": "src/x.js, src/y.py#Name", "supersedes": []}}],
  "skills": [{{"name": "kebab-case", "when": "trigger", "steps": "markdown", "how_to_test": "task + objective check"}}],
  "project": {{"state": "", "decisions": []}}}}
 An empty list is the right answer when nothing is durable. When in doubt, do not save.
@@ -142,12 +146,22 @@ def write(data, vault, source, project='', commits='', used=()):
         f = memory / f"{slug(m['slug'])}.md"
         links = ', '.join(f'[[{slug(l)}]]' for l in m.get('links', []))
         body = SECRET.sub('***', m.get('body', '').strip())
+        old = m.get('supersedes') or []
+        for s in (old.split(',') if isinstance(old, str) else old):  # the fact it replaces leaves Memory, kept in Archive
+            gone = memory / f'{slug(s)}.md'
+            if s.strip() and gone.exists() and gone != f:
+                (vault / 'Archive').mkdir(exist_ok=True)
+                shutil.move(gone, vault / 'Archive' / gone.name)
+                with open(vault / 'Archive' / gone.name, 'a', encoding='utf-8') as a:
+                    a.write(f'\nSuperseded by [[{f.stem}]] on {today}.\n')
+                done.append(vault / 'Archive' / gone.name)
         if f.exists():
             f.write_text(f.read_text(encoding='utf-8').rstrip() + f'\n\n## {today}\n{body}\n', encoding='utf-8')
         else:
             scope = f"project: {m['project']}\n" if m.get('project') else ''
+            extra = ''.join(k + ': ' + ' '.join(str(m[k]).split()) + '\n' for k in ('checks', 'until') if m.get(k))
             f.write_text(f"---\ntype: {m.get('type', 'fact')}\ndescription: {SECRET.sub('***', m['description'])}\n"
-                         f"{scope}source: {source}\n---\n{body}\n" +
+                         f"{scope}{extra}source: {source}\n---\n{body}\n" +
                          (f'\nRelated: {links}\n' if links else '') + (f'\nProject: [[{project}]]\n' if m.get('project') else ''),
                          encoding='utf-8')
         done.append(f)

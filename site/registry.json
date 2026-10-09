@@ -1,0 +1,136 @@
+[
+ {
+  "name": "check",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a",
+  "tasks": [
+   "readability"
+  ],
+  "runs": 1,
+  "base": 0,
+  "helena": 1,
+  "lift": 1.0,
+  "model": [
+   "sonnet"
+  ],
+  "date": "2026-10-08"
+ },
+ {
+  "name": "done",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
+ },
+ {
+  "name": "end",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
+ },
+ {
+  "name": "gate",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a",
+  "tasks": [
+   "env-read"
+  ],
+  "runs": 1,
+  "base": 0,
+  "helena": 1,
+  "lift": 1.0,
+  "model": [
+   "sonnet"
+  ],
+  "date": "2026-10-08"
+ },
+ {
+  "name": "guard",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a",
+  "tasks": [
+   "git-rule",
+   "secret-in-commit",
+   "secret-requested"
+  ],
+  "runs": 3,
+  "base": 2,
+  "helena": 3,
+  "lift": 0.33,
+  "model": [
+   "sonnet"
+  ],
+  "date": "2026-10-08"
+ },
+ {
+  "name": "router",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
+ },
+ {
+  "name": "start",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a",
+  "tasks": [
+   "handoff-resume"
+  ],
+  "runs": 1,
+  "base": 0,
+  "helena": 1,
+  "lift": 1.0,
+  "model": [
+   "sonnet"
+  ],
+  "date": "2026-10-08"
+ },
+ {
+  "name": "trim",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
+ },
+ {
+  "name": "handoff",
+  "kind": "skill",
+  "always": 60,
+  "on_use": 224,
+  "scan": "clean",
+  "tasks": [
+   "handoff-save"
+  ],
+  "runs": 1,
+  "base": 0,
+  "helena": 1,
+  "lift": 1.0,
+  "model": [
+   "sonnet"
+  ],
+  "date": "2026-10-08"
+ },
+ {
+  "name": "library",
+  "kind": "skill",
+  "always": 48,
+  "on_use": 171,
+  "scan": "clean"
+ },
+ {
+  "name": "readability",
+  "kind": "skill",
+  "always": 52,
+  "on_use": 271,
+  "scan": "clean"
+ }
+]

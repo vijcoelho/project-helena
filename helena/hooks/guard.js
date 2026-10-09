@@ -6,6 +6,7 @@
 // The Portuguese spelling from v0.4 (`main: não`, `nunca:`) is still accepted.
 const { execSync } = require('child_process');
 const fs = require('fs'), path = require('path');
+const { audit } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 
 // same pattern as helena/distill.py (SECRET)
@@ -73,6 +74,7 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
     'If it is a false positive (e.g. a test hash), tell the user and ask them to confirm.');
   if (broken.length) reason.push('Helena / this project\'s git rules (.helena/git, agreed with the user):\n- ' + broken.join('\n- ') +
     '\nAdjust and run again (git restore --staged <file> takes it out of the commit). Only change .helena/git if the user asks.');
+  audit(ev, 'guard', 'deny', reason.join(' '));
   console.log(JSON.stringify({
     hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason.join('\n\n') },
   }));

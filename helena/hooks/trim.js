@@ -15,7 +15,8 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   const size = f => { try { return fs.statSync(path.resolve(cwd, f)).size; } catch { return 0; } };
   let why = '', what = '', tokens = 0;
 
-  if (ev.tool_name === 'Read' && t.file_path && !t.limit) {
+  // Images cost by pixels, not bytes, and render checks (contact sheets in out/) need to be looked at.
+  if (ev.tool_name === 'Read' && t.file_path && !t.limit && !/\.(png|jpe?g|gif|webp)$/i.test(t.file_path)) {
     what = path.basename(t.file_path); tokens = Math.round(size(t.file_path) / 4);
     if (LOCK.test(t.file_path)) why = 'lockfiles are huge and generated; read package.json, or Grep the lockfile for the one package you need';
     else if (BUILT.test(t.file_path)) why = 'this is generated/minified output; read the source file instead';

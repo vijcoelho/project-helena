@@ -4,6 +4,7 @@
     python library.py install <repo> --only semgrep,fp-check              # just some skills from the repo
     python library.py install <repo> --package                            # whole repo (skills that call each other by path)
     python library.py install ./some/local/folder                         # a local folder works too
+    python library.py install <repo> --trust                              # install even with a critical security finding
     python library.py move my-skill       # takes it out of ~/.claude/skills (always loaded) into the library
     python library.py restore my-skill    # the opposite
     python library.py catalog             # rebuilds CATALOG.md
@@ -12,6 +13,9 @@ A skill in ~/.claude/skills costs context in EVERY session (its description goes
 In the library it costs nothing until it is read.
 """
 import pathlib, re, shutil, subprocess, sys, tempfile
+
+sys.path.insert(0, str(pathlib.Path(__file__).parent / 'helena'))
+from scan import scan, verdict  # noqa: E402
 
 LIB = pathlib.Path.home() / '.helena' / 'library'
 GLOBAL = pathlib.Path.home() / '.claude' / 'skills'
@@ -42,13 +46,26 @@ def catalog():
     print(f'{len(lines) - 4} skills in the catalog: {LIB / "CATALOG.md"}')
 
 
-def install(url, only=None, package=False):
+def safe(folder, name, trust):
+    """Security scan before a skill joins the library: a critical finding keeps it out unless --trust."""
+    found = scan(folder)
+    for level, where, why in found:
+        print(f'    {level:8} {name}/{where}  {why}')
+    if verdict(found) == 'critical' and not trust:
+        print(f'  - {name}: skipped (critical finding above; read it, then install with --trust if it is fine)')
+        return False
+    return True
+
+
+def install(url, only=None, package=False, trust=False):
     with tempfile.TemporaryDirectory() as tmp:
         if pathlib.Path(url).is_dir():
             shutil.copytree(url, tmp, dirs_exist_ok=True)
         else:
             subprocess.run(['git', '-c', 'core.longpaths=true', 'clone', '-q', '--depth', '1', url, tmp], check=True)
         if package:
+            if not safe(pathlib.Path(tmp), url.rstrip('/').split('/')[-1], trust):
+                return
             dest = LIB / url.rstrip('/').split('/')[-1].removesuffix('.git')
             shutil.rmtree(dest, ignore_errors=True)
             shutil.copytree(tmp, dest, ignore=shutil.ignore_patterns('.git', '.github', 'tests', 'evals'))
@@ -59,6 +76,8 @@ def install(url, only=None, package=False):
                 continue
             name = frontmatter(md).get('name') or md.parent.name
             if only and name not in only:
+                continue
+            if not safe(md.parent, name, trust):
                 continue
             dest = LIB / name
             shutil.rmtree(dest, ignore_errors=True)
@@ -84,7 +103,7 @@ if __name__ == '__main__':
         only = next((a.split('=', 1)[1] if '=' in a else args[args.index(a) + 1] for a in args if a.startswith('--only')), None)
         targets = [a for a in args if not a.startswith('--') and a != only]
         for u in targets:
-            install(u, only=set(only.split(',')) if only else None, package='--package' in args)
+            install(u, only=set(only.split(',')) if only else None, package='--package' in args, trust='--trust' in args)
     elif cmd == 'move':
         for n in args:
             move(n, GLOBAL, LIB)
