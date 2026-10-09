@@ -50,7 +50,7 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
     if (m) secrets.push(`${f}: looks like a key/secret (${m[0].slice(0, 6)}…)`);
   }
   if (push) {
-    const m = git('log -p @{u}..HEAD').match(SECRET);
+    const m = git('log -p --format= @{u}..HEAD').match(SECRET);  // no header: a commit hash is 40 hex chars too
     if (m && !secrets.length) secrets.push(`an unpushed commit contains a secret (${m[0].slice(0, 6)}…): rewrite that commit before pushing`);
   }
 
