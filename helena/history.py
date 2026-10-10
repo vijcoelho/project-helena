@@ -21,14 +21,14 @@ def plugin_of(tool):
     return None
 
 
-def sessions(days=30, since=0):
+def sessions(days=30, since=0, pattern='*/*.jsonl'):
     """Yields one dict per transcript modified in the last `days` days (and after `since`, a unix time)."""
     limit = max(time.time() - days * 86400, since)
-    for f in glob.glob(str(PROJECTS / '*' / '*.jsonl')):
+    for f in glob.glob(str(PROJECTS / pattern)):
         if os.path.getmtime(f) < limit:
             continue
         s = {'file': f, 'id': pathlib.Path(f).stem, 'cwd': None, 'prompts': [], 'tools': [], 'usage': [], 'outputs': []}
-        last_prompt = None
+        last_prompt, calls = None, set()
         for line in open(f, encoding='utf-8', errors='ignore'):
             try:
                 d = json.loads(line)
@@ -53,7 +53,9 @@ def sessions(days=30, since=0):
                             s['outputs'].append((b.get('tool_use_id'), size))
             elif d.get('type') == 'assistant':
                 u = m.get('usage')
-                if u:
+                # one API call is written as one line per content block, each repeating the same usage: count it once
+                if u and m.get('id') not in calls:
+                    calls.add(m.get('id') or len(s['usage']))  # no id: every line counts
                     s['usage'].append({'ts': d.get('timestamp', ''), 'model': m.get('model', ''),
                                        'input': u.get('input_tokens', 0), 'write': u.get('cache_creation_input_tokens', 0),
                                        'read': u.get('cache_read_input_tokens', 0), 'output': u.get('output_tokens', 0)})
@@ -69,6 +71,19 @@ def sessions(days=30, since=0):
                     if last_prompt is not None and len(last_prompt['actions']) < 12:
                         what = inp.get('command') or inp.get('file_path') or inp.get('pattern') or inp.get('skill') or ''
                         last_prompt['actions'].append(f"{name}: {str(what)[:160]}")
+        yield s
+
+
+def subagents(days=30):
+    """Subagent transcripts (<session>/subagents/agent-*.jsonl), each with the model / effort / type it was started with.
+
+    Claude Code keeps them next to the parent session and `/usage` does not show their cache reads.
+    """
+    for s in sessions(days, pattern='*/*/subagents/agent-*.jsonl'):
+        try:
+            s['meta'] = json.loads(pathlib.Path(s['file']).with_suffix('.meta.json').read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            s['meta'] = {}
         yield s
 
 

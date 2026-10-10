@@ -167,7 +167,7 @@ not read it.
 | `/helena:remember <fact>` | Teach her something right now (a rule, a preference, a project fact) |
 | `/helena:forget <fact>` | Remove a memory that is wrong or outdated |
 | `/helena:status` | What she has learned: memories, kits, library, skill candidates |
-| `/helena:budget` | Where your tokens went this week (per day, per project, what filled the context) and what Helena costs |
+| `/helena:budget` | Where your tokens went this week (per day, per project, what filled the context), what each subagent cost by model and effort, and what Helena costs |
 | `/helena:skills` | The skills she created on her own from your repeated requests, and how often each was used |
 | `/helena:undo <skill>` | Delete a skill she created (she will not create it again) |
 | `/helena:undo <skill> learned` | Remove the last lesson she added to a skill |

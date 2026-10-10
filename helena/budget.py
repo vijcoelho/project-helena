@@ -7,7 +7,7 @@ Reads the usage that Claude Code already writes in every transcript. No LLM call
 import collections, json, pathlib, statistics, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
-from history import HOME, sessions  # noqa: E402
+from history import HOME, sessions, subagents  # noqa: E402
 
 
 def k(n):
@@ -63,6 +63,26 @@ def main():
     print('\nBiggest single outputs:')
     for size, name, what in sorted(biggest, reverse=True)[:5]:
         print(f'  {k(size):>6}  {name}: {what}')
+
+    # subagents: their transcripts sit next to the parent session, outside the totals above
+    groups, workers = collections.defaultdict(collections.Counter), []
+    for s in subagents(days):
+        if not s['usage']:
+            continue
+        ctx = [u['input'] + u['write'] + u['read'] for u in s['usage']]
+        total = sum(ctx) + sum(u['output'] for u in s['usage'])
+        who = (s['usage'][0]['model'].replace('claude-', ''), s['meta'].get('effort', '-'))
+        groups[who].update(workers=1, calls=len(ctx), tokens=total, big=sum(c > 100e3 for c in ctx))
+        workers.append((total, who, len(ctx), f"{s['meta'].get('agentType', '?')}: {s['meta'].get('description', '')}"[:60]))
+    if workers:
+        print(f'\nSubagents (not counted above; /usage does not show their cache reads): {len(workers)} workers, '
+              f'{k(sum(w[0] for w in workers))} tokens')
+        print(f"  {'model':18} {'effort':7} {'workers':>7} {'calls':>6} {'tokens':>7}  calls over 100k of context")
+        for (model, effort), g in sorted(groups.items(), key=lambda x: -x[1]['tokens']):
+            print(f"  {model[:18]:18} {effort:7} {g['workers']:>7} {g['calls']:>6} {k(g['tokens']):>7}  {g['big']}")
+        print('  Heaviest:')
+        for total, (model, effort), calls, what in sorted(workers, reverse=True)[:5]:
+            print(f'  {k(total):>6}  {model} {effort}, {calls} calls  {what}')
 
     own = [json.loads(l) for l in open(HOME / 'ledger.jsonl', encoding='utf-8')] if (HOME / 'ledger.jsonl').exists() else []
     own = [e for e in own if e.get('ts', '') >= min(per_day)]

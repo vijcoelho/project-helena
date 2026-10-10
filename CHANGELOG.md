@@ -15,6 +15,11 @@ Three checks prompted by how the Claude Code team describes working with it (Tha
 - Fix (`hooks/router.js`): the routine-request hint no longer suggests `/model sonnet`. Per the Claude Code docs a
   mid-session switch re-reads the whole history with no cache hits and `/model <name>` becomes the default for new
   sessions. Now: a long-output command (run, install) on Opus past 50k of context is pointed at a Haiku subagent.
+- Subagent meter (`budget.py`, `history.py`): `/helena:budget` lists what subagents cost, by model and effort (workers,
+  calls, tokens, calls over 100k of context) and the five heaviest. Read from the transcripts Claude Code keeps next to
+  the parent session; `/usage` does not show their cache reads. No hook, nothing new stored.
+- Fix (`history.py`): one API call was counted once per content block, so the budget report showed about 2.5x the real
+  tokens. Each call now counts once.
 
 ## 1.2.0 (2026-10-08)
 
