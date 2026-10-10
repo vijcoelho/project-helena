@@ -7,6 +7,7 @@
 //  - snapshots the working tree before the AI works, so /helena:rewind undoes a turn in any CLI (rewind.js)
 //  - messages that are not the user's (a subagent's report, a task notification) get none of the request-matching parts
 //  - hints a cheaper model for routine requests and a Haiku subagent for broad searches
+//  - on a redo ("try again", "that's not it"), has the AI say what went wrong before it spends another attempt
 //  - every 6 prompts, distills the new turns in the background, so ideas reach Obsidian mid-session
 // ponytail: word overlap for notes and kits; swap for embeddings if it starts missing obvious matches.
 const fs = require('fs'), path = require('path');
@@ -18,6 +19,10 @@ const LONG = [120e3, 250e3, 500e3]; // context tokens at which the session-lengt
 const STOP = new Set(('que para com uma por mais isso esse essa este esta aqui como quando onde tudo todo toda voce pode faz ' +
   'fazer tem ter vai vamos agora ainda depois the and for with this that from your you can make just then into have has are ' +
   'was will what when where which there also all any not but our out use get').split(' '));
+// "try again", "undo that and redo it", "that's not what I asked", in Portuguese and English
+const REDO = new RegExp('\\b(tenta|tente|faz|fa[cç]a|try|do (it|that|this))\\s+(de novo|novamente|outra vez|again)\\b|' +
+  '\\b(desfaz|desfa[cç]a|reverte|undo|revert)\\b[^.\\n]{0,40}\\b(refaz|refa[cç]a|redo|de novo|again)\\b|' +
+  '\\bn[aã]o (era|foi) isso\\b|\\bnot what i (asked|wanted|meant)\\b', 'i');
 const words = t => new Set((t.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').match(/[a-z][a-z0-9-]{2,}/g) || [])
   .filter(w => !STOP.has(w)));
 const load = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
@@ -129,13 +134,21 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   // ---- undo for any CLI: the folder as it was before this request (git repos only; nothing is staged or committed)
   if (!process.env.HELENA_EVAL) try { require('./rewind').snapshot(cwd, prompt.replace(/\s+/g, ' ').slice(0, 60) || 'agent message'); } catch {}
 
-  // ---- cheaper paths for cheap work
-  if (/opus/i.test(model) && prompt.length < 120 &&
-      /^\s*(commit|comita|commita|push|faz (o )?(commit|push)|roda|rodar|run|start|para|stop|renomeia|rename|instala|install)\b/i.test(prompt) &&
-      once(session, 'model-hint'))
-    out.push('Helena: routine request on Opus. After it, mention in one line that `/model sonnet` does this kind of task for a fraction of the limit.');
+  // ---- cheaper paths for cheap work. Never `/model` mid-session: the switch re-reads the whole history uncached and
+  //      `/model <name>` becomes the default for new sessions (code.claude.com/docs/en/prompt-caching#switching-models)
+  // ponytail: 50k floor because a fresh subagent starts at ~44k tokens; below it, inline is cheaper. Tune with the 1.3.0 meter
+  if (/opus/i.test(model) && ctx >= 50e3 && prompt.length < 120 &&
+      /^\s*(roda|rodar|run|instala|install)\b/i.test(prompt) && once(session, 'model-hint'))
+    out.push(`Helena: routine command on Opus with ${Math.round(ctx / 1000)}k of context. If its output will be long (tests, install, build), ` +
+      'run it in a subagent with model "haiku" and keep only the result here.');
   if (/(onde (fica|est[aá]|tem)|where (is|are)|find (all|every)|acha (todos|todas|onde)|mapeia|map (the|out)|lista todos|list all)/i.test(prompt))
     out.push('Helena: broad search. Delegate it to the Explore subagent with model "haiku" and keep only its conclusion here.');
+
+  // ---- a redo is the most expensive turn: the failed attempt stays in context and is paid again on every message
+  if (REDO.test(prompt))
+    out.push('Helena: this is a redo. Before changing anything, say in one line what the last attempt got wrong and what ' +
+      'you will do differently; if the request can still be read two ways, ask one question first instead of guessing ' +
+      'again. `/helena:rewind` puts the folder back as it was before the last request.');
 
   // ---- a git rule said in chat is gone next session; in .helena/git the guard hook enforces it every time
   if (/(n[aã]o|nunca|never|don'?t|do not|stop)\b[^.\n]{0,40}\b(commit|comit|main|push)|\b(commit|comit)\w*\b[^.\n]{0,40}\b(n[aã]o|nunca|s[oó]|never|only)\b/i.test(prompt))

@@ -9,6 +9,9 @@
       { "matcher": "Bash|PowerShell|Read", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/trim.js\"" }] },
       { "matcher": "Bash|PowerShell|Read|Grep|Edit|Write|MultiEdit|mcp__.*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/gate.js\"", "timeout": 15 }] }
     ],
+    "PostToolUse": [
+      { "matcher": "WebFetch|WebSearch|mcp__.*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/outside.js\"" }] }
+    ],
     "UserPromptSubmit": [
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/router.js\"" }] }
     ],

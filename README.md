@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.2.0-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.2.1-black">
 </p>
 
 ---
@@ -198,8 +198,9 @@ python extras/measure_context.py            # how many tokens each enabled plugi
 - **Saves tokens.** Every message re-reads the whole context, so she keeps it small: a project brief from git at
   session start (no re-exploring the repo), the 2 memory notes that match the request delivered whole (no round trip to
   read them), lockfiles / build output / huge files / unbounded `git log` blocked before they flood the context, a
-  warning by real context size (120k / 250k / 500k tokens) that asks for `HANDOFF.md` + `/clear`, and a hint when Opus
-  gets a routine request or a broad search should go to a Haiku subagent.
+  warning by real context size (120k / 250k / 500k tokens) that asks for `HANDOFF.md` + `/clear`, and a hint when a broad
+  search or a long-output command on Opus should go to a Haiku subagent (never `/model` mid-session: the switch re-reads
+  the whole history uncached).
 - **Turns off plugins a project never uses.** After 3 sessions in a folder, plugins with no use there are switched off in
   that project's `.claude/settings.local.json` (plugins with hooks are never touched). Ask for something that needs one
   ("let's add a payment gateway" → Stripe) and she turns it back on; it loads when the session restarts.
@@ -245,6 +246,15 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   `rm -rf /`, `git push --force`, `git reset --hard`, `terraform destroy`, a production database URL.
 - **Undo in any CLI.** Before each request she snapshots the folder (git, without touching your index or branch);
   `/helena:rewind` puts it back.
+- **Outside text is data, not a request.** A fetched page, a search result or an MCP tool result that carries a line
+  written for an AI ("ignore previous instructions", "do not tell the user", in English or Portuguese) is flagged right
+  next to the result, and the attempt is logged. It flags and never blocks; fixed phrases only, so a reworded attack
+  passes.
+- **A redo is called out.** "Try again" / "that's not what I asked" leaves the failed attempt in context, re-read on
+  every message. Before spending another one the AI says in one line what went wrong and what changes, and asks when
+  the request still reads two ways.
+- **A heavy instruction file has a price.** `CLAUDE.md` / `AGENTS.md` is re-read on every message; past ~3k tokens she
+  says what it costs (once a week) and offers to move the sometimes-only rules to memory notes.
 
 Every decision lands in `~/.helena/audit.jsonl` (`/helena:audit`).
 
@@ -347,11 +357,12 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 
 | Where | What |
 |---|---|
-| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo, the instruction file the AI does not read, the memory index (yours + the team's, STALE marks), news, runs the worker if overdue |
-| `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the undo snapshot. Subagent reports and notifications are not treated as requests |
+| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo, the instruction file the AI does not read (and the cost of a heavy one), the memory index (yours + the team's, STALE marks), news, runs the worker if overdue |
+| `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the redo note; the undo snapshot. Subagent reports and notifications are not treated as requests |
 | `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, and their `checks:` / `until:` |
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys, `.env` files and anything that breaks `.helena/git` |
 | `helena/hooks/gate.js` | PreToolUse: `.env` reads, made-up or brand-new packages, destructive commands, weakened tests, `.helena/policy` |
+| `helena/hooks/outside.js` | PostToolUse (WebFetch, WebSearch, MCP): flags a line written for an AI in text that came from outside |
 | `helena/hooks/trim.js` | PreToolUse: blocks lockfiles, build output, files over 100 KB and unbounded `git log` / recursive listings |
 | `helena/hooks/check.js` | Stop: if the session touched front-end files, checks contrast on the `.html` and on live localhost URLs |
 | `helena/hooks/done.js` | Stop: if this turn edited code, runs the tests and sends a failure back |
@@ -385,7 +396,8 @@ python eval/test_distill.py              # distillation remembers corrections, s
 python eval/test_learn.py                # checkpoint offsets and "## Learned" lines (no LLM)
 python eval/test_routines.py             # routines: schedule, log, "needs you", goal progress (no LLM)
 python eval/test_tidy.py                 # memory merge, folding lessons, weekly review (no LLM)
-python eval/test_verify.py               # STALE notes, supersedes, handoff check, one instruction file (no LLM)
+python eval/test_verify.py               # STALE notes, supersedes, handoff check, instruction file, redo (no LLM)
+python eval/test_outside.py              # lines aimed at an AI in fetched pages and tool results (no LLM)
 python eval/test_gate.py                 # .env, packages, destructive commands, tests, team policy, audit (no LLM)
 python eval/test_rewind.py               # undo snapshots and the done check (no LLM)
 python eval/test_limits.py               # limit warning, ready command, weekly pace (no LLM)

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.1 (2026-10-09)
+
+Three checks prompted by how the Claude Code team describes working with it (Thariq Shihipar, Latent Space, Sep 2026).
+
+- `hooks/outside.js` (PostToolUse on WebFetch, WebSearch and MCP tools): text from outside is data, not a request. A
+  result with a line written for an AI is flagged next to it and logged (`flag` in `/helena:audit`). Fixed phrases in
+  English and Portuguese; it never blocks.
+- Redo note (`hooks/router.js`): on "try again" / "that's not what I asked" the AI says what the last attempt got wrong
+  before spending another, and asks when the request still reads two ways.
+- Instruction file cost (`hooks/start.js`): a `CLAUDE.md` / `AGENTS.md` past ~3k tokens is called out once a week, with
+  an offer to move the sometimes-only rules to memory notes.
+- `handoff` skill: Decisions also records what was considered and rejected, so the next AI does not try it again.
+- Fix (`hooks/router.js`): the routine-request hint no longer suggests `/model sonnet`. Per the Claude Code docs a
+  mid-session switch re-reads the whole history with no cache hits and `/model <name>` becomes the default for new
+  sessions. Now: a long-output command (run, install) on Opus past 50k of context is pointed at a Haiku subagent.
+
 ## 1.2.0 (2026-10-08)
 
 The layer that checks. From research on what developers still lack (Reddit, Hacker News, GitHub issues, surveys):

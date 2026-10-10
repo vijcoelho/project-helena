@@ -70,6 +70,13 @@
   "date": "2026-10-08"
  },
  {
+  "name": "outside",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
+ },
+ {
   "name": "router",
   "kind": "hook",
   "always": 0,
@@ -105,7 +112,7 @@
   "name": "handoff",
   "kind": "skill",
   "always": 60,
-  "on_use": 224,
+  "on_use": 244,
   "scan": "clean",
   "tasks": [
    "handoff-save"

@@ -1,6 +1,7 @@
 // SessionStart: puts in context, without anyone asking:
 //  1. the folder's HANDOFF.md, checked against the repo (what changed after it was written, files it names that are gone)
-//  2. the project's instruction file for an AI that does not read it (Codex reads AGENTS.md, Claude reads CLAUDE.md)
+//  2. the project's instruction file for an AI that does not read it (Codex reads AGENTS.md, Claude reads CLAUDE.md),
+//     and what that file costs when it has grown past ~3k tokens
 //  3. a project brief built from git (structure, scripts, README line), so Claude doesn't re-explore the repo every session
 //  4. the memory index (yours + the team's in .helena/memory), minus other projects' notes; notes whose checks fail come marked STALE
 //  5. news from the background worker (a skill Helena created, plugins she turned off), to tell the user
@@ -9,6 +10,7 @@ const fs = require('fs'), path = require('path'), { execSync, spawn } = require(
 const { HOME, MEMORY } = require('./paths');
 const { field, notes, mark } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
+const HEAVY = 12e3;  // bytes of CLAUDE.md / AGENTS.md (~3k tokens) past which she mentions what it costs
 const out = [], cwd = process.cwd();
 let ev = {};
 try { ev = JSON.parse(fs.readFileSync(0, 'utf8')); } catch {}  // empty when helena-mcp runs this for another AI
@@ -46,7 +48,19 @@ if (rules && !own.some(f => fs.existsSync(f)))
   out.push(`This project's instructions (${rules}, written for every AI that works here; follow them):\n\n` +
     fs.readFileSync(rules, 'utf8').slice(0, 8000));
 
-
+// the instruction file this AI reads by itself is paid again on every message: say so when it has grown (once a week)
+const mine = own.find(f => fs.existsSync(f)), size = mine ? fs.statSync(mine).size : 0;
+if (size > HEAVY) {
+  const flag = path.join(HOME, 'warnings', 'rules-' + path.basename(cwd));
+  let seen = 0;
+  try { seen = fs.statSync(flag).mtimeMs; } catch {}
+  if (Date.now() - seen > 7 * 86400e3) {
+    out.push(`${mine} is ~${Math.round(size / 4000)}k tokens, paid again on every message of every session here. ` +
+      'A rule that only matters for some requests costs less as a memory note (handed over only when the request matches it). ' +
+      'At the end of your first reply, tell the user this in one line and offer to move those rules; move nothing unasked.');
+    try { fs.mkdirSync(path.dirname(flag), { recursive: true }); fs.writeFileSync(flag, ''); } catch {}
+  }
+}
 
 try {
   const files = git('ls-files').split('\n').filter(Boolean);

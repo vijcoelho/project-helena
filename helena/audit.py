@@ -31,7 +31,8 @@ def main():
         return
     kind = collections.Counter(r['why'].split(':')[0].replace('Helena / ', '') for r in rows)
     print(f'Last {days} days: {len(rows)} decisions ({sum(r["decision"] == "deny" for r in rows)} denied, '
-          f'{sum(r["decision"] == "ask" for r in rows)} asked, {sum(r["decision"] == "block" for r in rows)} sent back)')
+          f'{sum(r["decision"] == "ask" for r in rows)} asked, {sum(r["decision"] == "block" for r in rows)} sent back, '
+          f'{sum(r["decision"] == "flag" for r in rows)} flagged)')
     for k, n in kind.most_common():
         print(f'  {k:16} {n}')
     print('\nPer project:')
