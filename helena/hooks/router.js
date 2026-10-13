@@ -43,6 +43,9 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   const prompt = human ? ev.prompt || '' : '', asked = words(prompt), session = ev.session_id || 'x', cwd = ev.cwd || process.cwd();
   const out = [], stats = load(path.join(HOME, 'stats.json'), { notes: {}, skills: {} });
   const today = new Date().toISOString().slice(0, 10);
+  // a new request of the user's: delegate.js counts workers per request (the file only exists once that hook is in use)
+  const workers = path.join(HOME, 'warnings', `${session}-workers`);
+  if (human && fs.existsSync(workers)) try { fs.appendFileSync(workers, '{"t":"turn"}\n'); } catch {}
 
   // ---- kits: a regex `trigger`, or `keywords` with a minimum number of them in the request (Helena's own skills)
   const where = {};

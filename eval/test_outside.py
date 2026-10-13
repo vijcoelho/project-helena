@@ -39,6 +39,10 @@ with tempfile.TemporaryDirectory() as home:
     check(len(rows) == 3 and all(r['hook'] == 'outside' and r['decision'] == 'flag' for r in rows), f'audit rows: {rows}')
     check(rows and rows[0]['what'] == 'https://example.com/lasagna', 'audit does not name the source')
 
+    out = pathlib.Path(home) / '.helena' / 'egress.jsonl'
+    went = [json.loads(l)['to'] for l in out.read_text(encoding='utf-8').splitlines()] if out.exists() else []
+    check(went[:4] == ['example.com', 'WebFetch', 'web search', 'mcp:tickets'], f'egress log: {went}')
+
 for e in errors:
     print('failed:', e)
 print('ok: lines aimed at an AI are flagged in fetched pages, search results and MCP results, and logged; clean text is not'

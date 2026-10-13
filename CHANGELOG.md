@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.3.0 (2026-10-12)
+
+Subagents: what they write gets checked, and what they cost can be capped. Nothing here claims a saving: the published
+measurements of "a strong model plans, a cheap one codes" go both ways, and the solo vs orchestrated benchmark has not
+been run yet.
+
+- Done check on subagents (`hooks/done.js`, now also on SubagentStop): a subagent's edits are not in the session's
+  transcript, so the Stop hook never tested them. Failing tests now go back to the subagent before it reports.
+- `hooks/delegate.js` (PreToolUse on Agent, SubagentStop), off until `.helena/delegate` or `~/.helena/delegate` exists:
+  a general-purpose worker started without a model runs on Sonnet and Explore on Haiku instead of the main model
+  (`model:`, `search:`); at most 3 run at once (`parallel:`) and at most 8 start per request (`workers:`). A refused
+  worker is told why and the refusal is in `/helena:audit`. Agent types with their own model and calls that name one are
+  left alone.
+- `agents/scout.md` (Haiku, Read/Grep/Glob, returns paths and line numbers) and `agents/builder.md` (Sonnet, the only
+  writer, reports in 15 lines).
+- `/helena:orchestrate <task>`: plan in the session, one builder at a time, read the diff only after the tests passed,
+  one retry and then do it here. A task of about 5 tool calls is done inline.
+- Ready-made routines (`routines.py add ci|deps [folder]`): failing GitHub Actions runs with the end of the log, and npm
+  dependencies with a new major version. A script collects the facts and the model is called only when they changed.
+- Egress log: every fetched host, web search, MCP server (`hooks/outside.js`) and URL in a `curl` / `wget`
+  (`hooks/gate.js`) is one line in `~/.helena/egress.jsonl`; `/helena:audit` lists the most used.
+- Benchmark: a task with a `persist` file keeps its transcript (`eval/run.py`), which the done check needs; new task
+  `tests-gate` for it. Without it, `done.js` saw no edits in any benchmark run.
+- Fix: the "7 days" measurement in the README and on the site was taken with the 2.5x overcount fixed in 1.2.1. Recounted
+  over the same days: 1,882 model calls, 235k tokens of context per call, 37k fixed (was 3,030 / 243k / 39k).
+- Fix (`eval/test_guard.py`): the test wrote its blocks into the real `~/.helena/audit.jsonl`.
+
 ## 1.2.1 (2026-10-09)
 
 Three checks prompted by how the Claude Code team describes working with it (Thariq Shihipar, Latent Space, Sep 2026).

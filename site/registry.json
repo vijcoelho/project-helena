@@ -18,6 +18,13 @@
   "date": "2026-10-08"
  },
  {
+  "name": "delegate",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
+ },
+ {
   "name": "done",
   "kind": "hook",
   "always": 0,

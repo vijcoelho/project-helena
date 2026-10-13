@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.2.1-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.3.0-black">
 </p>
 
 ---
@@ -172,10 +172,11 @@ not read it.
 | `/helena:undo <skill>` | Delete a skill she created (she will not create it again) |
 | `/helena:undo <skill> learned` | Remove the last lesson she added to a skill |
 | `/helena:undo <skill> fold` | Restore a skill from before she folded its lessons into the recipe |
-| `/helena:routines [what, how often]` | List routines, or add one in plain words ("every Monday check this project's dependencies"); `remove <name>`, `run <name>` |
+| `/helena:routines [what, how often]` | List routines, or add one in plain words ("every Monday check this project's dependencies"); `remove <name>`, `run <name>`. Ready-made: "watch the CI" and "watch the dependencies" |
 | `/helena:rewind [n]` | Undo: the folder as it was before the last request (or n back). Run it again to undo the rewind |
 | `/helena:limits` | Every AI plan's usage (5 hours and week) and whether the week lasts at this pace |
-| `/helena:audit [days]` | What the hooks blocked or asked about; `--json` for a team's own log tools |
+| `/helena:audit [days]` | What the hooks blocked or asked about, and where the AI reached outside this machine; `--json` for a team's own log tools |
+| `/helena:orchestrate <task>` | Plan in this session and hand the coding to one cheaper worker at a time; the tests run before the diff is read |
 | `/helena:share <note>` | Copy one of your memory notes into the repo's `.helena/memory/`, reviewed like code |
 | `/painel` | A pane with context by category and Helena's own spending (Claude Code 2.1.287+) |
 
@@ -212,7 +213,9 @@ python extras/measure_context.py            # how many tokens each enabled plugi
   per run). Due ones run on Haiku when a session ends (no scheduler, nothing always on). They can only read files and
   the web; anything that needs a decision becomes a "needs you" line in `<vault>/Inbox/needs-you.md` and in the next
   session's brief, never acted on. Each run is logged in `<vault>/Routines/<name>.md`; a routine with a goal logs its
-  progress in the project's hub note.
+  progress in the project's hub note. Two come ready: `ci` (failing GitHub Actions runs, needs `gh`) and `deps`
+  (npm dependencies with a new major version). A script collects their facts first, and the model is only called when
+  there is something new, so a green CI costs nothing.
 - **Keeps a hub note per project** in `<vault>/Projects/`: what it is like now, and a log of decisions and commits.
 - **Tidies her memory.** When notes changed, Haiku looks for duplicates and contradictions and merges them into one note
   (the newer fact wins). The old versions go to `<vault>/Archive/`; notes that look outdated are only flagged to you.
@@ -250,6 +253,26 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   written for an AI ("ignore previous instructions", "do not tell the user", in English or Portuguese) is flagged right
   next to the result, and the attempt is logged. It flags and never blocks; fixed phrases only, so a reworded attack
   passes.
+- **A subagent's code is tested too.** Edits made by a subagent are not in the session's transcript, so the Stop hook
+  never saw them. The same done check now runs when a subagent finishes: failing tests go back to it before it reports.
+- **Subagents on a leash (opt-in).** A subagent started without a model runs on the main one, and a fan-out re-reads
+  its context on every call. With a `.helena/delegate` file in the repo (or `~/.helena/delegate`), general-purpose
+  workers started without a model run on Sonnet and Explore on Haiku, at most 3 run at once and at most 8 start per
+  request of yours; the next one is refused with the reason. Each line can be changed or turned `off`:
+
+  ```
+  model: sonnet
+  search: haiku
+  parallel: 3
+  workers: 8
+  ```
+
+  `/helena:orchestrate <task>` is the loop that uses it: the session plans, a `helena:scout` (Haiku, read-only) finds
+  the files, one `helena:builder` (Sonnet) at a time writes, and the diff is read only after the tests pass. No saving
+  is claimed for it yet: published measurements of "strong model plans, cheap model codes" go both ways, and
+  `/helena:budget` shows what your workers cost so you can compare.
+- **Where the AI reached out.** Every fetched host, web search, MCP server and URL in a `curl` / `wget` leaves one line
+  in `~/.helena/egress.jsonl`; `/helena:audit` lists the most used.
 - **A redo is called out.** "Try again" / "that's not what I asked" leaves the failed attempt in context, re-read on
   every message. Before spending another one the AI says in one line what went wrong and what changes, and asks when
   the request still reads two ways.
@@ -260,7 +283,7 @@ Every decision lands in `~/.helena/audit.jsonl` (`/helena:audit`).
 
 ## Token savings
 
-Measured over 7 days and 3,030 messages: **243k tokens of context per message, only 39k of them fixed**. The rest is
+Measured over 7 days and 1,882 model calls: **235k tokens of context per call, only 37k of them fixed**. The rest is
 history that grows with every message. So Helena cuts at both ends: skills stay in a library until a request needs them,
 and sessions are kept short.
 
@@ -347,7 +370,9 @@ These are guardrails for the AI, not a sandbox: whoever owns the machine can tur
 | `<project>/.helena/git` | that project's git rules |
 | `<project>/.helena/memory/` | the team's memory notes, committed with the code |
 | `<project>/.helena/policy` · `.helena/test` | the team's rules for AIs · the done check's test command |
+| `<project>/.helena/delegate` | turns the subagent rules on for that repo (`~/.helena/delegate` for every repo) |
 | `~/.helena/audit.jsonl` | every hook decision (`/helena:audit`) |
+| `~/.helena/egress.jsonl` | every host, web search and MCP server the AI reached |
 | `refs/helena/turns` | the undo snapshots, in each repo's reflog (never pushed) |
 
 ## How it is built
@@ -361,11 +386,13 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 | `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the redo note; the undo snapshot. Subagent reports and notifications are not treated as requests |
 | `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, and their `checks:` / `until:` |
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys, `.env` files and anything that breaks `.helena/git` |
-| `helena/hooks/gate.js` | PreToolUse: `.env` reads, made-up or brand-new packages, destructive commands, weakened tests, `.helena/policy` |
-| `helena/hooks/outside.js` | PostToolUse (WebFetch, WebSearch, MCP): flags a line written for an AI in text that came from outside |
+| `helena/hooks/gate.js` | PreToolUse: `.env` reads, made-up or brand-new packages, destructive commands, weakened tests, `.helena/policy`; logs the hosts a `curl` / `wget` names |
+| `helena/hooks/delegate.js` | PreToolUse (Agent) and SubagentStop, only with `.helena/delegate`: a model for workers started without one, how many run at once, how many start per request |
+| `helena/agents/scout.md` · `builder.md` | the two workers `/helena:orchestrate` uses: a read-only locator on Haiku, a writer on Sonnet |
+| `helena/hooks/outside.js` | PostToolUse (WebFetch, WebSearch, MCP): flags a line written for an AI in text that came from outside; logs where each call went |
 | `helena/hooks/trim.js` | PreToolUse: blocks lockfiles, build output, files over 100 KB and unbounded `git log` / recursive listings |
 | `helena/hooks/check.js` | Stop: if the session touched front-end files, checks contrast on the `.html` and on live localhost URLs |
-| `helena/hooks/done.js` | Stop: if this turn edited code, runs the tests and sends a failure back |
+| `helena/hooks/done.js` | Stop and SubagentStop: if this turn (or this subagent) edited code, runs the tests and sends a failure back |
 | `helena/hooks/limits.js` · `rewind.js` | plan usage and weekly pace (`/helena:limits`) · undo snapshots (`/helena:rewind`) |
 | `helena/scan.py` · `helena/audit.py` | skill security scan · hook decision report |
 | `helena/hooks/end.js` → `helena/distill.py` | SessionEnd (and every 6 prompts, from router.js): Haiku reads the new turns in the background and writes memory, skill candidates and "## Learned" lessons |
@@ -402,6 +429,8 @@ python eval/test_gate.py                 # .env, packages, destructive commands,
 python eval/test_rewind.py               # undo snapshots and the done check (no LLM)
 python eval/test_limits.py               # limit warning, ready command, weekly pace (no LLM)
 python eval/test_scan.py                 # skill security scan on install, registry (no LLM)
+python eval/test_delegate.py             # subagent model pins and caps, done check on a subagent (no LLM)
+python eval/test_budget.py               # one count per API call, subagents by model (no LLM)
 python eval/registry.py                  # site/registry.json: every piece, its context cost, scan and measured lift
 ```
 
@@ -410,8 +439,9 @@ tokens per run), and a task's `uses` file names the hook or skill it measures. `
 piece's context cost and security scan: a piece with no benchmark says so instead of claiming a win.
 
 A task folder has `prompt.md`, `fixture/`, `check.py` (exit 0 = pass), and optionally `setup.py` (prepares the folder),
-`prepare.py` (runs alongside the session) and `ab.json` (what differs between columns). Benchmark sessions never distill
-into your vault and never go to history. Each round costs a real session, so start with `-n 1` and only add rounds when
+`prepare.py` (runs alongside the session), `ab.json` (what differs between columns) and an empty `persist` file (the
+session keeps its transcript, which the done check needs). Benchmark sessions never distill into your vault, and only
+the ones with `persist` go to history. Each round costs a real session, so start with `-n 1` and only add rounds when
 the result is close.
 
 The creator's scoreboard (Sonnet, without → with Helena):
@@ -477,6 +507,7 @@ What ships for teams, free:
   AI. `/helena:share <note>` turns one of yours into a file for a pull request.
 - **Policy as code.** `.helena/policy` says what AIs may run, what needs an OK and which MCP servers are allowed.
 - **Audit log.** `~/.helena/audit.jsonl`, one line per decision; `/helena:audit --json` feeds your own log tools.
+- **Egress log.** `~/.helena/egress.jsonl`, one line per host, search or MCP server the AI reached.
 
 What I set up for companies:
 

@@ -2,9 +2,10 @@
 // A page, a ticket or a tool result can carry a line written for the AI ("ignore previous instructions", "do not tell
 // the user"). When one shows up, the AI is told so right next to the result and the attempt lands in the audit log.
 // It flags and never blocks: an article about prompt injection matches too, and reading it is fine.
+// Every call also leaves one line in ~/.helena/egress.jsonl: the host fetched, "web search", or the MCP server.
 // ponytail: fixed phrases in English and Portuguese (the family scan.py uses for skills), so only the lazy attacks are
 // caught and a reworded one passes. The upgrade is a classifier, at the cost of an LLM call per fetch.
-const { audit } = require('./paths');
+const { audit, egress } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const AIMED = new RegExp([
   '(ignore|disregard|forget)\\s+(all\\s+|any\\s+)?(of\\s+)?(the\\s+|your\\s+)?(previous|prior|above|earlier)\\s+(instructions|prompts?|rules)',
@@ -21,11 +22,13 @@ let input = '';
 process.stdin.on('data', d => (input += d)).on('end', () => {
   let ev;
   try { ev = JSON.parse(input); } catch { return; }
+  const t = ev.tool_input || {}, tool = ev.tool_name || '';
+  const host = u => { try { return new URL(u).host; } catch { return String(u); } };
+  egress(ev, tool.startsWith('mcp__') ? 'mcp:' + tool.split('__')[1] : tool === 'WebSearch' ? 'web search' : host(t.url || tool));
   // any shape a tool returns (string, object, MCP content blocks): the text is in there, newlines as "\n"
   const text = (JSON.stringify(ev.tool_response ?? '') || '').slice(0, MAX).replace(/\\[nrt]/g, ' ');
   const m = text.match(AIMED);
   if (!m) return;
-  const t = ev.tool_input || {};
   const why = `Helena / outside text: what ${ev.tool_name || 'the tool'} returned has a line written for an AI ` +
     `("${m[0].replace(/\s+/g, ' ').slice(0, 80)}")`;
   audit({ ...ev, tool_input: { command: t.url || t.query || '' } }, 'outside', 'flag', why);

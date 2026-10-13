@@ -9,10 +9,11 @@
 //      deny: terraform apply        a regex per line; matching commands are denied
 //      ask: kubectl                 matching commands ask first
 //      mcp: github, helena          only these MCP servers may be used in this repo
+//  - a curl / wget / Invoke-WebRequest leaves the hosts it names in ~/.helena/egress.jsonl (never blocks)
 // Every decision lands in ~/.helena/audit.jsonl. Local hooks can be turned off by whoever owns the machine: this is a
 // guardrail for the AI, not a sandbox.
 const fs = require('fs'), path = require('path'), { execSync } = require('child_process');
-const { audit } = require('./paths');
+const { audit, egress } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 
 const ENV = /(^|[\\/])\.env(\.[\w-]+)?$/, ENV_OK = /\.env\.(example|sample|template)$/;
@@ -128,6 +129,10 @@ async function decide(ev) {
   const rules = policy(cwd);
   for (const r of rules.deny) if (re(r) && re(r).test(cmd))
     return deny(ev, `Helena / team policy: this repo does not let AIs run commands matching "${r}" (.helena/policy). Ask the user to run it.`);
+
+  // a command that sends or fetches over the network: the hosts it names go in the egress log
+  if (/\b(curl|wget|iwr|irm|Invoke-WebRequest|Invoke-RestMethod|https?)\s/i.test(cmd))
+    for (const h of new Set([...cmd.matchAll(/https?:\/\/([^\s\/'"`)]+)/g)].map(m => m[1]))) egress(ev, h);
 
   const pkgs = installs(cmd);
   if (pkgs.length) {
