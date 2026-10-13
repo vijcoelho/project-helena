@@ -1,5 +1,6 @@
-// Stop: an AI saying "done" with failing tests is the most common way bad code gets through. When this turn edited code,
-// this runs the project's tests before Claude may finish; if they fail, the failure goes back to Claude to fix.
+// Stop and SubagentStop: an AI saying "done" with failing tests is the most common way bad code gets through. When this
+// turn (or this subagent) edited code, this runs the project's tests before it may finish; if they fail, the failure
+// goes back to it to fix.
 // Which tests: the first line of <repo>/.helena/test (a command, or "off"), else what the project has:
 //   package.json "test" script → npm test   pytest config or tests/ → python -m pytest -q -x   Cargo.toml → cargo test   go.mod → go test ./...
 // A suite slower than 4 minutes, or a test runner that is not installed, never blocks. Blocks once per turn at most.
@@ -34,9 +35,11 @@ let input = '';
 process.stdin.on('data', d => (input += d)).on('end', () => {
   let ev;
   try { ev = JSON.parse(input); } catch { return; }
-  if (ev.stop_hook_active || !ev.transcript_path) return;  // already blocked once this turn: no loop
+  // SubagentStop: a worker's edits are in its own transcript, not in the session's, and get the same check before it reports
+  const transcript = ev.agent_transcript_path || ev.transcript_path;
+  if (ev.stop_hook_active || !transcript) return;  // already blocked once this turn: no loop
   let edited = [];
-  try { edited = editedThisTurn(ev.transcript_path); } catch { return; }
+  try { edited = editedThisTurn(transcript); } catch { return; }
   if (!edited.length) return;
   let root = ev.cwd || process.cwd();
   try { root = execSync('git rev-parse --show-toplevel', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).trim(); } catch {}

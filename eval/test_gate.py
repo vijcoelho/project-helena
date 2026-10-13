@@ -71,6 +71,14 @@ with tempfile.TemporaryDirectory() as tmp:
     if not any(r['decision'] == 'deny' and r['hook'] == 'gate' for r in rows) or any('=x' in r['why'] for r in rows):
         errors.append('audit log missing or leaking values')
 
+    # a command that goes out leaves its hosts in the egress log, without the credentials in the URL
+    decision('Bash', {'command': 'curl -s https://bob:hunter2@api.example.com/v1/users | head -5 && wget http://files.example.org/a.zip'})
+    decision('Bash', {'command': 'echo see https://docs.example.com/guide'})
+    out = home / '.helena' / 'egress.jsonl'
+    went = [json.loads(l)['to'] for l in out.read_text(encoding='utf-8').splitlines()] if out.exists() else []
+    if went != ['api.example.com', 'files.example.org']:
+        errors.append(f'egress log: {went}')
+
 for e in errors:
     print('failed:', e)
 print('ok: secrets, packages, destructive commands, tests, policy and audit' if not errors else f'{len(errors)} error(s)')

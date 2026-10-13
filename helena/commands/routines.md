@@ -10,6 +10,9 @@ Above are the user's routines. Script: `${CLAUDE_PLUGIN_ROOT}/routines.py`. Requ
 
 - Empty request: show the list as is.
 - "remove <name>" or "run <name>": run `python "<script>" remove <name>` (or `run <name>`) and give the result in at most five lines.
+- "watch the CI" / "tell me when the build breaks": run `python "<script>" add ci "<absolute path of this folder>"`. "watch the
+  dependencies" / "major upgrades": the same with `add deps`. Both collect their facts with a script and only call the model when
+  something is new. Show the one-line result.
 - Anything else describes a new routine. Build this JSON and run `python "<script>" add '<json>'`:
   `{"name": "kebab-case", "prompt": "...", "every": "<n>h or <n>d", "max_budget_usd": 0.1, "project": "...", "goal": "..."}`
   - prompt: self-contained instructions in the user's language; the routine runs later with no memory of this chat and can only read files and the web.

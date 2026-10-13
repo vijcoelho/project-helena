@@ -3,6 +3,7 @@
 //   ~/.helena/kits.json    the user's kits (see helena/kits.example.json)
 //   ~/.helena/library/     skills that only load when a kit asks for them
 //   ~/.helena/audit.jsonl  every time a hook blocked or asked about something (/helena:audit, exportable for a team)
+//   ~/.helena/egress.jsonl every host, search and MCP server the AI reached (/helena:audit lists them)
 const fs = require('fs'), path = require('path'), os = require('os'), { spawn } = require('child_process');
 const HOME = path.join(os.homedir(), '.helena');
 const readVault = () => { try { return fs.readFileSync(path.join(HOME, 'vault'), 'utf8').trim(); } catch {} };
@@ -31,6 +32,16 @@ const audit = (ev, hook, decision, why) => {
     }) + '\n');
   } catch {}
 };
+// where the AI reached outside this machine: a fetched host, a web search, an MCP server, a URL in a command
+const egress = (ev, to) => {
+  try {
+    fs.mkdirSync(HOME, { recursive: true });
+    fs.appendFileSync(path.join(HOME, 'egress.jsonl'), JSON.stringify({
+      ts: new Date().toISOString().slice(0, 19), project: path.basename(ev.cwd || process.cwd()), session: ev.session_id || '',
+      tool: ev.tool_name || '', to: String(to).split('@').pop().slice(0, 80),  // user:password@host keeps the host only
+    }) + '\n');
+  } catch {}
+};
 // tool calls the AI made since the user's last message. Reads the transcript from the end: it reaches megabytes and the
 // Stop hooks run on every turn, so parsing all of it each time was the slowest thing Helena did.
 const turnTools = transcript => {
@@ -52,4 +63,4 @@ const turnTools = transcript => {
     }
   } finally { fs.closeSync(fd); }
 };
-module.exports = { audit, bg, turnTools, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };
+module.exports = { audit, bg, egress, turnTools, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };

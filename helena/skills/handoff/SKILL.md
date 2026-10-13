@@ -21,6 +21,7 @@ Rewrite (do not pile up history) `HANDOFF.md` with exactly these sections:
 - commands to start/test
 ## Decisions
 - choices made and why (what must not be undone without talking first)
+- what was considered and rejected, and why (so the next AI does not try it again)
 ```
 
 ## When continuing

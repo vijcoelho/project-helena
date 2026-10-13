@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.3.0 (2026-10-12)
+
+Subagents: what they write gets checked, and what they cost can be capped. Nothing here claims a saving: the published
+measurements of "a strong model plans, a cheap one codes" go both ways, and the solo vs orchestrated benchmark has not
+been run yet.
+
+- Done check on subagents (`hooks/done.js`, now also on SubagentStop): a subagent's edits are not in the session's
+  transcript, so the Stop hook never tested them. Failing tests now go back to the subagent before it reports.
+- `hooks/delegate.js` (PreToolUse on Agent, SubagentStop), off until `.helena/delegate` or `~/.helena/delegate` exists:
+  a general-purpose worker started without a model runs on Sonnet and Explore on Haiku instead of the main model
+  (`model:`, `search:`); at most 3 run at once (`parallel:`) and at most 8 start per request (`workers:`). A refused
+  worker is told why and the refusal is in `/helena:audit`. Agent types with their own model and calls that name one are
+  left alone.
+- `agents/scout.md` (Haiku, Read/Grep/Glob, returns paths and line numbers) and `agents/builder.md` (Sonnet, the only
+  writer, reports in 15 lines).
+- `/helena:orchestrate <task>`: plan in the session, one builder at a time, read the diff only after the tests passed,
+  one retry and then do it here. A task of about 5 tool calls is done inline.
+- Ready-made routines (`routines.py add ci|deps [folder]`): failing GitHub Actions runs with the end of the log, and npm
+  dependencies with a new major version. A script collects the facts and the model is called only when they changed.
+- Egress log: every fetched host, web search, MCP server (`hooks/outside.js`) and URL in a `curl` / `wget`
+  (`hooks/gate.js`) is one line in `~/.helena/egress.jsonl`; `/helena:audit` lists the most used.
+- Benchmark: a task with a `persist` file keeps its transcript (`eval/run.py`), which the done check needs; new task
+  `tests-gate` for it. Without it, `done.js` saw no edits in any benchmark run.
+- Fix: the "7 days" measurement in the README and on the site was taken with the 2.5x overcount fixed in 1.2.1. Recounted
+  over the same days: 1,882 model calls, 235k tokens of context per call, 37k fixed (was 3,030 / 243k / 39k).
+- Fix (`eval/test_guard.py`): the test wrote its blocks into the real `~/.helena/audit.jsonl`.
+
+## 1.2.1 (2026-10-09)
+
+Three checks prompted by how the Claude Code team describes working with it (Thariq Shihipar, Latent Space, Sep 2026).
+
+- `hooks/outside.js` (PostToolUse on WebFetch, WebSearch and MCP tools): text from outside is data, not a request. A
+  result with a line written for an AI is flagged next to it and logged (`flag` in `/helena:audit`). Fixed phrases in
+  English and Portuguese; it never blocks.
+- Redo note (`hooks/router.js`): on "try again" / "that's not what I asked" the AI says what the last attempt got wrong
+  before spending another, and asks when the request still reads two ways.
+- Instruction file cost (`hooks/start.js`): a `CLAUDE.md` / `AGENTS.md` past ~3k tokens is called out once a week, with
+  an offer to move the sometimes-only rules to memory notes.
+- `handoff` skill: Decisions also records what was considered and rejected, so the next AI does not try it again.
+- Fix (`hooks/router.js`): the routine-request hint no longer suggests `/model sonnet`. Per the Claude Code docs a
+  mid-session switch re-reads the whole history with no cache hits and `/model <name>` becomes the default for new
+  sessions. Now: a long-output command (run, install) on Opus past 50k of context is pointed at a Haiku subagent.
+- Subagent meter (`budget.py`, `history.py`): `/helena:budget` lists what subagents cost, by model and effort (workers,
+  calls, tokens, calls over 100k of context) and the five heaviest. Read from the transcripts Claude Code keeps next to
+  the parent session; `/usage` does not show their cache reads. No hook, nothing new stored.
+- Fix (`history.py`): one API call was counted once per content block, so the budget report showed about 2.5x the real
+  tokens. Each call now counts once.
+
 ## 1.2.0 (2026-10-08)
 
 The layer that checks. From research on what developers still lack (Reddit, Hacker News, GitHub issues, surveys):

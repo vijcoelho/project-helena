@@ -2,15 +2,16 @@
 
     python eval/test_guard.py
 """
-import json, pathlib, subprocess, sys, tempfile
+import json, os, pathlib, subprocess, sys, tempfile
 
 HOOK = pathlib.Path(__file__).resolve().parent.parent / 'helena' / 'hooks' / 'guard.js'
 KEY = 'sk_' + 'live_' + 'FAKE' * 6  # assembled here so this file does not trip secret scanners
+HOME = tempfile.mkdtemp()  # the hook logs every block: keep the test's out of the real ~/.helena/audit.jsonl
 
 
 def blocks(cmd, folder):
     r = subprocess.run(['node', str(HOOK)], input=json.dumps({'tool_input': {'command': cmd}, 'cwd': str(folder)}),
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, env=dict(os.environ, USERPROFILE=HOME, HOME=HOME))
     return bool(r.stdout.strip())
 
 

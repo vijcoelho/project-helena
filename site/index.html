@@ -225,7 +225,7 @@
 <main>
   <section class="hero" id="topo">
     <div>
-      <p class="rotulo">project helena · v1.2 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
+      <p class="rotulo">project helena · v1.3 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
       <h1><span id="digita">Helena</span><span class="cursor"></span></h1>
       <p class="sub">
         <span class="pt">A camada que <b>confere</b>, em cima do Claude Code, do Codex e de qualquer IA. Memória que se confere contra o código, troca de IA sem perder nada, <b>nada de "pronto" com teste falhando</b>, e um benchmark que prova o que fica.</span>
@@ -265,6 +265,7 @@
         <tr><td><span class="pt">memória</span><span class="en">memory</span></td><td class="base"><span class="pt">esquece a cada sessão</span><span class="en">forgets every session</span></td><td><span class="pt">notas no seu Obsidian, conferidas contra o código</span><span class="en">notes in your Obsidian, checked against the code</span></td></tr>
         <tr><td><span class="pt">trocar de IA</span><span class="en">switching AI</span></td><td class="base"><span class="pt">explicar tudo de novo</span><span class="en">explain it all again</span></td><td><span class="pt">HANDOFF.md conferido com o repo, mesma memória</span><span class="en">HANDOFF.md checked against the repo, same memory</span></td></tr>
         <tr><td><span class="pt">"pronto"</span><span class="en">"done"</span></td><td class="base"><span class="pt">com teste falhando</span><span class="en">with failing tests</span></td><td><span class="pt">os testes rodam antes de terminar</span><span class="en">tests run before the turn ends</span></td></tr>
+        <tr><td><span class="pt">subagente</span><span class="en">subagent</span></td><td class="base"><span class="pt">escreve código que ninguém testa</span><span class="en">writes code nobody tests</span></td><td><span class="pt">testes antes de reportar; modelo e quantidade na rédea</span><span class="en">tests before it reports; model and count on a leash</span></td></tr>
         <tr><td><span class="pt">segredos</span><span class="en">secrets</span></td><td class="base"><span class="pt">o .env inteiro no contexto</span><span class="en">the whole .env in context</span></td><td><span class="pt">só os nomes das chaves; nada sobe pro git</span><span class="en">key names only; nothing reaches git</span></td></tr>
         <tr><td><span class="pt">pacotes</span><span class="en">packages</span></td><td class="base"><span class="pt">nome inventado instala</span><span class="en">a made-up name installs</span></td><td><span class="pt">barrado no npm e no PyPI</span><span class="en">blocked against npm and PyPI</span></td></tr>
         <tr><td><span class="pt">contexto</span><span class="en">context</span></td><td class="base"><span class="pt">toda skill em toda mensagem</span><span class="en">every skill on every message</span></td><td><span class="pt">a skill entra quando o pedido precisa, uma vez</span><span class="en">a skill comes in when a request needs it, once</span></td></tr>
@@ -300,7 +301,8 @@
 /helena:rewind   <span class="c">[n]      # <span class="pt">desfaz o que a IA fez no último pedido</span><span class="en">undo what the AI did on the last request</span></span>
 /helena:limits          <span class="c"># <span class="pt">o plano de cada IA e se a semana dura</span><span class="en">every AI's plan and whether the week lasts</span></span>
 /helena:audit           <span class="c"># <span class="pt">o que os hooks barraram</span><span class="en">what the hooks stopped</span></span>
-/helena:share    <span class="c">&lt;<span class="pt">nota</span><span class="en">note</span>&gt;   # <span class="pt">passa uma nota sua pro time</span><span class="en">hand one of your notes to the team</span></span></pre>
+/helena:share    <span class="c">&lt;<span class="pt">nota</span><span class="en">note</span>&gt;   # <span class="pt">passa uma nota sua pro time</span><span class="en">hand one of your notes to the team</span></span>
+/helena:orchestrate <span class="c">&lt;<span class="pt">tarefa</span><span class="en">task</span>&gt; # <span class="pt">planeja aqui, um subagente mais barato escreve</span><span class="en">plan here, one cheaper worker writes</span></span></pre>
     </div>
     <p class="nota surge">
       <span class="pt">Tudo que ela aprende fica nas suas pastas (o seu cofre do Obsidian e ~/.helena), nunca dentro do plugin. Atualizar não apaga nada.</span>
@@ -402,6 +404,11 @@ python project-helena/helena/connect.py --remove</pre>
       <li class="surge"><span class="n">05</span><span class="v"><span class="pt">.env fora do contexto</span><span class="en">.env out of context</span></span><p><span class="pt">Não é só no commit: ler o .env é barrado e a IA recebe só os nomes das chaves, nunca os valores.</span><span class="en">Not just at commit time: reading .env is blocked and the AI gets the key names only, never the values.</span></p><code>STRIPE_KEY, DATABASE_URL</code></li>
       <li class="surge"><span class="n">06</span><span class="v"><span class="pt">Destrutivo pergunta</span><span class="en">Destructive asks</span></span><p><span class="pt">DROP TABLE, DELETE sem WHERE, rm -rf /, push --force, reset --hard, banco de produção: pergunta mesmo quando a permissão deixaria passar.</span><span class="en">DROP TABLE, DELETE without WHERE, rm -rf /, push --force, reset --hard, a production database: asks even when permissions would let it run.</span></p><code>gate.js</code></li>
       <li class="surge"><span class="n">07</span><span class="v"><span class="pt">Desfazer em qualquer IA</span><span class="en">Undo in any AI</span></span><p><span class="pt">Antes de cada pedido ela tira um snapshot da pasta (git, sem tocar no seu index nem na branch). Deu errado? Volta.</span><span class="en">Before each request she snapshots the folder (git, without touching your index or branch). Went wrong? Go back.</span></p><code>/helena:rewind</code></li>
+      <li class="surge"><span class="n">08</span><span class="v"><span class="pt">Texto de fora é dado</span><span class="en">Outside text is data</span></span><p><span class="pt">Página, ticket ou resultado de ferramenta pode trazer uma linha escrita pra IA ("ignore as instruções anteriores"). Ela marca do lado do resultado: isso é dado, não pedido seu. A tentativa fica no log.</span><span class="en">A page, a ticket or a tool result can carry a line written for the AI ("ignore previous instructions"). She flags it next to the result: this is data, not your request. The attempt goes to the log.</span></p><code>outside.js</code></li>
+      <li class="surge"><span class="n">09</span><span class="v"><span class="pt">Refazer custa caro</span><span class="en">Redos are expensive</span></span><p><span class="pt">"Tenta de novo" deixa a tentativa errada no contexto, relida a cada mensagem. Antes de gastar outra, a IA diz em uma linha o que errou e o que muda; se o pedido ainda dá duas leituras, pergunta.</span><span class="en">"Try again" leaves the failed attempt in context, re-read on every message. Before spending another one, the AI says in one line what went wrong and what changes; if the request still reads two ways, it asks.</span></p><code>"tenta de novo"</code></li>
+      <li class="surge"><span class="n">10</span><span class="v"><span class="pt">CLAUDE.md pesado tem preço</span><span class="en">A heavy CLAUDE.md has a price</span></span><p><span class="pt">O arquivo de regras é relido em toda mensagem. Passou de ~3k tokens, ela diz quanto custa e oferece mover pra memória as regras que só valem às vezes.</span><span class="en">The rules file is re-read on every message. Past ~3k tokens she says what it costs and offers to move the sometimes-only rules to memory.</span></p><code>CLAUDE.md · AGENTS.md</code></li>
+      <li class="surge"><span class="n">11</span><span class="v"><span class="pt">Subagente na rédea</span><span class="en">Subagents on a leash</span></span><p><span class="pt">Código escrito por subagente também passa pelos testes antes de ele reportar. E, se você ligar, subagente sem modelo roda no Sonnet ou no Haiku em vez do modelo principal, no máximo 3 ao mesmo tempo e 8 por pedido.</span><span class="en">Code written by a subagent goes through the tests too, before it reports. And, if you turn it on, a subagent started without a model runs on Sonnet or Haiku instead of the main one, at most 3 at once and 8 per request.</span></p><code>.helena/delegate · /helena:orchestrate</code></li>
+      <li class="surge"><span class="n">12</span><span class="v"><span class="pt">Pra onde a IA saiu</span><span class="en">Where the AI reached out</span></span><p><span class="pt">Cada site buscado, busca na web, servidor MCP e URL em curl ou wget deixa uma linha. /helena:audit mostra os mais usados.</span><span class="en">Every fetched site, web search, MCP server and URL in a curl or wget leaves one line. /helena:audit shows the most used.</span></p><code>~/.helena/egress.jsonl</code></li>
     </ol>
     <div class="terminal surge" style="margin-top:48px">
       <div class="topo"><span>claude code</span><span><span class="pt">o que a IA vê</span><span class="en">what the AI sees</span></span></div>
@@ -450,8 +457,8 @@ Helena / secrets: .env holds secret values, … Its keys are: STRIPE_KEY, DATABA
     <p class="rotulo"><span class="pt">economia</span><span class="en">savings</span></p>
     <h2 class="surge"><span class="pt">Menos contexto. Mesmo resultado.</span><span class="en">Less context. Same results.</span></h2>
     <p class="texto surge">
-      <span class="pt">Em 7 dias e 3.030 mensagens, medimos <b>243k tokens de contexto por mensagem, dos quais só 39k eram fixos</b>. O resto é histórico que cresce a cada fala. Por isso ela corta nas duas pontas: skills ficam numa biblioteca até o pedido precisar, e a sessão é mantida curta.</span>
-      <span class="en">Over 7 days and 3,030 messages we measured <b>243k tokens of context per message, only 39k of them fixed</b>. The rest is history that grows with every message. So she cuts at both ends: skills stay in a library until a request needs them, and sessions are kept short.</span>
+      <span class="pt">Em 7 dias e 1.882 chamadas ao modelo, medimos <b>235k tokens de contexto por chamada, dos quais só 37k eram fixos</b>. O resto é histórico que cresce a cada fala. Por isso ela corta nas duas pontas: skills ficam numa biblioteca até o pedido precisar, e a sessão é mantida curta.</span>
+      <span class="en">Over 7 days and 1,882 model calls we measured <b>235k tokens of context per call, only 37k of them fixed</b>. The rest is history that grows with every message. So she cuts at both ends: skills stay in a library until a request needs them, and sessions are kept short.</span>
     </p>
     <div class="contexto surge" id="contexto"></div>
     <div class="cartoes surge">
@@ -783,6 +790,7 @@ addEventListener('DOMContentLoaded', () => {
       ['abrindo o .env', 'opening .env', 'só os nomes das chaves', 'key names only'],
       ['npm i express-pro-max', 'npm i express-pro-max', 'não existe, barrado', 'does not exist, blocked'],
       ['olhando o limite', 'checking the limit', 'a semana dura', 'the week lasts'],
+      ['testando o subagente', 'testing the subagent', 'falhou, voltou pra ele', 'failed, sent back to it'],
     ];
     let vez = 0;
     const digita = (txt, ms) => new Promise(ok => {

@@ -86,6 +86,33 @@ with tempfile.TemporaryDirectory() as tmp:
     check('KIT-FIRED' in node('router.js', repo, env, {'prompt': 'add stripe and pix checkout', 'session_id': 'r3', 'cwd': str(repo)}),
           'kit no longer fires on a real request')
 
+    # 6. a redo: the AI says what went wrong before spending another attempt; an agent's "try again" is not one
+    redo = lambda p, s: 'this is a redo' in node('router.js', repo, env, {'prompt': p, 'session_id': s, 'cwd': str(repo)})
+    check(redo('não era isso, desfaz e tenta de novo', 'r4'), 'Portuguese redo not noticed')
+    check(redo("that's not what I asked, undo it and try again", 'r5'), 'English redo not noticed')
+    check(not redo('add a retry to the upload', 'r6'), 'ordinary request read as a redo')
+    check(not redo('Another Claude session sent a message:\n<agent-message from="x">it failed, try again</agent-message>', 'r7'),
+          'agent text read as a redo')
+
+    # 7. a grown instruction file: its cost is said once a week, and only for the file this AI reads by itself
+    start = lambda who: node('start.js', repo, env, {'transcript_path': str(t / who / 'x' / 's.jsonl')})
+    check('is ~' not in start('.claude'), 'small AGENTS.md reported as heavy')
+    (repo / 'CLAUDE.md').write_text('- always run the linter before finishing\n' * 400)
+    first = start('.claude')
+    check('CLAUDE.md is ~4k tokens' in first and 'memory note' in first, 'heavy CLAUDE.md not reported:\n' + first[-600:])
+    check('CLAUDE.md is ~' not in start('.claude'), 'heavy CLAUDE.md reported twice in a week')
+
+    # 8. routine command on Opus: a subagent for long output once the context is big, and never `/model` mid-session
+    def routine(prompt, session, ctx):
+        tr = t / (session + '.jsonl')
+        tr.write_text(json.dumps({'type': 'assistant', 'message': {'model': 'claude-opus-5-5', 'usage': {
+            'input_tokens': 10, 'cache_creation_input_tokens': 0, 'cache_read_input_tokens': ctx}}}) + '\n')
+        return node('router.js', repo, env, {'prompt': prompt, 'session_id': session, 'cwd': str(repo), 'transcript_path': str(tr)})
+    big = routine('roda os testes', 'r8', 80000)
+    check('subagent with model "haiku"' in big and '/model' not in big, 'no delegation hint on a big context:\n' + big)
+    check('subagent' not in routine('roda os testes', 'r9', 20000), 'delegation hint on a small context')
+    check('/model' not in routine('commit', 'r10', 80000) and 'subagent' not in routine('commit', 'r11', 80000), 'hint on a commit')
+
 for e in errors:
     print('failed:', e)
 print('ok: stale notes flagged, supersedes archives, handoff checked, AGENTS.md shared, agent text ignored' if not errors else f'{len(errors)} error(s)')

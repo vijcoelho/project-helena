@@ -53,4 +53,39 @@ with tempfile.TemporaryDirectory() as tmp:
     routines.main(['remove', 'deps-check'])
     assert json.loads(routines.FILE.read_text(encoding='utf-8')) == []
 
+    # ready-made routines: a script collects the facts, the model is only called when they are new
+    try:
+        routines.main(['add', json.dumps({'name': 'x', 'prompt': 'p', 'every': '1d', 'gather': 'nope'})])
+        raise AssertionError('accepted an unknown gather')
+    except ValueError:
+        pass
+    routines.shutil.which = lambda tool: tool
+    routines.main(['add', 'ci', str(project)])
+    saved = json.loads(routines.FILE.read_text(encoding='utf-8'))
+    assert saved[0]['name'] == 'ci-shop' and saved[0]['gather'] == 'ci' and saved[0]['every'] == '12h', saved
+    facts = ['', 'tests on main (run 7):\nFAIL cart.test.js key ' + 'sk_' + 'live_' + 'X9' * 12, 'tests on main (run 7):\nFAIL cart.test.js key ' + 'sk_' + 'live_' + 'X9' * 12]
+    routines.GATHER['ci'] = lambda cwd: facts.pop(0)
+    del calls[:]
+    for _ in range(3):  # green CI, a failing run, the same failing run again
+        routines.main(['run', 'ci-shop'])
+    assert len(calls) == 1, f'{len(calls)} model calls for one new failure'
+    sent = calls[0][1]['input']
+    assert '<facts>' in sent and 'FAIL cart.test.js' in sent and 'X9X9' not in sent and 'NEEDS YOU:' in sent, sent
+
+    # the two collectors, on canned tool output
+    def tool(cmd, **kw):
+        if 'outdated' in cmd:
+            out = {'react': {'current': '18.3.1', 'wanted': '18.3.1', 'latest': '19.2.0'}, 'lodash': {'current': '4.17.20', 'latest': '4.17.21'}}
+        elif 'list' in cmd:
+            out = [{'databaseId': 9, 'conclusion': 'success', 'workflowName': 'tests', 'headBranch': 'main', 'displayTitle': 'fix'},
+                   {'databaseId': 8, 'conclusion': 'failure', 'workflowName': 'tests', 'headBranch': 'main', 'displayTitle': 'old'},
+                   {'databaseId': 7, 'conclusion': 'failure', 'workflowName': 'lint', 'headBranch': 'main', 'displayTitle': 'style'}]
+        else:
+            return subprocess.CompletedProcess(cmd, 1, 'line\n' * 200 + 'error: unused variable', '')
+        return subprocess.CompletedProcess(cmd, 1, json.dumps(out), '')
+    routines.subprocess.run = tool
+    assert routines.deps(str(project)) == 'react: 18.3.1 -> 19.2.0', routines.deps(str(project))
+    got = routines.ci(str(project))
+    assert 'lint on main (style, run 7)' in got and 'unused variable' in got and 'run 8' not in got and got.count('\n') < 70, got
+
 print('PASS  test_routines')

@@ -11,8 +11,9 @@ which eval/registry.py turns into the public registry. A task's `uses` file name
 
 Tasks come from eval/tasks/ (ship with Helena) and ~/.helena/eval/tasks/ (yours: they depend on your memory and kits).
 A task folder: prompt.md, fixture/, check.py (exit 0 = pass; last printed line shows up in the table), and optionally
-setup.py (prepares the folder before the session), prepare.py (runs alongside the session) and ab.json (what differs
-between the columns; {helena} and {task} become paths). Fake CLIs for tasks go in eval/shims/ or ~/.helena/eval/shims/.
+setup.py (prepares the folder before the session), prepare.py (runs alongside the session), ab.json (what differs
+between the columns; {helena} and {task} become paths) and an empty `persist` file (the session keeps its transcript,
+which the done check reads). Fake CLIs for tasks go in eval/shims/ or ~/.helena/eval/shims/.
 """
 import argparse, datetime, json, os, pathlib, shutil, subprocess, sys, tempfile
 
@@ -32,7 +33,10 @@ def run(task, with_helena, model):
     shims = os.pathsep.join(str(d / 'shims') for d in (ROOT, MINE) if (d / 'shims').exists())
     env = dict(os.environ, HELENA_EVAL='1', HELENA_LOG=str(folder / '.shim.log'), PATH=shims + os.pathsep + os.environ['PATH'])
     # prompt goes through stdin: on Windows claude.CMD passes through cmd.exe, which cuts arguments at line breaks
-    cmd = [CLAUDE, '-p', '--output-format', 'json', '--no-session-persistence', '--dangerously-skip-permissions', '--model', model]
+    cmd = [CLAUDE, '-p', '--output-format', 'json', '--dangerously-skip-permissions', '--model', model]
+    # a hook that reads the transcript (done.js) sees nothing without one: a task with a `persist` file keeps its session on disk
+    if not (task / 'persist').exists():
+        cmd.append('--no-session-persistence')
     ab = json.loads((task / 'ab.json').read_text()) if (task / 'ab.json').exists() else \
         {'base': [], 'helena': ['--plugin-dir', '{helena}']}
     cmd += [x.replace('{helena}', str(HELENA)).replace('{task}', str(task)) for x in ab['helena' if with_helena else 'base']]
