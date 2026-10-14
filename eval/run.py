@@ -3,6 +3,7 @@
     python eval/run.py                         # every task, 1 round
     python eval/run.py git-rule -n 3           # one task, 3 rounds per column
     python eval/run.py --model opus            # another model (default: sonnet, to save quota)
+    python eval/run.py -n 3 --model haiku --out eval/frontier/haiku.json   # one file per model, for extras/chart.py
 
 Each round happens in a clean copy of the fixture, in a temp folder outside the repo.
 A skill only joins Helena if the "helena" column beats "base".
@@ -62,7 +63,9 @@ def run(task, with_helena, model):
     note = (chk.stdout.strip().splitlines() or [''])[-1][:90]
     u = result.get('usage') or {}
     tokens = sum(u.get(k) or 0 for k in ('input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens'))
-    return chk.returncode == 0, result.get('total_cost_usd') or 0, folder, note, tokens
+    used = result.get('modelUsage') or {}  # the alias (--model sonnet) says nothing a year later: keep the id that answered
+    model_id = max(used, key=lambda m: used[m].get('costUSD') or 0, default='')
+    return chk.returncode == 0, result.get('total_cost_usd') or 0, folder, note, tokens, model_id
 
 
 def kill_ports(folder):
@@ -83,33 +86,37 @@ def main():
     ap.add_argument('tasks', nargs='*')
     ap.add_argument('-n', type=int, default=1)
     ap.add_argument('--model', default='sonnet')
+    ap.add_argument('--out', type=pathlib.Path, default=RESULTS)
     a = ap.parse_args()
 
     found = sorted((p for d in (ROOT / 'tasks', MINE / 'tasks') if d.exists() for p in d.iterdir() if p.is_dir()),
                    key=lambda p: p.name)
     chosen = [t for t in found if not a.tasks or t.name in a.tasks]
     score = {False: [0, 0], True: [0, 0]}
-    saved = json.loads(RESULTS.read_text(encoding='utf-8')) if RESULTS.exists() else {}
+    saved = json.loads(a.out.read_text(encoding='utf-8')) if a.out.exists() else {}
     for t in chosen:
         col = {}
         for with_helena in (False, True):
             runs = [run(t, with_helena, a.model) for _ in range(a.n)]
-            for ok, cost, folder, note, tokens in runs:
+            for ok, cost, folder, note, tokens, _ in runs:
                 print(f"{t.name:24} {'helena' if with_helena else 'base':7} {'PASS' if ok else 'fail':5} "
                       f"${cost:.3f} {tokens // 1000:>4}k tok  {note}  {folder}", flush=True)
             score[with_helena][0] += sum(r[0] for r in runs)
             score[with_helena][1] += len(runs)
             col['helena' if with_helena else 'base'] = {'pass': sum(r[0] for r in runs), 'runs': len(runs),
                                                         'cost': round(sum(r[1] for r in runs) / len(runs), 4),
-                                                        'tokens': sum(r[4] for r in runs) // len(runs)}
+                                                        'tokens': sum(r[4] for r in runs) // len(runs),
+                                                        'model_id': runs[0][5]}
         b, h = col['base'], col['helena']
+        # a cheap run that fails is not a saving: what counts is what one solved task cost
+        solved = lambda c: f"${c['cost'] * c['runs'] / c['pass']:.3f}" if c['pass'] else 'none solved'
         print(f"{t.name:24} lift {h['pass'] / h['runs'] - b['pass'] / b['runs']:+.0%}, "
-              f"tokens {h['tokens'] - b['tokens']:+,} per run", flush=True)
+              f"tokens {h['tokens'] - b['tokens']:+,} per run, per solved task: base {solved(b)}, helena {solved(h)}", flush=True)
         if t.parent == ROOT / 'tasks':  # your own tasks (~/.helena/eval) stay out of the shared results file
             uses = (t / 'uses').read_text().strip() if (t / 'uses').exists() else ''
             saved[t.name] = {'uses': uses, 'model': a.model, 'date': datetime.date.today().isoformat(), **col}
-    if saved:
-        RESULTS.write_text(json.dumps(saved, indent=1, sort_keys=True) + '\n', encoding='utf-8')
+            a.out.parent.mkdir(parents=True, exist_ok=True)  # written per task: a long run that dies keeps what it finished
+            a.out.write_text(json.dumps(saved, indent=1, sort_keys=True) + '\n', encoding='utf-8')
     for with_helena, (ok, total) in score.items():
         print(f"{'helena' if with_helena else 'base':7} {ok}/{total}")
 

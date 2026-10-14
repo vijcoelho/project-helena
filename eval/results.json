@@ -67,6 +67,25 @@
   "model": "sonnet",
   "uses": "skill:handoff"
  },
+ "noisy-tests": {
+  "base": {
+   "cost": 0.135,
+   "model_id": "claude-sonnet-5-5",
+   "pass": 3,
+   "runs": 3,
+   "tokens": 164359
+  },
+  "date": "2026-10-13",
+  "helena": {
+   "cost": 0.143,
+   "model_id": "claude-sonnet-5-5",
+   "pass": 3,
+   "runs": 3,
+   "tokens": 170856
+  },
+  "model": "sonnet",
+  "uses": "hook:trim"
+ },
  "readability": {
   "base": {
    "cost": 0.1452,
@@ -83,6 +102,25 @@
   },
   "model": "sonnet",
   "uses": "hook:check"
+ },
+ "release-notes": {
+  "base": {
+   "cost": 0.1335,
+   "model_id": "claude-sonnet-5-5",
+   "pass": 3,
+   "runs": 3,
+   "tokens": 166939
+  },
+  "date": "2026-10-13",
+  "helena": {
+   "cost": 0.1399,
+   "model_id": "claude-sonnet-5-5",
+   "pass": 3,
+   "runs": 3,
+   "tokens": 171868
+  },
+  "model": "sonnet",
+  "uses": "hook:trim"
  },
  "secret-in-commit": {
   "base": {

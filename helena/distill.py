@@ -15,7 +15,8 @@ _CONF = pathlib.Path.home() / '.helena' / 'vault'  # one line: path of the Obsid
 VAULT = pathlib.Path(os.environ.get('HELENA_VAULT') or (_CONF.read_text().strip() if _CONF.exists() else '')
                      or pathlib.Path.home() / 'Helena')
 SECRET = re.compile(r'\b(sk[_-][A-Za-z0-9_-]{16,}|[a-f0-9]{40,}|(pk|rk)_(live|test)_[A-Za-z0-9]{10,}|'
-                    r'AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|\d{8,}:[A-Za-z0-9_-]{30,})')
+                    r'AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|\d{8,}:[A-Za-z0-9_-]{30,}|'
+                    r'(AKIA|ASIA)[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,})')
 MAX_CHARS = 30000
 # runs with no console (detached from the hook): without this, Windows opens a visible window for claude.exe and git
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)

@@ -1,5 +1,6 @@
-"""The delegate hook: off until .helena/delegate exists; then workers without a model get one, only so many run at once
-and only so many start per request. A worker's own edits get the done check. No LLM: python eval/test_delegate.py
+"""The delegate hook: a built-in worker started without a model is pinned below the main one, always; with .helena/delegate,
+only so many run at once and only so many start per request. A worker's own edits get the done check.
+No LLM: python eval/test_delegate.py
 """
 import json, os, pathlib, subprocess, sys, tempfile
 
@@ -24,19 +25,32 @@ with tempfile.TemporaryDirectory() as tmp:
                            capture_output=True, text=True, encoding='utf-8', env=env, timeout=30)
         return json.loads(r.stdout) if r.stdout.strip() else {}
 
-    def agent(session='s', **inp):
-        global n
+    def agent(session='s', transcript_path='', **inp):
+        global n, last
         n += 1
         out = hook('delegate.js', {'hook_event_name': 'PreToolUse', 'tool_name': 'Agent', 'session_id': session, 'tool_use_id': f't{n}',
+                                   'transcript_path': transcript_path,
                                    'tool_input': {'description': 'find it', 'prompt': 'where is add()', **inp}}).get('hookSpecificOutput', {})
-        return out.get('permissionDecision', ''), (out.get('updatedInput') or {}).get('model', ''), out.get('permissionDecisionReason', '')
+        last = out.get('updatedInput') or {}
+        return out.get('permissionDecision', ''), last.get('model', ''), out.get('permissionDecisionReason', '')
 
     stop = lambda session='s': hook('delegate.js', {'hook_event_name': 'SubagentStop', 'session_id': session})
     said = lambda session='s': hook('router.js', {'prompt': 'now the next part', 'session_id': session})
 
-    # ---- off by default: nothing pinned, nothing counted
-    check(agent(subagent_type='Explore') == ('', '', ''), 'acted without .helena/delegate')
+    # ---- no file: the pins act (never above the main model), nothing is counted or capped
+    def talking(model):  # a session whose last call was answered by `model`
+        f = pathlib.Path(tmp) / f'{model}.jsonl'
+        f.write_text(json.dumps({'type': 'assistant', 'timestamp': '2026-10-13T10:00:00Z', 'message': {
+            'model': f'claude-{model}-5-5', 'content': [], 'usage': {'input_tokens': 9, 'cache_read_input_tokens': 90000}}}) + '\n')
+        return {'transcript_path': str(f)}
+
+    got = [agent(subagent_type='Explore') for _ in range(10)]
+    check(all(g == ('', 'haiku', '') for g in got), f'no file: Explore not pinned, or capped: {got}')
     check(not (home / '.helena' / 'warnings' / 's-workers').exists(), 'counted workers without .helena/delegate')
+    check(agent(subagent_type='general-purpose', **talking('opus'))[1] == 'sonnet', 'Opus session: general-purpose not pinned to sonnet')
+    check(agent(subagent_type='general-purpose', **talking('sonnet'))[1] == '', 'Sonnet session: a pin to sonnet saves nothing')
+    check(agent(subagent_type='Explore', **talking('sonnet'))[1] == 'haiku', 'Sonnet session: Explore not pinned to haiku')
+    check(agent(subagent_type='Explore', **talking('haiku'))[1] == '', 'Haiku session: a worker was moved up')
 
     # ---- pins: only built-ins that would run on the main model, and only when the call names no model
     (d / '.helena' / 'delegate').write_text('parallel: 2\nworkers: 4  # per request\n')
@@ -71,6 +85,14 @@ with tempfile.TemporaryDirectory() as tmp:
     rows = [json.loads(l) for l in (home / '.helena' / 'audit.jsonl').read_text(encoding='utf-8').splitlines()]
     check(len(rows) == 2 and all(r['hook'] == 'delegate' and r['decision'] == 'deny' for r in rows), f'audit rows: {rows}')
 
+    # ---- effort: only when the file asks, only on a pinned worker, never over an effort the call names
+    check('effort' not in last, f'effort set without the line: {last}')
+    (d / '.helena' / 'delegate').write_text('effort: medium\nparallel: off\nworkers: off\n')
+    agent('other', subagent_type='Explore')
+    check(last.get('effort') == 'medium' and last.get('model') == 'haiku', f'`effort:` not applied: {last}')
+    agent('other', subagent_type='Explore', effort='low')
+    check(last.get('effort') == 'low', f'an effort the call named was replaced: {last}')
+
     # ---- done check on a worker: its edits are in its own transcript
     (d / '.helena' / 'test').write_text('node -e "process.exit(1)"\n')
     sub = pathlib.Path(tmp) / 'agent-1.jsonl'
@@ -86,5 +108,5 @@ with tempfile.TemporaryDirectory() as tmp:
 
 for e in errors:
     print('failed:', e)
-print('ok: off by default, model pins, workers per request and at a time, audit, done check on a worker' if not errors else f'{len(errors)} error(s)')
+print('ok: model pins by default and never upward, effort, workers per request and at a time, audit, done check on a worker' if not errors else f'{len(errors)} error(s)')
 sys.exit(1 if errors else 0)

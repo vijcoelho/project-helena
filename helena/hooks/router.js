@@ -11,7 +11,7 @@
 //  - every 6 prompts, distills the new turns in the background, so ideas reach Obsidian mid-session
 // ponytail: word overlap for notes and kits; swap for embeddings if it starts missing obvious matches.
 const fs = require('fs'), path = require('path');
-const { bg, HOME, LIBRARY, KITS } = require('./paths');
+const { bg, lastCall, HOME, LIBRARY, KITS } = require('./paths');
 const { field, notes, mark: stale } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const CHECKPOINT = 6; // prompts between mid-session distills
@@ -103,17 +103,7 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   }
 
   // ---- real context size, from the last assistant message's usage (read from the end of the transcript only)
-  let ctx = 0, model = '';
-  try {
-    const fd = fs.openSync(ev.transcript_path, 'r'), size = fs.fstatSync(fd).size, n = Math.min(size, 256 * 1024);
-    const buf = Buffer.alloc(n);
-    fs.readSync(fd, buf, 0, n, size - n);
-    fs.closeSync(fd);
-    for (const line of buf.toString('utf8').split('\n').reverse()) {
-      const u = line.includes('"usage"') && line.includes('"assistant"') && (() => { try { return JSON.parse(line).message; } catch {} })();
-      if (u && u.usage) { ctx = u.usage.input_tokens + u.usage.cache_creation_input_tokens + u.usage.cache_read_input_tokens; model = u.model || ''; break; }
-    }
-  } catch {}
+  const { ctx, model } = lastCall(ev.transcript_path);
   const mark = LONG.filter(x => ctx >= x).pop();
   // with the mod loaded, the interface shows the 120k warning for free; 250k+ still asks Claude for HANDOFF.md
   const modOn = fs.existsSync(path.join(HOME, 'warnings', `${session}-mod`));
@@ -139,8 +129,9 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
 
   // ---- cheaper paths for cheap work. Never `/model` mid-session: the switch re-reads the whole history uncached and
   //      `/model <name>` becomes the default for new sessions (code.claude.com/docs/en/prompt-caching#switching-models)
-  // ponytail: 50k floor because a fresh subagent starts at ~44k tokens; below it, inline is cheaper. Tune with the 1.3.0 meter
-  if (/opus/i.test(model) && ctx >= 50e3 && prompt.length < 120 &&
+  // 40k floor: a fresh subagent starts at 34k tokens, all written to the cache (median of 42 workers, /helena:budget,
+  // 2026-10-13); below it, inline is cheaper
+  if (/opus/i.test(model) && ctx >= 40e3 && prompt.length < 120 &&
       /^\s*(roda|rodar|run|instala|install)\b/i.test(prompt) && once(session, 'model-hint'))
     out.push(`Helena: routine command on Opus with ${Math.round(ctx / 1000)}k of context. If its output will be long (tests, install, build), ` +
       'run it in a subagent with model "haiku" and keep only the result here.');
