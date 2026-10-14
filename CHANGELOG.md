@@ -1,5 +1,75 @@
 # Changelog
 
+## 1.4.0 (2026-10-13)
+
+Two parts: the guardrails got an attack suite and were hardened against it, and the token work below.
+
+### Security
+
+`eval/test_redteam.py` feeds 37 bypass attempts to the hooks as hook events, plus 6 commands that must not be stopped.
+Before this release the hooks caught **8 of 37**; now **36 of 37, with 0 false positives**. The one left is a key split
+in two strings and joined at run time: it only exists after the join, so no pattern can see it. These are guardrails
+for the AI, not a sandbox.
+
+- `hooks/gate.js`, asks first:
+  - a recursive delete of a variable that is unset, points at a root or home, or is followed by `/..` or `/*`
+    (`rm -rf "$X"/*`, `Remove-Item -Recurse $env:USERPROFILE`). A variable set earlier in the same command is left alone.
+  - a delete through something else (`shutil.rmtree('/')`, `fs.rmSync` recursive, `rimraf`, `find / -delete`) and
+    decoded text piped into a shell (`base64 -d | bash`, `iex` of a `FromBase64String`).
+  - erasing the audit trail: `rm` / `truncate` / `>` / Edit / Write on `~/.helena/*.jsonl`, deleting `refs/helena` or
+    Claude's transcripts. The log of what the AI did must not be erasable by the AI. Reading and `>>` are fine.
+  - deleting a test file (`rm`, `git rm`, `Remove-Item`, `del`). Before, only an edit that dropped assertions was caught.
+  - a package installed with no version whose newest release is under 72 hours old, naming the previous version to pin
+    (a hijacked maintainer account ships malware as a new release of a real package).
+- `hooks/gate.js`, denied like a plain `cat .env`: `.env` read through quote tricks (`.e''nv`), a glob that matches it,
+  an interpreter one-liner, or a copy to a name the rule no longer protects.
+- `hooks/guard.js`: AWS access keys and Slack tokens join the patterns (also in the audit mask and in distillation).
+  With `gitleaks` on PATH, its findings on the staged changes are added; absent, failing or slow, nothing changes.
+  Not run on the creator's machine (gitleaks is not installed there; its tests run on macOS / Linux only).
+- `hooks/outside.js`: text hidden in zero-width or Unicode tag characters is flagged, an instruction inside an HTML
+  comment is named as hidden, and the output of `gh issue` / `gh pr` / `gh api` is checked too (an issue body is
+  written by strangers). Still flags, never blocks; any other shell command returns at once.
+- `scan.py`: instructions fetched at run time and followed, a long encoded blob that is decoded and run, and a payload
+  behind a condition. On the creator's 110 library skills the verdicts did not move (68 clean, 40 warn, 1 critical).
+- `hooks/start.js`: on session start, the repo's own AI config is read (`CLAUDE.md`, `AGENTS.md`, `.mcp.json`,
+  `.claude/settings*.json`) and what looks wrong is said once per content: a line written to override the AI, an MCP
+  server that pipes a download into a shell, hooks that run commands on your machine, permissions switched off. It
+  cannot stop the load (the session starts after those files are read); it tells you before the AI acts on them.
+- `hooks/done.js`: with no test command, a `tsconfig.json` and TypeScript installed, the done check runs
+  `npx tsc --noEmit`, so a turn that breaks types goes back to the AI.
+- `/helena:recall <words>` (`history.py recall`, MCP tool `helena_recall`): searches your recorded sessions, no LLM
+  and no index: date, project and the turn where it was said.
+
+### Token economy
+
+Fewer refusals, a cache you can see, and a report that says where the tokens went. **No saving is claimed for the
+rewrite:** on the two new cost tasks (Sonnet, 3 rounds each) both columns passed 3/3 and a session cost $0.135 alone vs
+$0.143 with Helena (`noisy-tests`), $0.134 vs $0.140 (`release-notes`). Sonnet limited its own output, so there was
+nothing to cut, and Helena's session-start text is paid on every call.
+
+- `hooks/trim.js`: a command that only needs a quiet flag gets it and runs, instead of being refused (a refusal is one
+  more model call, and every call re-reads the context). `git log` -> `--oneline -n 20` (the AI is told about the cut),
+  `git status` -> `-sb`, `pytest` -> `-q --tb=short`, `pip install` -> `-q`, `npm install` -> `--no-fund
+  --loglevel=error`, `cargo build|test|check` -> `-q`, recursive `grep` -> `--exclude-dir=node_modules`. Left alone:
+  a command that already says what it wants, piped or redirected output, quoted text, heredocs, `# helena:full`. Still
+  refused: file dumps over 100 KB, lockfiles, build output, an unbounded `git log -p`, recursive listings.
+  With [rtk](https://github.com/rtk-ai/rtk) on PATH, `rtk rewrite` goes first (not run on the creator's machine: rtk
+  is not installed there; the test for it runs on macOS / Linux only).
+- `statusline.js`: `cache until 14:32` (the context's cache lives 5 minutes or 1 hour after the last call), `cache
+  expired`, and `model changed: next message re-reads 80k uncached` after a `/model` mid-session.
+- `hooks/delegate.js`: the model pins are on without any file (general-purpose -> Sonnet, Explore -> Haiku) and never
+  move a worker to a model above the session's. The caps (`parallel`, `workers`) still need `.helena/delegate`, and so
+  does the new `effort:` line (no default: a CLI older than the Agent tool's `effort` field would refuse the worker).
+  `model: off` / `search: off` in `~/.helena/delegate` stop the pins.
+- `/helena:budget`: every time the context was paid in full instead of read from the cache, by cause (a pause longer
+  than the cache, a model switch, a compaction); files read again with no edit in between; the context a worker starts
+  with. `hooks/router.js`: the "run it in a subagent" floor went from 50k to 40k, from that measurement (34k median).
+- Benchmark: cost tasks `noisy-tests` (needs pytest) and `release-notes`; `eval/run.py` prints the cost per solved task.
+- Site: `docs.html`, the documentation in Portuguese and English. `helena/tools/shot.mjs`: a page at 375 and 1440 px,
+  sideways overflow and a picture of each.
+- Fix (`hooks/gate.js`): a redirect after an install (`npm i x 2>&1`, `> out.txt`) was read as a package name and
+  the command was refused.
+
 ## 1.3.0 (2026-10-12)
 
 Subagents: what they write gets checked, and what they cost can be capped. Nothing here claims a saving: the published

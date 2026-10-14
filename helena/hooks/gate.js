@@ -4,6 +4,14 @@
 //    package names and attackers register them); one that is brand new or barely downloaded asks you first
 //  - destructive commands (DROP TABLE, DELETE without WHERE, rm -rf /, git push --force, git reset --hard, a prod database
 //    URL...) ask you first, even when permissions would have let them run
+//    Also asked: a recursive delete of a variable that is unset or points at a root / home (`rm -rf "$X"/*`), a delete through
+//    shutil.rmtree / fs.rmSync / rimraf / find -delete aimed at a root or home, and decoded text piped into a shell
+//  - the audit trail: rm / truncate / `>` / Edit / Write on ~/.helena/*.jsonl, `git update-ref -d`, deleting refs/helena or
+//    ~/.claude/projects/**/*.jsonl asks (the log of what the AI did must not be erasable by the AI); reading and `>>` are fine
+//  - .env also counts when read through quote tricks (.e''nv), a glob that matches it, an interpreter one-liner, or cp / mv
+//  - deleting a test file (rm, git rm, Remove-Item, del) asks
+//  - a popular package installed with no version whose newest release is under 72 hours old asks, naming the previous version
+//    (a hijacked maintainer account ships malware as a new release of a real package)
 //  - tests: an edit that removes assertions from a test file or adds a skip asks you first (agents "fix" tests that way)
 //  - the team's policy in <repo>/.helena/policy (versioned with the code):
 //      deny: terraform apply        a regex per line; matching commands are denied
@@ -12,7 +20,7 @@
 //  - a curl / wget / Invoke-WebRequest leaves the hosts it names in ~/.helena/egress.jsonl (never blocks)
 // Every decision lands in ~/.helena/audit.jsonl. Local hooks can be turned off by whoever owns the machine: this is a
 // guardrail for the AI, not a sandbox.
-const fs = require('fs'), path = require('path'), { execSync } = require('child_process');
+const fs = require('fs'), os = require('os'), path = require('path'), { execSync } = require('child_process');
 const { audit, egress } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 
@@ -32,6 +40,93 @@ const DANGER = [
   [/\b(prisma\s+migrate\s+reset|db\s+push\s+--force-reset|dropdb|terraform\s+destroy|kubectl\s+delete)\b/, 'destroys data or infrastructure'],
   [/\b(postgres(ql)?|mysql|mongodb(\+srv)?|redis):\/\/\S*prod/i, 'points at a production database'],
 ];
+
+const READ = /\b(?:cat|type|Get-Content|gc|less|more|head|tail|bat|grep|rg|findstr|Select-String|sed|awk|strings|xxd)\b([^;&|]*)/i;
+const COPY = /^\s*(?:sudo\s+)?(?:cp|mv|copy|copy-item|move|move-item)\s+(.*)$/i;
+const VERB = /^\s*(?:sudo\s+|[({]\s*)*(rm|del|erase|ri|remove-item|git\s+rm|git\s+update-ref|cp|copy|copy-item|mv|move|truncate|unlink|shred|tee|rimraf|npx\s+rimraf|find)\s+(.*)$/i;
+const unq = s => s.replace(/["']/g, '');
+const SPLIT = /&&|\|\||;|\||\n/;
+
+// a path with ~ / $HOME / %USERPROFILE% spelled out, forward slashes, lower case: comparable
+const HOME = () => os.homedir().replace(/\\/g, '/').toLowerCase();
+const norm = p => unq(p).replace(/^(~|\$\{?HOME\}?|%USERPROFILE%|\$env:(?:USERPROFILE|HOME))(?=$|[\\/])/i, os.homedir()).replace(/\\/g, '/').toLowerCase();
+const rootish = p => { const n = norm(p).replace(/\/+$/, ''); return /^([~$%\\/]|[a-z]:)/i.test(unq(p)) && (n === '' || /^[a-z]:$/.test(n) || n === HOME()); };
+// the audit trail: ~/.helena/*.jsonl, Claude's transcripts, git refs/helena
+function trail(p, cwd) {
+  const u = unq(p), n = norm(/^[~$%]/.test(u) || path.isAbsolute(u) ? u : path.resolve(cwd, u)), h = HOME();
+  return /refs\/helena/.test(n) || (n === h + '/.helena' || n.startsWith(h + '/.helena/') || n.startsWith(h + '/.claude/projects/')) && /\.jsonl$|[*?]|\.helena\/?$/.test(n);
+}
+// a variable as the target of rm -rf: unset, a root or home, or followed by /.. or /*
+function varBad(tok, cmd) {
+  const m = unq(tok).match(/^(?:\$env:(\w+)|\$\{(\w+)\}|\$(\w+)|%(\w+)%)(.*)$/i);
+  if (!m) return false;
+  const name = m[1] || m[2] || m[3] || m[4], rest = m[5];
+  let val = process.env[name];
+  if (!val && /^(HOME|USERPROFILE)$/i.test(name)) val = os.homedir();
+  if (/^[\\/]\.\.([\\/]|$)/.test(rest)) return true;
+  // set earlier in this same command (`tmp=$(mktemp -d) && ... && rm -rf "$tmp"`): not unset, and its value is not ours to guess
+  if (new RegExp(`(^|[\\s;&|(])(?:export\\s+)?\\$?${name}\\s*=(?!=)|\\bfor(each)?\\s*\\(?\\s*\\$?${name}\\s+in\\b`).test(cmd)) return false;
+  if (!val || /^[\\/]\*/.test(rest)) return true;
+  return !rest.replace(/[\\/]/g, '') && rootish(val);
+}
+// the simple commands we watch: { verb, flags, args }
+const simple = cmd => cmd.split(SPLIT).map(s => s.match(VERB)).filter(Boolean).map(m => {
+  const toks = m[2].trim().split(/\s+/).map(t => unq(t).replace(/[)}]+$/, '')).filter(Boolean);
+  return { verb: m[1].toLowerCase().replace(/\s+/g, ' '), flags: toks.filter(t => /^-/.test(t)), args: toks.filter(t => !/^-/.test(t)) };
+});
+// risky things a person may still want: [why] for the first that fires
+function risky(cmd, cwd) {
+  for (const { verb, flags, args } of simple(cmd)) {
+    const del = /^(rm|del|erase|ri|remove-item|git rm|unlink|shred)$/.test(verb);
+    if ((verb === 'rm' ? flags.some(f => /^-[a-z]*r[a-z]*$/i.test(f) || f === '--recursive') : /^(ri|remove-item)$/.test(verb) && flags.some(f => /^-recurse$/i.test(f))) && args.some(a => varBad(a, cmd)))
+      return 'recursively deletes a variable that is unset, points at a root or home folder, or is followed by /.. or /*';
+    if (/rimraf$/.test(verb) && args.some(rootish) || verb === 'find' && flags.includes('-delete') && args.some(rootish))
+      return 'deletes a root or home folder';
+    const hit = /^(cp|copy|copy-item)$/.test(verb) ? args.slice(-1) : args;  // a copy only overwrites its last argument
+    if ((del || /^(truncate|mv|move|cp|copy|copy-item)$/.test(verb) || verb === 'tee' && !flags.includes('-a')) && hit.some(a => trail(a, cwd)))
+      return 'erases or overwrites the log of what the AI did, which must not be erasable by the AI';
+    if (verb === 'git update-ref' && flags.some(f => /^(-d|--delete)$/.test(f)) && args.some(a => /refs\/helena/.test(a))) return 'erases the log of what the AI did (git update-ref -d), which must not be erasable by the AI';
+    if (del && args.some(a => TEST.test(a) && !/__pycache__|\.pyc$/.test(a))) return 'deletes a test file';
+  }
+  for (const m of cmd.matchAll(/(?<!>)>(?![>&])\|?\s*(\S+)/g)) if (trail(m[1], cwd)) return 'overwrites the log of what the AI did, which must not be erasable by the AI';
+  // a script that deletes a root or home (a quote may be backslash-escaped inside a one-liner)
+  const q = '\\\\?[\'"]([^\'"\\\\]*)\\\\?[\'"]';
+  for (const re of [new RegExp(`\\bshutil\\.rmtree\\(\\s*${q}`), new RegExp(`\\b(?:rmSync|rmdirSync|fs\\.rm)\\(\\s*${q}[^)]*recursive`)]) {
+    const m = cmd.match(re);
+    if (m && rootish(m[1])) return 'deletes a root or home folder';
+  }
+  if (/\bbase64\s+(?:-\w*d\w*|--decode)\b[^|;&]*\|\s*(?:sudo\s+)?(?:ba|z|da)?sh\b/.test(cmd) || /FromBase64String/i.test(cmd) && /\b(iex|Invoke-Expression)\b/i.test(cmd))
+    return 'runs a command nobody can read (decoded text piped into a shell)';
+  return null;
+}
+
+// .env reached some way the plain rule misses: a glob that matches it, an interpreter one-liner, cp / mv of it
+function envTok(t, cwd) {
+  if (!/[*?\[]/.test(t)) return ENV.test(unq(t)) && !ENV_OK.test(unq(t)) ? unq(t) : null;  // unq: .e''nv is .env
+  if (/["']/.test(t)) return null;  // a quoted glob is not expanded by the shell
+  const dir = path.dirname(t), base = path.basename(t);
+  if (!base.startsWith('.') || !/\w/.test(base)) return null;
+  try {
+    const rx = new RegExp('^' + base.replace(/[.+^${}()|\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
+    const f = fs.readdirSync(path.resolve(cwd, dir)).find(f => rx.test(f) && ENV.test(f) && !ENV_OK.test(f));
+    return f && path.join(dir, f);
+  } catch { return null; }
+}
+function envHit(cmd, cwd) {
+  for (const s of cmd.split(SPLIT)) {
+    const rd = s.match(READ), cp = s.match(COPY);
+    if (rd) for (const t of rd[1].split(/\s+/)) { const f = envTok(t, cwd); if (f) return f; }
+    if (cp) {
+      // a copy that is still named .env (cp .env .env.backup), or goes into a folder, stays behind the same rule: let it be
+      const all = cp[1].trim().split(/\s+/).filter(t => !/^-/.test(t)), to = unq(all[all.length - 1] || '');
+      const kept = ENV.test(to) || (() => { try { return fs.statSync(path.resolve(cwd, to)).isDirectory(); } catch { return /[\\/]$/.test(to); } })();
+      if (!kept) for (const t of all.slice(0, -1)) { const f = envTok(t, cwd); if (f) return f; }
+    }
+  }
+  const py = cmd.match(/\b(?:python3?|py|node|ruby|perl|php|deno)\b[^;&|]*?\s-[cepr]\b(.*)/);
+  if (py) for (const m of py[1].matchAll(/(?:^|[\s'"(\/\\=])(\.env(?:\.[\w-]+)?)(?=$|[\s'")\\,\]}])/g)) if (!ENV_OK.test(m[1])) return m[1];
+  return null;
+}
 
 const deny = (ev, why) => { audit(ev, 'gate', 'deny', why); return { permissionDecision: 'deny', permissionDecisionReason: why }; };
 const ask = (ev, why) => { audit(ev, 'gate', 'ask', why); return { permissionDecision: 'ask', permissionDecisionReason: why }; };
@@ -56,28 +151,47 @@ function installs(cmd) {
     for (let i = 0; i < args.length; i++) {
       const a = args[i].replace(/^["']|["']$/g, '');
       if (/^-(r|c|e|-requirement|-constraint|-editable|-index-url|-extra-index-url|i)$/.test(a)) { i++; continue; }
+      if (/^(\d*|&)[<>]/.test(a)) { if (/[<>]$/.test(a)) i++; continue; }  // a redirect (2>&1, > out.txt) is not a package
       if (a.startsWith('-') || /[:\\]|^\.|^\/|^~/.test(a) || (a.includes('/') && !a.startsWith('@'))) continue;
-      if (npm) out.push({ eco: 'npm', name: a.startsWith('@') ? a.split('@').slice(0, 2).join('@') : a.split('@')[0] });
-      else out.push({ eco: 'pypi', name: a.split(/[<>=!~\[;@ ]/)[0] });
+      if (npm) out.push({ eco: 'npm', name: a.startsWith('@') ? a.split('@').slice(0, 2).join('@') : a.split('@')[0], pinned: /^@?[^@]+@(?!latest$)./.test(a) });
+      else out.push({ eco: 'pypi', name: a.split(/[<>=!~\[;@ ]/)[0], pinned: /[<>=!~@]/.test(a) });
     }
   }
   return out.filter(p => p.name).slice(0, 6);
 }
 
-// { missing } / { young: days } / { few: weekly downloads } / {} (fine or unknown); never throws
-async function registry({ eco, name }) {
-  const get = async url => { const r = await fetch(url, { signal: AbortSignal.timeout(3000) }); return { status: r.status, body: r.ok ? await r.json() : null }; };
+// { missing } / { young: days } / { few: weekly downloads } / { fresh: { version, hours, prev } } / {} (fine or unknown); never throws
+// fresh = no version named and the newest release is under 72 h old: a hijacked maintainer account ships malware that way
+async function registry({ eco, name, pinned }) {
+  const get = async (url, accept) => { const r = await fetch(url, { signal: AbortSignal.timeout(3000), headers: accept ? { accept } : {} }); return { status: r.status, body: r.ok ? await r.json() : null }; };
+  const hours = t => Math.round((Date.now() - t) / 36e5), num = (a, b) => a.localeCompare(b, undefined, { numeric: true });
   try {
     if (eco === 'npm') {
-      const r = await get(`https://api.npmjs.org/downloads/point/last-week/${name}`);
+      // the search result carries the date of the newest version (a few KB; the full packument is megabytes); its name must be exact
+      const [r, s] = await Promise.all([get(`https://api.npmjs.org/downloads/point/last-week/${name}`),
+        pinned ? null : get(`https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(name)}&size=1`).catch(() => null)]);
       if (r.status === 404) return { missing: true };
-      return r.body && r.body.downloads < 200 ? { few: r.body.downloads } : {};
+      if (r.body && r.body.downloads < 200) return { few: r.body.downloads };
+      const pk = s && s.body && s.body.objects && s.body.objects[0] && s.body.objects[0].package;
+      if (pk && pk.name === name && hours(Date.parse(pk.date)) < 72) {
+        const doc = (await get(`https://registry.npmjs.org/${name.replace('/', '%2f')}`, 'application/vnd.npm.install-v1+json')).body;  // names versions, no dates
+        if (doc && doc['dist-tags'].latest === pk.version) {
+          const prev = Object.keys(doc.versions).filter(v => /^\d+\.\d+\.\d+$/.test(v) && num(v, pk.version) < 0).sort(num).pop();
+          return { fresh: { version: pk.version, hours: hours(Date.parse(pk.date)), prev } };
+        }
+      }
+      return {};
     }
     const r = await get(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
     if (r.status === 404) return { missing: true };
-    const first = Object.values((r.body && r.body.releases) || {}).flat().map(f => Date.parse(f.upload_time_iso_8601)).filter(Boolean).sort()[0];
-    const days = first ? (Date.now() - first) / 864e5 : Infinity;
-    return days < 30 ? { young: Math.round(days) } : {};
+    const rel = (r.body && r.body.releases) || {};
+    const at = v => Math.max(...(rel[v] || []).map(f => Date.parse(f.upload_time_iso_8601)).filter(Boolean));
+    const first = Math.min(...Object.keys(rel).map(at).filter(isFinite)), days = isFinite(first) ? (Date.now() - first) / 864e5 : Infinity;
+    if (days < 30) return { young: Math.round(days) };
+    const latest = r.body && r.body.info && r.body.info.version;
+    if (!pinned && latest && hours(at(latest)) < 72)
+      return { fresh: { version: latest, hours: hours(at(latest)), prev: Object.keys(rel).filter(v => v !== latest && isFinite(at(v))).sort((a, b) => at(b) - at(a))[0] } };
+    return {};
   } catch { return {}; }
 }
 
@@ -108,6 +222,9 @@ async function decide(ev) {
   if (tool === 'Grep' && [t.path, t.glob].some(p => p && ENV.test(p) && !ENV_OK.test(p)))
     return deny(ev, envWhy(t.path || t.glob, envKeys(path.resolve(cwd, t.path || '.env'))));
 
+  if (['Edit', 'Write', 'MultiEdit'].includes(tool) && t.file_path && trail(t.file_path, cwd))
+    return ask(ev, 'Helena / audit: this edit rewrites the log of what the AI did, which must not be erasable by the AI. Approve only if you meant it.');
+
   if (['Edit', 'Write', 'MultiEdit'].includes(tool) && t.file_path && TEST.test(t.file_path)) {
     let before = '', after = '';
     if (tool === 'Edit') { before = t.old_string; after = t.new_string; }
@@ -124,7 +241,8 @@ async function decide(ev) {
   const cmd = t.command;
   if (!cmd) return null;
   const env = cmd.match(ENV_IN_CMD);
-  if (env && !ENV_OK.test(env[2])) return deny(ev, envWhy(env[2], envKeys(path.resolve(cwd, env[2]))));
+  const envf = env && !ENV_OK.test(env[2]) ? env[2] : envHit(cmd, cwd);
+  if (envf) return deny(ev, envWhy(envf, envKeys(path.resolve(cwd, envf))));
 
   const rules = policy(cwd);
   for (const r of rules.deny) if (re(r) && re(r).test(cmd))
@@ -142,12 +260,14 @@ async function decide(ev) {
       return deny(ev, `Helena / packages: ${missing.map(p => `"${p.name}" does not exist on ${p.eco === 'npm' ? 'npm' : 'PyPI'}`).join(', ')}. ` +
         'AIs invent package names, and attackers register exactly those names. Check the real name in the docs before installing.');
     const odd = pkgs.map((p, i) => found[i].young !== undefined ? `"${p.name}" was published ${found[i].young} day(s) ago`
-      : found[i].few !== undefined ? `"${p.name}" had only ${found[i].few} downloads last week` : '').filter(Boolean);
+      : found[i].few !== undefined ? `"${p.name}" had only ${found[i].few} downloads last week`
+      : found[i].fresh ? `"${p.name}" ${found[i].fresh.version} came out ${found[i].fresh.hours} hour(s) ago` +
+        (found[i].fresh.prev ? ` (the previous version was ${found[i].fresh.prev}: pin it with ${p.name}${p.eco === 'npm' ? '@' : '=='}${found[i].fresh.prev})` : '') : '').filter(Boolean);
     if (odd.length) return ask(ev, `Helena / packages: ${odd.join(', ')}. Make sure it is the package you mean, not a look-alike.`);
   }
 
-  for (const [r, what] of DANGER) if (r.test(cmd))
-    return ask(ev, `Helena / destructive: this command ${what}. It runs only if the user approves it now.`);
+  const why = [...DANGER.filter(([r]) => r.test(cmd)).map(d => d[1]), risky(cmd, cwd)].find(Boolean);
+  if (why) return ask(ev, `Helena / destructive: this command ${why}. It runs only if the user approves it now.`);
   for (const r of rules.ask) if (re(r) && re(r).test(cmd))
     return ask(ev, `Helena / team policy: commands matching "${r}" need the user's OK in this repo (.helena/policy).`);
   return null;

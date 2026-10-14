@@ -18,7 +18,7 @@ const bg = (script, args, log) => {
   }).unref();
 };
 // same pattern as guard.js and distill.py (SECRET)
-const SECRET = /\b(sk[_-][A-Za-z0-9_-]{16,}|[a-f0-9]{40,}|(pk|rk)_(live|test)_[A-Za-z0-9]{10,}|AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|\d{8,}:[A-Za-z0-9_-]{30,})/g;
+const SECRET = /\b(sk[_-][A-Za-z0-9_-]{16,}|[a-f0-9]{40,}|(pk|rk)_(live|test)_[A-Za-z0-9]{10,}|AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|\d{8,}:[A-Za-z0-9_-]{30,}|(AKIA|ASIA)[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,})/g;
 // one line per hook decision; what was attempted is cut short and keys are masked
 const audit = (ev, hook, decision, why) => {
   try {
@@ -63,4 +63,58 @@ const turnTools = transcript => {
     }
   } finally { fs.closeSync(fd); }
 };
-module.exports = { audit, bg, egress, turnTools, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };
+// the session's last model call, from the end of its transcript: context size, the model that answered, when, and how
+// long its cache lives (`ttl`, 5 minutes or 1 hour, from the last call that wrote to the cache)
+const lastCall = transcript => {
+  const r = { ctx: 0, model: '', at: 0, ttl: 0 };
+  let found = false;
+  try {
+    const fd = fs.openSync(transcript, 'r'), size = fs.fstatSync(fd).size, n = Math.min(size, 256 * 1024), buf = Buffer.alloc(n);
+    fs.readSync(fd, buf, 0, n, size - n);
+    fs.closeSync(fd);
+    for (const line of buf.toString('utf8').split('\n').reverse()) {
+      if (!line.includes('"usage"') || !line.includes('"assistant"')) continue;
+      let d;
+      try { d = JSON.parse(line); } catch { continue; }
+      const m = d.message || {}, u = m.usage;
+      if (!u || /^</.test(m.model || '')) continue;  // "<synthetic>": an error written by the CLI, not a call
+      if (!found) {
+        found = true;
+        r.ctx = (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0) + (u.cache_read_input_tokens || 0);
+        r.model = m.model || '';
+        r.at = Date.parse(d.timestamp) || 0;
+      }
+      const c = u.cache_creation || {};
+      r.ttl = c.ephemeral_1h_input_tokens ? 3600e3 : c.ephemeral_5m_input_tokens ? 300e3 : 0;
+      if (r.ttl) break;
+    }
+  } catch {}
+  return r;
+};
+// A line written for an AI inside text from outside (a page, a tool result, a cloned repo's CLAUDE.md): outside.js and start.js share this.
+// ponytail: fixed phrases in English and Portuguese, so only the lazy attacks are caught and a reworded one passes.
+const AIMED = new RegExp([
+  '(ignore|disregard|forget)\\s+(all\\s+|any\\s+)?(of\\s+)?(the\\s+|your\\s+)?(previous|prior|above|earlier)\\s+(instructions|prompts?|rules)',
+  'do\\s+not\\s+(tell|inform|mention\\s+(it|this)\\s+to)\\s+the\\s+user(?!\\s+to\\b)',
+  'without\\s+(telling|informing)\\s+the\\s+user',
+  '(disable|bypass|turn\\s+off)\\s+(the\\s+|your\\s+)?(hooks?|guardrails?|guard)\\b',
+  '(ignore|desconsidere|esque[cç]a)\\s+(todas\\s+)?as\\s+instru[cç][oõ]es\\s+(anteriores|acima)',
+  'n[aã]o\\s+(conte|diga|avise|informe)\\s+(nada\\s+)?(ao|para\\s+o|pro)\\s+usu[aá]rio',
+  'sem\\s+(avisar|contar|informar)\\s+(ao\\s+|o\\s+)?usu[aá]rio',
+].join('|'), 'i');
+// -> [match, how] or null. Invisible text: zero-width characters (stripped, then looked at again) and the tag block, which
+// renders as nothing but spells ASCII (code point minus 0xE0000). An emoji flag is a tag run too: those are taken out first.
+function aimed(text) {
+  const flagSeq = /\u{1F3F4}[\u{E0020}-\u{E007E}]+\u{E007F}/gu, tagRun = /[\u{E0020}-\u{E007E}]+/gu;
+  const bare = text.replace(flagSeq, '');
+  const tags = (bare.match(tagRun) || []).map(r => [...r].map(c => String.fromCharCode(c.codePointAt(0) - 0xE0000)).join(''));
+  const stripped = text.replace(/[​-‏⁠-⁤﻿]/g, '');
+  let m = text.match(AIMED), how = '';
+  if (m) { const c = text.match(/<!--[\s\S]*?-->/g); if (c && c.some(x => AIMED.test(x))) how = ' hidden inside an HTML comment'; }
+  else if ((m = stripped.match(AIMED))) how = ' hidden with zero-width characters';
+  else if ((m = tags.join(' ').match(AIMED))) how = ' spelled in invisible Unicode tag characters';
+  else if (tags.some(r => r.length > 3)) m = [tags.find(r => r.length > 3)], how = ' (invisible Unicode tag characters, text a reader cannot see)';
+  else if (/[A-Za-z][​‌‍⁠-⁤﻿]+[A-Za-z]/.test(text)) m = ['zero-width characters inside a word'], how = ' (zero-width characters hiding text)';
+  return m ? [m, how] : null;
+}
+module.exports = { aimed, AIMED, audit, bg, egress, turnTools, lastCall, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };

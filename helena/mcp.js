@@ -67,6 +67,12 @@ const TOOLS = {
     run: a => spawnSync('node', [path.join(__dirname, 'hooks', 'rewind.js'), String(a.n || '')], {
       cwd: a.cwd && fs.existsSync(a.cwd) ? a.cwd : process.cwd(), encoding: 'utf8', timeout: 30000, windowsHide: true }).stdout || '',
   },
+  helena_recall: {
+    description: 'Search past Claude Code sessions for what was asked or decided about something. All words must match.',
+    props: { words: 'Words to find, space separated', days: 'How many days back (default 30)' }, required: ['words'],
+    run: a => spawnSync('python', [path.join(__dirname, 'history.py'), 'recall', ...String(a.words).split(/\s+/).filter(Boolean), '--days', String(a.days || 30)], {
+      encoding: 'utf8', timeout: 30000, windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }).stdout || '',
+  },
 };
 
 const send = m => process.stdout.write(JSON.stringify({ jsonrpc: '2.0', ...m }) + '\n');

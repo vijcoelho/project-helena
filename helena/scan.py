@@ -20,6 +20,10 @@ CRITICAL = [
     (r'ignore\s+(all\s+)?(previous|prior|above)\s+instructions|do\s+not\s+(tell|inform|mention\s+(it\s+)?to)\s+the\s+user(?!\s+to\b)|'
      r'without\s+(telling|informing)\s+the\s+user|(disable|bypass|turn\s+off)\s+(the\s+)?(hooks?|guard)\b', 'tells the AI to hide things or drop its guardrails'),
     ('[\u200e\u200f\u202a-\u202e\u2066-\u2069]', 'direction-flipping characters (text that reads differently than it runs)'),
+    # instructions fetched at run time: what the URL says tomorrow is what the AI does (docs that say "follow the
+    # instructions on the page" are common and are not this: it takes "follow what it says" about a download, or code that evals one)
+    (r'\b(curl|wget|iwr|Invoke-WebRequest|fetch|download)\b[^\n]*https?://[^\n]*\b(follow|obey|do|carry\s+out)\s+(what|whatever)\s+(it|they|that|the\s+(file|page|response))\s+says|'
+     r'\b(eval|exec)\s*\(\s*(await\s+)?(requests\.get|urllib\.request\.urlopen|urlopen|fetch)\b', 'runs instructions or code fetched at run time'),
 ]
 WARN = [
     ('\u200b|(?<!^)\ufeff', 'invisible characters'),
@@ -29,7 +33,14 @@ WARN = [
     (r'\brm\s+-\w*r\w*f|\bchmod\s+777\b|\bsudo\b', 'destructive or privileged shell command'),
     (r'\bos\.system\(|shell\s*=\s*True|\beval\s*\(|\bexec\s*\(|child_process', 'runs commands or code it builds'),
     (r'(^|[\s"\'/])\.env\b', 'touches a .env file'),
+    # a payload behind a condition (env var, CI flag, date, host, user) that fetches, decodes or evals: cloaked from a test run
+    (r'\b(if|when|unless)\b[^\n]*(os\.environ|getenv|process\.env|\$env:|hostname|getuser|whoami|\bdatetime\b|Date\.now|new Date)[^\n]*(\n[^\n]*){0,2}?'
+     r'(curl|wget|\beval\b|\bexec\b|base64|\|\s*(ba)?sh|os\.system|child_process|Invoke-Expression|\biex\b)', 'runs something only when an env var, date, host or user matches'),
+    (r'\beval\s+"?\$\(\s*(curl|wget)|\b(iex|Invoke-Expression)\b[^\n]*\b(iwr|Invoke-WebRequest|DownloadString)\b', 'evals a download'),
 ]
+BLOB = r'[A-Za-z0-9+/]{300,}={0,2}|\b(?:[0-9a-f]{2}){150,}\b'  # base64 or hex of a few hundred characters
+DECODE = r'b64decode|atob\(|base64\s+(-d|--decode)|FromBase64|unhexlify|fromhex|Buffer\.from|xxd\s+-r'
+RUN_OR_WRITE = r'\beval\b|\bexec\b|os\.system|subprocess|child_process|\|\s*(ba)?sh\b|\biex\b|Invoke-Expression|write_bytes|writeFile|Out-File|Set-Content|open\([^)]*[\'"]wb?[\'"]'
 TEXT = {'.md', '.txt', '.py', '.js', '.mjs', '.cjs', '.ts', '.sh', '.ps1', '.bat', '.cmd', '.json', '.yaml', '.yml', '.toml', ''}
 
 
@@ -46,6 +57,10 @@ def scan(folder):
                 for m in re.finditer(pattern, text, re.I | re.M):
                     found.append((level, f'{f.relative_to(folder) if f != folder else f.name}:{text.count(chr(10), 0, m.start()) + 1}', why))
                     break  # one hit per rule per file is enough to read it
+        b = re.search(BLOB, text)
+        if b and re.search(DECODE, text, re.I) and re.search(RUN_OR_WRITE, text):
+            found.append(('critical', f'{f.relative_to(folder) if f != folder else f.name}:{text.count(chr(10), 0, b.start()) + 1}',
+                          'a long encoded blob that is decoded and run or written to disk'))
     return found
 
 

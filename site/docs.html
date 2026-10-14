@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helena · docs</title>
+<meta name="description" content="Documentação da Helena: instalar, comandos, o que cada hook faz, economia de tokens e arquivos de configuração. / Helena's documentation: install, commands, what each hook does, token savings and configuration files.">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;800&display=swap" rel="stylesheet">
+<script>
+  // same choice as the home page: ?lang=en|pt > saved choice > browser language
+  (() => {
+    let l = new URLSearchParams(location.search).get('lang');
+    try { l = l || localStorage.getItem('helena-lang'); } catch {}
+    l = l === 'en' || l === 'pt' ? l : (navigator.language || '').toLowerCase().startsWith('pt') ? 'pt' : 'en';
+    document.documentElement.classList.add(l);
+    document.documentElement.lang = l === 'pt' ? 'pt-BR' : 'en';
+  })();
+</script>
+<style>
+  :root { --bg: #000; --fg: #f2f2f2; --dim: #9a9a9a; --line: #262626; --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  html.pt .en, html.en .pt { display: none !important; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--mono); font-size: 15px; line-height: 1.6; }
+  ::selection { background: var(--fg); color: var(--bg); }
+  a { color: inherit; }
+  nav { position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; z-index: 10;
+        padding: 14px clamp(16px, 4vw, 48px); background: #000; border-bottom: 1px solid var(--line); }
+  nav .marca { font-weight: 800; letter-spacing: .08em; text-decoration: none; }
+  nav ul { display: flex; gap: clamp(14px, 2.6vw, 30px); list-style: none; font-size: 13px; align-items: center; }
+  nav ul a { color: var(--dim); text-decoration: none; }
+  nav ul a:hover { color: var(--fg); }
+  .troca { background: none; border: 1px solid var(--line); color: var(--dim); font: inherit; font-size: 12px; padding: 4px 8px; cursor: pointer; }
+  .troca b { color: var(--fg); font-weight: 500; }
+  .troca:hover { border-color: var(--fg); }
+
+  .pagina { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: clamp(24px, 5vw, 72px); padding: clamp(40px, 7vh, 80px) clamp(16px, 6vw, 96px) 96px; }
+  .indice { position: sticky; top: 88px; align-self: start; list-style: none; font-size: 13px; border-left: 1px solid var(--line); }
+  .indice a { display: block; padding: 5px 0 5px 16px; color: var(--dim); text-decoration: none; }
+  .indice a:hover { color: var(--fg); }
+  main { min-width: 0; max-width: 900px; }
+  .rotulo { color: var(--dim); font-size: 13px; letter-spacing: .12em; margin-bottom: 20px; }
+  .rotulo::before { content: '// '; }
+  h1 { font-size: clamp(40px, 7vw, 88px); font-weight: 800; letter-spacing: -.03em; line-height: 1.02; margin-bottom: 24px; }
+  h2 { font-size: clamp(24px, 3vw, 36px); font-weight: 800; letter-spacing: -.02em; line-height: 1.1; margin-bottom: 20px; }
+  h3 { font-size: 15px; font-weight: 500; margin: 32px 0 10px; }
+  section { padding: 56px 0; border-top: 1px solid var(--line); }
+  section:first-of-type { border-top: 0; padding-top: 0; }
+  p, li { color: var(--dim); max-width: 72ch; }
+  p + p { margin-top: 14px; }
+  p b, li b, td b { color: var(--fg); font-weight: 500; }
+  ul.lista { list-style: none; margin-top: 12px; }
+  ul.lista li { padding-left: 18px; position: relative; margin-top: 8px; }
+  ul.lista li::before { content: '–'; position: absolute; left: 0; }
+  code { color: var(--fg); font-family: inherit; font-size: .93em; }
+  pre { border: 1px solid var(--line); padding: 18px 20px; margin: 16px 0; overflow-x: auto; font: inherit; font-size: 13.5px; line-height: 1.8; color: var(--fg); }
+  pre .c { color: var(--dim); }
+  .rola { overflow-x: auto; margin: 16px 0; border-top: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 560px; }
+  th { text-align: left; color: var(--dim); font-weight: 400; font-size: 12px; letter-spacing: .08em; padding: 10px 16px 10px 0; border-bottom: 1px solid var(--line); }
+  td { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--dim); }
+  td:first-child { color: var(--fg); white-space: nowrap; }
+  td.q { white-space: normal; }
+  footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 28px clamp(16px, 6vw, 96px); border-top: 1px solid var(--line); color: var(--dim); font-size: 13px; }
+  @media (max-width: 860px) {
+    .pagina { grid-template-columns: 1fr; }
+    .indice { display: none; }
+    nav ul .l { display: none; }
+    td:first-child { white-space: normal; }
+  }
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="marca">HELENA_</a>
+  <ul>
+    <li class="l"><a href="index.html"><span class="pt">início</span><span class="en">home</span></a></li>
+    <li class="l"><a href="index.html#placar"><span class="pt">placar</span><span class="en">scoreboard</span></a></li>
+    <li><a href="https://github.com/vijcoelho/project-helena" target="_blank" rel="noopener">github ↗</a></li>
+    <li><button type="button" class="troca" aria-label="Trocar idioma / Switch language"><span class="pt"><b>PT</b> / EN</span><span class="en">PT / <b>EN</b></span></button></li>
+  </ul>
+</nav>
+
+<div class="pagina">
+  <ul class="indice">
+    <li><a href="#instalar"><span class="pt">instalar</span><span class="en">install</span></a></li>
+    <li><a href="#primeiro-dia"><span class="pt">primeiro dia</span><span class="en">first day</span></a></li>
+    <li><a href="#comandos"><span class="pt">comandos</span><span class="en">commands</span></a></li>
+    <li><a href="#hooks">hooks</a></li>
+    <li><a href="#tokens"><span class="pt">economia de tokens</span><span class="en">token savings</span></a></li>
+    <li><a href="#subagentes"><span class="pt">subagentes</span><span class="en">subagents</span></a></li>
+    <li><a href="#config"><span class="pt">configuração</span><span class="en">configuration</span></a></li>
+    <li><a href="#dados"><span class="pt">onde ficam os dados</span><span class="en">where the data lives</span></a></li>
+    <li><a href="#ias"><span class="pt">outras IAs</span><span class="en">other AIs</span></a></li>
+    <li><a href="#benchmark">benchmark</a></li>
+    <li><a href="#atualizar"><span class="pt">atualizar e remover</span><span class="en">update and remove</span></a></li>
+  </ul>
+
+  <main>
+    <section>
+      <p class="rotulo">docs</p>
+      <h1><span class="pt">Documentação</span><span class="en">Documentation</span></h1>
+      <p><span class="pt">Tudo o que a Helena faz, onde cada coisa fica e como desligar. Ela é feita de arquivos, git e hooks: <b>nenhum banco, nenhum container, nenhum serviço rodando</b>, e nenhum LLM dentro de hook.</span><span class="en">Everything Helena does, where each thing lives and how to turn it off. She is made of files, git and hooks: <b>no database, no container, no running service</b>, and no LLM inside a hook.</span></p>
+    </section>
+
+    <section id="instalar">
+      <p class="rotulo"><span class="pt">instalar</span><span class="en">install</span></p>
+      <h2><span class="pt">Quatro comandos.</span><span class="en">Four commands.</span></h2>
+      <p><span class="pt">Precisa de Claude Code logado, Node.js 18+ e Python 3.10+. O verificador de contraste usa o Edge ou o Chrome que já está instalado. Obsidian é opcional: a memória é Markdown numa pasta. Windows, macOS e Linux.</span><span class="en">Needs Claude Code logged in, Node.js 18+ and Python 3.10+. The contrast checker uses the Edge or Chrome already installed. Obsidian is optional: the memory is Markdown in a folder. Windows, macOS and Linux.</span></p>
+<pre>git clone https://github.com/vijcoelho/project-helena.git
+cd project-helena/helena/tools && npm install && cd ../../..
+claude plugin marketplace add ./project-helena
+claude plugin install helena@helena</pre>
+      <h3><span class="pt">Opcional, e recomendado</span><span class="en">Optional, and recommended</span></h3>
+<pre><span class="c"># <span class="pt">onde a memória fica (padrão: ~/Helena)</span><span class="en">where the memory lives (default: ~/Helena)</span></span>
+mkdir -p ~/.helena && echo "/path/to/your/obsidian/vault" > ~/.helena/vault
+
+<span class="c"># <span class="pt">os seus kits, a partir do exemplo</span><span class="en">your kits, from the example</span></span>
+cp project-helena/helena/kits.example.json ~/.helena/kits.json
+
+<span class="c"># <span class="pt">barra de status, em ~/.claude/settings.json</span><span class="en">status line, in ~/.claude/settings.json</span></span>
+"statusLine": { "type": "command", "command": "node ~/.helena/statusline.js" }</pre>
+      <p><span class="pt">Reinicie o Claude Code. Na próxima sessão o resumo da Helena aparece no topo.</span><span class="en">Restart Claude Code. On the next session Helena's brief shows at the top.</span></p>
+    </section>
+
+    <section id="primeiro-dia">
+      <p class="rotulo"><span class="pt">primeiro dia</span><span class="en">first day</span></p>
+      <h2><span class="pt">Ela chega vazia e aprende com você.</span><span class="en">She arrives empty and learns from you.</span></h2>
+      <ul class="lista">
+        <li><span class="pt">Rode <code>/helena:setup</code> uma vez. Ela pergunta onde fica o seu vault e lê as suas 10 últimas sessões (alguns centavos, no Haiku).</span><span class="en">Run <code>/helena:setup</code> once. She asks where your vault is and reads your last 10 sessions (a few cents, on Haiku).</span></li>
+        <li><span class="pt">Trabalhe normalmente e corrija quando ela errar ("não, o deploy é com Docker"). A cada 6 pedidos e no fim da sessão, o que vale lembrar vira uma nota.</span><span class="en">Work as usual and correct her when she is wrong ("no, we deploy with Docker"). Every 6 requests and when the session ends, what is worth remembering becomes a note.</span></li>
+        <li><span class="pt">Diga uma regra de git no chat ("não commita vídeo aqui") e ela grava em <code>.helena/git</code>. Dali em diante o hook barra.</span><span class="en">Say a git rule in chat ("don't commit videos here") and she saves it to <code>.helena/git</code>. From then on the hook enforces it.</span></li>
+        <li><span class="pt">Antes de parar, peça pra salvar onde parou. O <code>HANDOFF.md</code> entra sozinho na próxima vez que você abrir a pasta, conferido contra o repositório.</span><span class="en">Before you stop, ask her to save where you stopped. <code>HANDOFF.md</code> comes in by itself the next time you open the folder, checked against the repo.</span></li>
+      </ul>
+    </section>
+
+    <section id="comandos">
+      <p class="rotulo"><span class="pt">comandos</span><span class="en">commands</span></p>
+      <h2><span class="pt">O que você pode pedir.</span><span class="en">What you can ask for.</span></h2>
+      <div class="rola"><table>
+        <tr><th><span class="pt">COMANDO</span><span class="en">COMMAND</span></th><th><span class="pt">O QUE FAZ</span><span class="en">WHAT IT DOES</span></th></tr>
+        <tr><td>/helena:setup</td><td><span class="pt">Primeiro dia: aponta o vault e aprende com as suas sessões passadas.</span><span class="en">First day: points at your vault and learns from your past sessions.</span></td></tr>
+        <tr><td>/helena:remember</td><td><span class="pt">Ensina um fato agora (regra, preferência, fato do projeto).</span><span class="en">Teaches a fact right now (a rule, a preference, a project fact).</span></td></tr>
+        <tr><td>/helena:forget</td><td><span class="pt">Apaga uma memória errada ou velha.</span><span class="en">Removes a memory that is wrong or outdated.</span></td></tr>
+        <tr><td>/helena:status</td><td><span class="pt">O que ela aprendeu: memórias, kits, biblioteca, candidatas a skill.</span><span class="en">What she has learned: memories, kits, library, skill candidates.</span></td></tr>
+        <tr><td>/helena:budget [dias]</td><td><span class="pt">Pra onde os tokens foram: por dia, por projeto, o que encheu o contexto, arquivo lido duas vezes, cada vez que o contexto foi pago inteiro em vez de lido do cache (e por quê), subagentes por modelo e esforço, e o que a própria Helena custou.</span><span class="en">Where the tokens went: per day, per project, what filled the context, files read twice, every time the context was paid in full instead of read from the cache (and why), subagents by model and effort, and what Helena herself cost.</span></td></tr>
+        <tr><td>/helena:limits</td><td><span class="pt">Uso de cada plano (5 horas e semana) e se a semana dura nesse ritmo.</span><span class="en">Every plan's usage (5 hours and week) and whether the week lasts at this pace.</span></td></tr>
+        <tr><td>/helena:rewind [n]</td><td><span class="pt">Desfaz: a pasta como estava antes do último pedido (ou n atrás).</span><span class="en">Undo: the folder as it was before the last request (or n back).</span></td></tr>
+        <tr><td>/helena:recall</td><td><span class="pt">Busca nas suas sessões gravadas, sem LLM e sem índice: data, projeto e o turno em que aquilo foi dito.</span><span class="en">Searches your recorded sessions, no LLM and no index: date, project and the turn where it was said.</span></td></tr>
+        <tr><td>/helena:audit [dias]</td><td><span class="pt">O que os hooks barraram ou perguntaram, e pra onde a IA saiu da máquina.</span><span class="en">What the hooks blocked or asked about, and where the AI reached outside the machine.</span></td></tr>
+        <tr><td>/helena:orchestrate</td><td><span class="pt">Planeja na sessão e passa o código pra um worker mais barato por vez; os testes rodam antes de o diff ser lido.</span><span class="en">Plans in the session and hands the coding to one cheaper worker at a time; the tests run before the diff is read.</span></td></tr>
+        <tr><td>/helena:routines</td><td><span class="pt">Rotinas que ela roda sozinha, só leitura e com teto de gasto. Prontas: CI e dependências.</span><span class="en">Routines she runs by herself, read-only and with a spending cap. Ready-made: CI and dependencies.</span></td></tr>
+        <tr><td>/helena:skills</td><td><span class="pt">As skills que ela criou dos seus pedidos repetidos, e o uso de cada uma.</span><span class="en">The skills she created from your repeated requests, and how often each was used.</span></td></tr>
+        <tr><td>/helena:undo</td><td><span class="pt">Apaga uma skill que ela criou; com <code>learned</code> tira a última lição; com <code>fold</code> volta a skill de antes.</span><span class="en">Deletes a skill she created; with <code>learned</code> drops the last lesson; with <code>fold</code> restores the skill from before.</span></td></tr>
+        <tr><td>/helena:share</td><td><span class="pt">Copia uma nota sua pra <code>.helena/memory/</code> do repositório, revisada como código.</span><span class="en">Copies one of your notes into the repo's <code>.helena/memory/</code>, reviewed like code.</span></td></tr>
+        <tr><td>/painel</td><td><span class="pt">Painel com o contexto por categoria e o gasto da Helena (Claude Code 2.1.287+).</span><span class="en">A pane with context by category and Helena's spending (Claude Code 2.1.287+).</span></td></tr>
+      </table></div>
+    </section>
+
+    <section id="hooks">
+      <p class="rotulo">hooks</p>
+      <h2><span class="pt">O que roda sem você pedir.</span><span class="en">What runs without being asked.</span></h2>
+      <p><span class="pt">Hook não é sugestão: roda fora do modelo, em milissegundos, e não gasta token até ter algo a dizer. São guardas pra IA, não uma sandbox: quem é dono da máquina pode desligar.</span><span class="en">A hook is not a suggestion: it runs outside the model, in milliseconds, and spends no tokens until it has something to say. They are guardrails for the AI, not a sandbox: whoever owns the machine can turn them off.</span></p>
+      <div class="rola"><table>
+        <tr><th>HOOK</th><th><span class="pt">QUANDO</span><span class="en">WHEN</span></th><th><span class="pt">O QUE FAZ</span><span class="en">WHAT IT DOES</span></th></tr>
+        <tr><td>start.js</td><td><span class="pt">início da sessão</span><span class="en">session start</span></td><td><span class="pt">Entrega o <code>HANDOFF.md</code> conferido contra o repositório, o resumo do projeto tirado do git e o índice da memória. Nota que depende de código que sumiu vem marcada STALE. Lê a config de IA do próprio repo (<code>CLAUDE.md</code>, <code>.mcp.json</code>, settings) e avisa o que parece errado.</span><span class="en">Hands over <code>HANDOFF.md</code> checked against the repo, the project brief built from git and the memory index. A note that depends on code that is gone comes marked STALE. Reads the repo's own AI config (<code>CLAUDE.md</code>, <code>.mcp.json</code>, settings) and says what looks wrong.</span></td></tr>
+        <tr><td>router.js</td><td><span class="pt">cada pedido</span><span class="en">every request</span></td><td><span class="pt">Carrega só os kits que o pedido precisa (uma vez por sessão), entrega as 2 notas que batem com o pedido, avisa em 120k / 250k / 500k de contexto e perto do limite do plano, e tira o snapshot do <code>/helena:rewind</code>.</span><span class="en">Loads only the kits the request needs (once per session), hands over the 2 notes that match the request, warns at 120k / 250k / 500k of context and near the plan limit, and takes the <code>/helena:rewind</code> snapshot.</span></td></tr>
+        <tr><td>guard.js</td><td>Bash · PowerShell</td><td><span class="pt">Barra chave de API e <code>.env</code> em commit ou push, e aplica as regras de <code>.helena/git</code>.</span><span class="en">Blocks API keys and <code>.env</code> in a commit or push, and enforces the rules in <code>.helena/git</code>.</span></td></tr>
+        <tr><td>trim.js</td><td>Bash · PowerShell · Read</td><td><span class="pt">Põe a flag enxuta no comando e deixa rodar; barra o que nenhuma flag resolve (lockfile, build, arquivo acima de 100 KB). Saída: <code># helena:full</code> no comando, ou <code>limit</code> no Read. <a href="#tokens">Detalhes</a>.</span><span class="en">Adds the quiet flag to the command and lets it run; blocks what no flag fixes (lockfiles, build output, files over 100 KB). Way out: <code># helena:full</code> in the command, or <code>limit</code> on Read. <a href="#tokens">Details</a>.</span></td></tr>
+        <tr><td>gate.js</td><td><span class="pt">antes de ferramentas</span><span class="en">before tools</span></td><td><span class="pt">Leitura de <code>.env</code> devolve só os nomes das chaves. Pacote que não existe no npm ou no PyPI é barrado. Perguntam antes: comando destrutivo (também por variável, por <code>python -c</code> ou em base64), teste enfraquecido ou apagado, apagar o log de auditoria, e pacote sem versão cuja última versão tem menos de 72 horas. Aplica <code>.helena/policy</code>.</span><span class="en">Reading <code>.env</code> returns the key names only. A package that is not on npm or PyPI is blocked. These ask first: a destructive command (also through a variable, a <code>python -c</code> or base64), a weakened or deleted test, erasing the audit log, and a package with no version whose newest release is under 72 hours old. Enforces <code>.helena/policy</code>.</span></td></tr>
+        <tr><td>delegate.js</td><td><span class="pt">ao criar subagente</span><span class="en">starting a subagent</span></td><td><span class="pt">Subagente sem modelo roda num modelo abaixo do principal. Com <code>.helena/delegate</code>, limita quantos rodam juntos e quantos nascem por pedido. <a href="#subagentes">Detalhes</a>.</span><span class="en">A subagent started without a model runs on one below the main. With <code>.helena/delegate</code>, caps how many run at once and how many start per request. <a href="#subagentes">Details</a>.</span></td></tr>
+        <tr><td>outside.js</td><td><span class="pt">depois de web, MCP e <code>gh</code></span><span class="en">after web, MCP and <code>gh</code></span></td><td><span class="pt">Linha escrita pra IA num texto de fora ("ignore as instruções anteriores") é marcada como dado, também quando vem em caracteres invisíveis ou num comentário HTML. Nunca barra. Cada host alcançado fica no log.</span><span class="en">A line written for the AI in outside text ("ignore previous instructions") is flagged as data, also when it comes in invisible characters or an HTML comment. Never blocks. Every host reached goes to the log.</span></td></tr>
+        <tr><td>done.js</td><td><span class="pt">fim do turno e do subagente</span><span class="en">end of turn and of a subagent</span></td><td><span class="pt">O turno mexeu em código? Os testes rodam antes de terminar; falhou, volta pra IA. Comando em <code>.helena/test</code> (ou <code>off</code>).</span><span class="en">Did the turn touch code? The tests run before it ends; a failure goes back to the AI. Command in <code>.helena/test</code> (or <code>off</code>).</span></td></tr>
+        <tr><td>check.js</td><td><span class="pt">fim do turno</span><span class="en">end of turn</span></td><td><span class="pt">Confere o contraste do texto nas páginas mexidas no turno.</span><span class="en">Checks the text contrast of the pages touched in the turn.</span></td></tr>
+        <tr><td>end.js</td><td><span class="pt">fim da sessão</span><span class="en">session end</span></td><td><span class="pt">Destila a sessão em notas, no Haiku, em segundo plano.</span><span class="en">Distills the session into notes, on Haiku, in the background.</span></td></tr>
+      </table></div>
+    </section>
+
+    <section id="tokens">
+      <p class="rotulo"><span class="pt">economia de tokens</span><span class="en">token savings</span></p>
+      <h2><span class="pt">Cada mensagem relê o contexto inteiro.</span><span class="en">Every message re-reads the whole context.</span></h2>
+      <p><span class="pt">A conta de uma sessão é o tamanho do contexto vezes o número de chamadas. Por isso a Helena ataca três coisas: o que entra no contexto, quantas chamadas acontecem e se o contexto é lido do cache ou pago inteiro.</span><span class="en">A session's bill is the context size times the number of calls. So Helena goes after three things: what enters the context, how many calls happen, and whether the context is read from the cache or paid in full.</span></p>
+
+      <h3><span class="pt">Comando reescrito, não recusado</span><span class="en">Rewritten, not refused</span></h3>
+      <p><span class="pt">Recusar um comando custa mais uma chamada ao modelo, e cada chamada relê tudo. Quando basta uma flag, a flag entra e o comando roda. Só flags são acrescentadas: o código de saída e o sentido do comando ficam iguais. Quando algo é cortado, a IA é avisada na mesma hora.</span><span class="en">Refusing a command costs one more model call, and every call re-reads everything. When a flag is enough, the flag goes in and the command runs. Only flags are added: the exit code and the meaning of the command stay the same. When something is cut, the AI is told right away.</span></p>
+      <div class="rola"><table>
+        <tr><th><span class="pt">A IA PEDE</span><span class="en">THE AI ASKS FOR</span></th><th><span class="pt">RODA COMO</span><span class="en">RUNS AS</span></th><th><span class="pt">POR QUÊ</span><span class="en">WHY</span></th></tr>
+        <tr><td>git log</td><td class="q"><code>git log --oneline -n 20</code></td><td><span class="pt">o histórico inteiro não cabe; a IA é avisada do corte</span><span class="en">the whole history does not fit; the AI is told about the cut</span></td></tr>
+        <tr><td>git status</td><td class="q"><code>git status -sb</code></td><td><span class="pt">mesma informação, sem as dicas</span><span class="en">same information, without the hints</span></td></tr>
+        <tr><td>pytest</td><td class="q"><code>pytest -q --tb=short</code></td><td><span class="pt">um traceback inteiro por teste que falha é quase toda a saída</span><span class="en">a full traceback per failing test is most of the output</span></td></tr>
+        <tr><td>pip install x</td><td class="q"><code>pip install -q x</code></td><td><span class="pt">só erros e avisos</span><span class="en">errors and warnings only</span></td></tr>
+        <tr><td>npm install</td><td class="q"><code>npm install --no-fund --loglevel=error</code></td><td><span class="pt">o resumo fica, os avisos de pacote antigo saem</span><span class="en">the summary stays, the deprecation warnings go</span></td></tr>
+        <tr><td>cargo build · test · check</td><td class="q"><code>cargo test -q</code></td><td><span class="pt">sem a linha por crate compilado</span><span class="en">without the line per compiled crate</span></td></tr>
+        <tr><td>grep -r foo .</td><td class="q"><code>grep --exclude-dir=node_modules --exclude-dir=.git -r foo .</code></td><td><span class="pt">só quando existe <code>node_modules</code></span><span class="en">only when there is a <code>node_modules</code></span></td></tr>
+      </table></div>
+      <p><span class="pt">Nada é mexido quando o comando já diz o que quer (<code>-v</code>, <code>-n 5</code>), quando a saída vai pra um arquivo ou pra outro comando, dentro de texto entre aspas, ou com <code># helena:full</code>. Se o <a href="https://github.com/rtk-ai/rtk" target="_blank" rel="noopener">rtk</a> estiver instalado, o <code>rtk rewrite</code> dele vai primeiro: conhece muito mais comandos que esta tabela.</span><span class="en">Nothing is touched when the command already says what it wants (<code>-v</code>, <code>-n 5</code>), when the output goes to a file or to another command, inside quoted text, or with <code># helena:full</code>. If <a href="https://github.com/rtk-ai/rtk" target="_blank" rel="noopener">rtk</a> is installed, its <code>rtk rewrite</code> goes first: it knows many more commands than this table.</span></p>
+
+      <h3><span class="pt">Ainda barrado</span><span class="en">Still blocked</span></h3>
+      <p><span class="pt">O que nenhuma flag deixa enxuto sem mudar o sentido: despejar um arquivo acima de 100 KB, um lockfile, saída de build, <code>git log -p</code> sem limite, listagem recursiva com <code>node_modules</code>. A recusa já diz o jeito enxuto.</span><span class="en">What no flag makes lean without changing its meaning: dumping a file over 100 KB, a lockfile, build output, an unbounded <code>git log -p</code>, a recursive listing with <code>node_modules</code>. The refusal names the lean way.</span></p>
+
+      <h3><span class="pt">A barra de status</span><span class="en">The status line</span></h3>
+<pre>helena · ctx 85k · cache until 14:32 · limit 12% · Opus</pre>
+      <ul class="lista">
+        <li><span class="pt"><b>ctx</b>: o tamanho do contexto, relido a cada mensagem. A partir de 120k aparece <code>heavy</code>; de 250k, <code>/clear?</code>.</span><span class="en"><b>ctx</b>: the context size, re-read on every message. From 120k it shows <code>heavy</code>; from 250k, <code>/clear?</code>.</span></li>
+        <li><span class="pt"><b>cache until</b>: o cache do contexto vive 5 minutos ou 1 hora depois da última chamada. Responder depois dessa hora paga o contexto inteiro de novo. Se o assunto mudou, é a hora do <code>/clear</code>.</span><span class="en"><b>cache until</b>: the context's cache lives 5 minutes or 1 hour after the last call. Answering after that time pays for the whole context again. If the subject changed, that is the moment for <code>/clear</code>.</span></li>
+        <li><span class="pt"><b>model changed</b>: cada modelo tem o seu cache. Depois de um <code>/model</code> no meio da sessão, a próxima mensagem relê tudo sem cache; a barra diz quantos tokens.</span><span class="en"><b>model changed</b>: each model has its own cache. After a <code>/model</code> mid-session the next message re-reads everything uncached; the line says how many tokens.</span></li>
+        <li><span class="pt"><b>limit</b>: quanto do plano já foi (o maior entre 5 horas e semana).</span><span class="en"><b>limit</b>: how much of the plan is gone (the larger of 5 hours and week).</span></li>
+      </ul>
+
+      <h3>/helena:budget</h3>
+      <p><span class="pt">Lê o uso que o Claude Code já grava em cada sessão. Não chama modelo, não custa nada. Além do total por dia e por projeto, mostra o que procurar:</span><span class="en">Reads the usage Claude Code already writes in every session. Calls no model, costs nothing. Besides the totals per day and per project, it shows where to look:</span></p>
+<pre>Same file read again with no edit in between: 30 times, 169k characters that were already in the context
+
+Cache: the context was paid in full again 2 times, 454k tokens
+  pause longer than the cache     2    454k  answer before `cache until` in the status line, or /clear first
+
+Subagents: 42 workers, 86.3M tokens
+  haiku-5-5          max          25    705   81.3M  379
+  A worker starts at 34k of context (median), 34k of it written to the cache on that first call</pre>
+      <p><span class="pt">Esse é um relatório real, de 14 dias de uso do criador. Ele mostra onde <b>não</b> vale mexer também: o cache quase nunca quebrou, então o problema ali eram os subagentes.</span><span class="en">That is a real report, from 14 days of the creator's use. It also shows where <b>not</b> to spend effort: the cache almost never broke, so the problem there was the subagents.</span></p>
+    </section>
+
+    <section id="subagentes">
+      <p class="rotulo"><span class="pt">subagentes</span><span class="en">subagents</span></p>
+      <h2><span class="pt">Subagente na rédea.</span><span class="en">Subagents on a leash.</span></h2>
+      <p><span class="pt">Um subagente criado sem modelo roda no modelo principal, e nasce com dezenas de milhares de tokens de contexto antes de fazer qualquer coisa. <b>Sempre ligado:</b> worker <code>general-purpose</code> sem modelo roda no Sonnet e o <code>Explore</code> no Haiku. Um pin nunca sobe o modelo: numa sessão Sonnet só o Explore muda, numa sessão Haiku nada muda. Tipo de agente com modelo próprio e chamada que nomeia um modelo ficam como estão.</span><span class="en">A subagent started without a model runs on the main one, and starts with tens of thousands of context tokens before it does anything. <b>Always on:</b> a <code>general-purpose</code> worker without a model runs on Sonnet and <code>Explore</code> on Haiku. A pin never moves a model up: on a Sonnet session only Explore changes, on a Haiku session nothing does. An agent type with its own model and a call that names one are left alone.</span></p>
+      <p><span class="pt">Os limites são opcionais. Crie <code>.helena/delegate</code> no repositório (ou <code>~/.helena/delegate</code> pra todos). Arquivo vazio usa estes valores; <code>off</code> desliga a linha.</span><span class="en">The caps are optional. Create <code>.helena/delegate</code> in the repo (or <code>~/.helena/delegate</code> for all of them). An empty file uses these values; <code>off</code> turns a line off.</span></p>
+<pre>model: sonnet      <span class="c"># <span class="pt">worker sem modelo</span><span class="en">a worker without a model</span></span>
+search: haiku      <span class="c"># <span class="pt">o Explore</span><span class="en">Explore</span></span>
+parallel: 3        <span class="c"># <span class="pt">rodando ao mesmo tempo</span><span class="en">running at the same time</span></span>
+workers: 8         <span class="c"># <span class="pt">criados por pedido seu</span><span class="en">started per request of yours</span></span>
+effort: medium     <span class="c"># <span class="pt">opcional, sem padrão: esforço do worker fixado</span><span class="en">optional, no default: the pinned worker's effort</span></span></pre>
+      <p><span class="pt">O worker recusado recebe o motivo, e a recusa fica no <code>/helena:audit</code>. Código escrito por subagente passa pelos testes antes de ele reportar. Pra desligar os pins em tudo: <code>model: off</code> e <code>search: off</code> em <code>~/.helena/delegate</code>.</span><span class="en">A refused worker is told why, and the refusal is in <code>/helena:audit</code>. Code written by a subagent goes through the tests before it reports. To turn the pins off everywhere: <code>model: off</code> and <code>search: off</code> in <code>~/.helena/delegate</code>.</span></p>
+    </section>
+
+    <section id="config">
+      <p class="rotulo"><span class="pt">configuração</span><span class="en">configuration</span></p>
+      <h2><span class="pt">Arquivos de texto, versionados com o código.</span><span class="en">Text files, versioned with the code.</span></h2>
+      <div class="rola"><table>
+        <tr><th><span class="pt">ARQUIVO</span><span class="en">FILE</span></th><th><span class="pt">PRA QUÊ</span><span class="en">WHAT FOR</span></th></tr>
+        <tr><td>.helena/git</td><td><span class="pt">Regras de git do projeto: <code>main: no</code> nega commit direto na main; <code>never: *.mp4 renders/</code> usa globs como o .gitignore.</span><span class="en">The project's git rules: <code>main: no</code> denies direct commits on main; <code>never: *.mp4 renders/</code> takes globs like .gitignore.</span></td></tr>
+        <tr><td>.helena/policy</td><td><span class="pt">Regras do time pra IAs: <code>deny:</code> e <code>ask:</code> com regex por linha, <code>mcp:</code> com os servidores MCP permitidos.</span><span class="en">The team's rules for AIs: <code>deny:</code> and <code>ask:</code> with a regex per line, <code>mcp:</code> with the MCP servers allowed.</span></td></tr>
+        <tr><td>.helena/test</td><td><span class="pt">O comando de teste que roda no fim do turno, ou <code>off</code>. Sem ele, usa o que o projeto tem (npm test, pytest, cargo test, go test; num projeto TypeScript sem teste, <code>npx tsc --noEmit</code>).</span><span class="en">The test command run at the end of a turn, or <code>off</code>. Without it, what the project has is used (npm test, pytest, cargo test, go test; in a TypeScript project with no tests, <code>npx tsc --noEmit</code>).</span></td></tr>
+        <tr><td>.helena/delegate</td><td><span class="pt">Limites e pins de subagente. <a href="#subagentes">Ver acima</a>.</span><span class="en">Subagent caps and pins. <a href="#subagentes">See above</a>.</span></td></tr>
+        <tr><td>.helena/memory/</td><td><span class="pt">Notas de memória do time, commitadas com o código.</span><span class="en">The team's memory notes, committed with the code.</span></td></tr>
+        <tr><td>~/.helena/kits.json</td><td><span class="pt">Os seus kits: um gatilho (regex) e as skills que ele traz. Nada carrega se o pedido não bater.</span><span class="en">Your kits: a trigger (regex) and the skills it brings in. Nothing loads unless the request matches.</span></td></tr>
+        <tr><td>~/.helena/vault</td><td><span class="pt">Uma linha: o caminho do vault. <code>HELENA_VAULT</code> no ambiente passa por cima.</span><span class="en">One line: the vault path. <code>HELENA_VAULT</code> in the environment overrides it.</span></td></tr>
+      </table></div>
+    </section>
+
+    <section id="dados">
+      <p class="rotulo"><span class="pt">onde ficam os dados</span><span class="en">where the data lives</span></p>
+      <h2><span class="pt">Tudo nas suas pastas.</span><span class="en">All in your folders.</span></h2>
+      <div class="rola"><table>
+        <tr><th><span class="pt">CAMINHO</span><span class="en">PATH</span></th><th><span class="pt">O QUÊ</span><span class="en">WHAT</span></th></tr>
+        <tr><td>&lt;vault&gt;/Memory/</td><td><span class="pt">uma nota por fato; o índice entra em cada início de sessão</span><span class="en">one note per fact; the index comes in at every session start</span></td></tr>
+        <tr><td>&lt;vault&gt;/Projects/ · Weekly/ · Archive/</td><td><span class="pt">uma nota por projeto, o resumo da semana, notas fundidas</span><span class="en">one note per project, the weekly review, merged notes</span></td></tr>
+        <tr><td>&lt;vault&gt;/Routines/</td><td><span class="pt">um log por rotina; o que precisa de você vai pra <code>Inbox/needs-you.md</code></span><span class="en">one log per routine; what needs you goes to <code>Inbox/needs-you.md</code></span></td></tr>
+        <tr><td>~/.helena/library/</td><td><span class="pt">skills que custam zero de contexto até um kit pedir</span><span class="en">skills that cost zero context until a kit asks for them</span></td></tr>
+        <tr><td>~/.helena/audit.jsonl</td><td><span class="pt">cada decisão de hook</span><span class="en">every hook decision</span></td></tr>
+        <tr><td>~/.helena/egress.jsonl</td><td><span class="pt">cada host, busca e servidor MCP que a IA alcançou</span><span class="en">every host, search and MCP server the AI reached</span></td></tr>
+        <tr><td>~/.helena/ledger.jsonl</td><td><span class="pt">o que o trabalho em segundo plano da Helena custou</span><span class="en">what Helena's background work cost</span></td></tr>
+        <tr><td>&lt;projeto&gt;/HANDOFF.md</td><td><span class="pt">onde você parou</span><span class="en">where you stopped</span></td></tr>
+        <tr><td>refs/helena/turns</td><td><span class="pt">os snapshots do desfazer, no reflog de cada repositório (nunca vão no push)</span><span class="en">the undo snapshots, in each repo's reflog (never pushed)</span></td></tr>
+      </table></div>
+    </section>
+
+    <section id="ias">
+      <p class="rotulo"><span class="pt">outras IAs</span><span class="en">other AIs</span></p>
+      <h2><span class="pt">Uma memória, qualquer modelo.</span><span class="en">One memory, every model.</span></h2>
+<pre>python project-helena/helena/connect.py            <span class="c"># <span class="pt">conecta cada CLI que achar</span><span class="en">connects every CLI it finds</span></span>
+python project-helena/helena/connect.py --remove   <span class="c"># <span class="pt">desfaz</span><span class="en">undoes it</span></span></pre>
+      <ul class="lista">
+        <li><span class="pt"><b>Codex</b> lê plugins do Claude Code: recebe o plugin inteiro e o servidor MCP.</span><span class="en"><b>Codex</b> reads Claude Code plugins: it gets the whole plugin and the MCP server.</span></li>
+        <li><span class="pt"><b>Antigravity (Gemini), Qwen Code, Kimi, Grok CLI, opencode</b> recebem o <code>helena/mcp.js</code>, um servidor MCP sem dependências com sete ferramentas.</span><span class="en"><b>Antigravity (Gemini), Qwen Code, Kimi, Grok CLI, opencode</b> get <code>helena/mcp.js</code>, a dependency-free MCP server with seven tools.</span></li>
+        <li><span class="pt"><b>Qualquer outro cliente MCP</b> (Cursor, Claude Desktop, Windsurf, LM Studio): cole o JSON que o <code>connect.py</code> imprime.</span><span class="en"><b>Any other MCP client</b> (Cursor, Claude Desktop, Windsurf, LM Studio): paste the JSON <code>connect.py</code> prints.</span></li>
+      </ul>
+      <p><span class="pt">Perto do limite do plano (80%) ela pede o <code>HANDOFF.md</code>; em 95% salva e entrega o comando pronto pra IA que tem folga.</span><span class="en">Near the plan limit (80%) she asks for <code>HANDOFF.md</code>; at 95% she saves it and hands you the ready command for the AI with room.</span></p>
+    </section>
+
+    <section id="benchmark">
+      <p class="rotulo">benchmark</p>
+      <h2><span class="pt">Só fica o que ganha.</span><span class="en">Only what wins stays.</span></h2>
+      <p><span class="pt">Cada tarefa roda como uma sessão inteira do Claude Code, uma vez sem a Helena e uma vez com. Cada rodada registra acerto, tokens e custo. Uma sessão barata que falha não é economia: o que conta é o custo por tarefa resolvida.</span><span class="en">Every task runs as a full Claude Code session, once without Helena and once with her. Each run records pass or fail, tokens and cost. A cheap session that fails is not a saving: what counts is the cost per solved task.</span></p>
+<pre>python eval/run.py -n 1                          <span class="c"># <span class="pt">todas as tarefas, 1 rodada</span><span class="en">every task, 1 round</span></span>
+python eval/run.py noisy-tests -n 3              <span class="c"># <span class="pt">uma tarefa, 3 rodadas</span><span class="en">one task, 3 rounds</span></span>
+python eval/run.py --model opus                  <span class="c"># <span class="pt">outro modelo</span><span class="en">another model</span></span>
+python eval/registry.py                          <span class="c"># <span class="pt">a tabela do registro do site</span><span class="en">the site's registry table</span></span></pre>
+      <p><span class="pt">Uma tarefa é uma pasta: <code>prompt.md</code>, <code>fixture/</code>, <code>check.py</code> (saída 0 = passou) e um arquivo <code>uses</code> que diz qual peça ela mede. Duas delas são de custo (<code>noisy-tests</code>, <code>release-notes</code>): as duas colunas devem passar, e a diferença é o que a sessão custou. Os testes dos hooks não chamam modelo: <code>python eval/test_trim.py</code> e os outros.</span><span class="en">A task is a folder: <code>prompt.md</code>, <code>fixture/</code>, <code>check.py</code> (exit 0 = pass) and a <code>uses</code> file naming the piece it measures. Two of them are cost tasks (<code>noisy-tests</code>, <code>release-notes</code>): both columns should pass, and the difference is what the session cost. The hook tests call no model: <code>python eval/test_trim.py</code> and the others.</span></p>
+    </section>
+
+    <section id="atualizar">
+      <p class="rotulo"><span class="pt">atualizar e remover</span><span class="en">update and remove</span></p>
+      <h2><span class="pt">Sai tão fácil quanto entra.</span><span class="en">Out as easily as in.</span></h2>
+<pre>cd project-helena && git pull
+claude plugin marketplace update helena
+claude plugin update helena@helena
+
+claude plugin uninstall helena@helena
+claude plugin marketplace remove helena</pre>
+      <p><span class="pt">Memória, kits e biblioteca ficam nas suas pastas. Pra apagar tudo, remova <code>~/.helena</code> e as pastas do vault você mesmo.</span><span class="en">Memory, kits and library stay in your folders. To delete everything, remove <code>~/.helena</code> and the vault folders yourself.</span></p>
+    </section>
+  </main>
+</div>
+
+<footer>
+  <span>HELENA_ · <span class="pt">feita por Vitor Coelho em cima do Claude Code</span><span class="en">built by Vitor Coelho on top of Claude Code</span> · MIT · <a href="https://github.com/vijcoelho/project-helena" target="_blank" rel="noopener">GitHub</a></span>
+  <span><a href="index.html"><span class="pt">voltar ao início</span><span class="en">back to home</span></a></span>
+</footer>
+
+<script>
+  document.querySelector('.troca').addEventListener('click', () => {
+    const raiz = document.documentElement, novo = raiz.classList.contains('en') ? 'pt' : 'en';
+    raiz.classList.remove('pt', 'en');
+    raiz.classList.add(novo);
+    raiz.lang = novo === 'pt' ? 'pt-BR' : 'en';
+    try { localStorage.setItem('helena-lang', novo); } catch {}
+  });
+</script>
+</body>
+</html>

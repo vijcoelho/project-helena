@@ -3,6 +3,7 @@
 // goes back to it to fix.
 // Which tests: the first line of <repo>/.helena/test (a command, or "off"), else what the project has:
 //   package.json "test" script → npm test   pytest config or tests/ → python -m pytest -q -x   Cargo.toml → cargo test   go.mod → go test ./...
+//   tsconfig.json with typescript installed (and nothing above) → npx tsc --noEmit, so a turn that breaks types is sent back
 // A suite slower than 4 minutes, or a test runner that is not installed, never blocks. Blocks once per turn at most.
 const fs = require('fs'), path = require('path'), { spawnSync, execSync } = require('child_process');
 const { audit, turnTools } = require('./paths');
@@ -23,8 +24,10 @@ function command(root) {
     return 'python -m pytest -q -x';
   if (has('Cargo.toml')) return 'cargo test -q';
   if (has('go.mod')) return 'go test ./...';
+  if (has('tsconfig.json') && has('node_modules/typescript')) return 'npx tsc --noEmit';
   return '';
 }
+if (process.argv[2] === '--which') { console.log(command(path.resolve(process.argv[3] || '.'))); process.exit(0); }  // for the tests
 
 // code files the AI edited since the user's last message
 const editedThisTurn = transcript => [...new Set(turnTools(transcript)

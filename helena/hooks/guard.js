@@ -10,7 +10,7 @@ const { audit } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 
 // same pattern as helena/distill.py (SECRET)
-const SECRET = /\b(sk[_-][A-Za-z0-9_-]{16,}|[a-f0-9]{40,}|(pk|rk)_(live|test)_[A-Za-z0-9]{10,}|AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|\d{8,}:[A-Za-z0-9_-]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
+const SECRET = /\b(sk[_-][A-Za-z0-9_-]{16,}|[a-f0-9]{40,}|(pk|rk)_(live|test)_[A-Za-z0-9]{10,}|AIza[0-9A-Za-z_-]{30,}|gh[pousr]_[A-Za-z0-9]{30,}|\d{8,}:[A-Za-z0-9_-]{30,}|(AKIA|ASIA)[A-Z0-9]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
 const ENV = /(^|\/)\.env(\.[\w-]+)?$/;
 const ENV_OK = /\.env\.(example|sample|template)$/;
 
@@ -52,6 +52,19 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   if (push) {
     const m = git('log -p --format= @{u}..HEAD').match(SECRET);  // no header: a commit hash is 40 hex chars too
     if (m && !secrets.length) secrets.push(`an unpushed commit contains a secret (${m[0].slice(0, 6)}…): rewrite that commit before pushing`);
+  }
+
+  // gitleaks, only if installed (v8): adds its findings on the staged changes. Missing, failing or slow = ignored. Prints file + rule, never the value.
+  if (commit) {
+    const exe = (process.env.PATH || '').split(path.delimiter).filter(Boolean).map(d => path.join(d, process.platform === 'win32' ? 'gitleaks.exe' : 'gitleaks')).find(p => fs.existsSync(p));
+    // the report goes to a file outside the repo: every v8 writes one, and a stray report must never land in the commit
+    const out = path.join(require('os').tmpdir(), `helena-gitleaks-${process.pid}.json`);
+    if (exe) try {
+      const r = require('child_process').spawnSync(exe, ['protect', '--staged', '--no-banner', '--redact', '--report-format', 'json', '--report-path', out],
+        { cwd: root, timeout: 5000, stdio: 'ignore', windowsHide: true });
+      if (!r.error && (r.status === 0 || r.status === 1))  // 1 = leaks found
+        for (const x of JSON.parse(fs.readFileSync(out, 'utf8') || '[]')) secrets.push(`${x.File}: gitleaks rule ${x.RuleID}`);
+    } catch {} finally { fs.rmSync(out, { force: true }); }
   }
 
   const broken = [];

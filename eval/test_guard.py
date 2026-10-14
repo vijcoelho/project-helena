@@ -2,16 +2,21 @@
 
     python eval/test_guard.py
 """
-import json, os, pathlib, subprocess, sys, tempfile
+import json, os, pathlib, shutil, subprocess, sys, tempfile
 
 HOOK = pathlib.Path(__file__).resolve().parent.parent / 'helena' / 'hooks' / 'guard.js'
 KEY = 'sk_' + 'live_' + 'FAKE' * 6  # assembled here so this file does not trip secret scanners
 HOME = tempfile.mkdtemp()  # the hook logs every block: keep the test's out of the real ~/.helena/audit.jsonl
 
 
-def blocks(cmd, folder):
+AWS = 'AKIA' + 'IOSFODNN7' + 'EXAMPLE'                # assembled: no key-shaped literal in the source
+SLACK = 'xox' + 'b-' + '1234567890-abcdefghij'
+TOOLS = os.pathsep.join(os.path.dirname(shutil.which(t)) for t in ('node', 'git'))  # PATH with no gitleaks, even if one is installed
+
+
+def blocks(cmd, folder, path=TOOLS):
     r = subprocess.run(['node', str(HOOK)], input=json.dumps({'tool_input': {'command': cmd}, 'cwd': str(folder)}),
-                       capture_output=True, text=True, env=dict(os.environ, USERPROFILE=HOME, HOME=HOME))
+                       capture_output=True, text=True, env=dict(os.environ, USERPROFILE=HOME, HOME=HOME, PATH=path))
     return bool(r.stdout.strip())
 
 
@@ -42,6 +47,29 @@ with tempfile.TemporaryDirectory() as tmp:  # secrets
     (d / 'app.js').write_text(f'const k = "{KEY}"\n')
     if not blocks('git commit -a -m x', d):
         errors.append(('git commit -a with a key in a tracked file', True))
+
+with tempfile.TemporaryDirectory() as tmp:  # AWS / Slack keys, a look-alike word, and a fake gitleaks
+    d, git = repo(tmp)
+    go = 'git add f.js && git commit -m x'
+    for text, want in ((f'k = "{AWS}"', True), (f'k = "{SLACK}"', True), ('k = "ABCDEFGHIJKLMNOPQRST"', False)):
+        (d / 'f.js').write_text(text + '\n')
+        if blocks(go, d) != want:
+            errors.append((f'f.js with {text[:9]}...', want))
+    (d / 'f.js').write_text('console.log(3)\n')  # clean file: only a gitleaks finding can block
+    if blocks(go, d):
+        errors.append(('clean file, no gitleaks', False))
+    if os.name != 'nt':  # a fake needs a shebang script; Windows would need a real .exe, so these rows skip there
+        # the report goes to the file named by the last argument (--report-path <file>), as the real one writes it
+        for name, body, want in (('finding', 'echo \'[{"File":"f.js","RuleID":"fake-rule"}]\' > "$out"; exit 1', True),
+                                 ('error', 'echo \'[{"File":"f.js","RuleID":"fake-rule"}]\' > "$out"; exit 2', False),
+                                 ('garbage', 'echo oops > "$out"; exit 1', False),
+                                 ('hang', 'exec sleep 30', False)):
+            bin = pathlib.Path(tmp).parent / f'fakebin-{name}'
+            bin.mkdir(exist_ok=True)
+            (bin / 'gitleaks').write_text('#!/bin/sh\nfor a; do out=$a; done\n' + body + '\n'); (bin / 'gitleaks').chmod(0o755)
+            if blocks(go, d, str(bin) + os.pathsep + TOOLS) != want:
+                errors.append((f'fake gitleaks: {name}', want))
+            shutil.rmtree(bin)
 
 for rules in ('main: no\nnever: *.mp4 renders/\n', 'main: não\nnunca: *.mp4 renders/\n'):  # English, and v0.4 Portuguese
     with tempfile.TemporaryDirectory() as tmp:

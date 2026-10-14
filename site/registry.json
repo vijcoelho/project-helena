@@ -113,7 +113,19 @@
   "kind": "hook",
   "always": 0,
   "on_use": 0,
-  "scan": "n/a"
+  "scan": "n/a",
+  "tasks": [
+   "noisy-tests",
+   "release-notes"
+  ],
+  "runs": 6,
+  "base": 6,
+  "helena": 6,
+  "lift": 0.0,
+  "model": [
+   "sonnet"
+  ],
+  "date": "2026-10-13"
  },
  {
   "name": "handoff",

@@ -22,13 +22,15 @@ with tempfile.TemporaryDirectory() as vault:
         {'jsonrpc': '2.0', 'id': 4, 'method': 'tools/call', 'params': {'name': 'helena_context', 'arguments': {
             'request': 'como faço o deploy do zebrafish no coolify?', 'cwd': vault}}},
         {'jsonrpc': '2.0', 'id': 5, 'method': 'nope'},
+        {'jsonrpc': '2.0', 'id': 6, 'method': 'tools/call', 'params': {'name': 'helena_recall', 'arguments': {'words': 'zzqxj' + 'nonexistent', 'days': '1'}}},
     ]
     r = subprocess.run(['node', str(ROOT / 'helena' / 'mcp.js')], input='\n'.join(map(json.dumps, calls)) + '\n',
                        capture_output=True, text=True, encoding='utf-8', timeout=60,
                        env=dict(os.environ, HELENA_VAULT=vault, HELENA_EVAL='1'))
     out = {d['id']: d for d in map(json.loads, r.stdout.splitlines())}
     assert out[1]['result']['serverInfo']['name'] == 'helena', out[1]
-    assert {t['name'] for t in out[2]['result']['tools']} == {'helena_start', 'helena_context', 'helena_skill', 'helena_remember', 'helena_limits', 'helena_rewind'}
+    assert {t['name'] for t in out[2]['result']['tools']} == {'helena_start', 'helena_context', 'helena_skill', 'helena_remember', 'helena_limits', 'helena_rewind', 'helena_recall'}
+    assert 'Nothing found' in out[6]['result']['content'][0]['text'], out[6]  # no real session mentions this
     assert 'Saved' in out[3]['result']['content'][0]['text'], out[3]
     note = (pathlib.Path(vault) / 'Memory' / 'deploy-coolify.md').read_text(encoding='utf-8')
     assert KEY not in note and '***' in note, note

@@ -2,7 +2,7 @@
 
 Used by budget.py (where the tokens went), worker.py (plugin profiles, repeated requests) and nothing else.
 """
-import glob, json, os, pathlib, re, time
+import glob, json, os, pathlib, re, sys, time, unicodedata
 
 PROJECTS = pathlib.Path.home() / '.claude' / 'projects'
 HOME = pathlib.Path.home() / '.helena'
@@ -56,7 +56,9 @@ def sessions(days=30, since=0, pattern='*/*.jsonl'):
                 # one API call is written as one line per content block, each repeating the same usage: count it once
                 if u and m.get('id') not in calls:
                     calls.add(m.get('id') or len(s['usage']))  # no id: every line counts
+                    made = u.get('cache_creation') or {}  # how long what this call wrote to the cache lives, in seconds
                     s['usage'].append({'ts': d.get('timestamp', ''), 'model': m.get('model', ''),
+                                       'ttl': 3600 if made.get('ephemeral_1h_input_tokens') else 300 if made.get('ephemeral_5m_input_tokens') else 0,
                                        'input': u.get('input_tokens', 0), 'write': u.get('cache_creation_input_tokens', 0),
                                        'read': u.get('cache_read_input_tokens', 0), 'output': u.get('output_tokens', 0)})
                 for b in c or []:
@@ -87,8 +89,77 @@ def subagents(days=30):
         yield s
 
 
+def fold(s):
+    """Lower case, accents off, same length as the input (so a match position in the folded text fits the original)."""
+    return ''.join(unicodedata.normalize('NFD', c)[0] for c in s).lower()
+
+
+def recall(words, days=30, project=None, limit=20, around=300):
+    """Turns (a user prompt plus what the AI answered) of the last `days` days that contain every word, newest first.
+
+    One pass per file, line by line; a file whose raw text lacks the first word is skipped before any JSON is parsed.
+    Only matching turns are kept. Returns dicts: date, project, id, text (about `around` chars around the first word, key-shaped strings masked).
+    """
+    from distill import SECRET  # the one mask the notes use; imported late so budget.py etc. do not pay for it
+    words = [fold(w) for w in words if w.strip()]
+    if not words:
+        return []
+    strip = lambda s: re.sub(r'[̀-ͯ]', '', unicodedata.normalize('NFD', re.sub(  # also reads JSON-escaped accents (ã)
+        r'\\u00([c-f][0-9a-f])', lambda m: chr(int(m[1], 16)), s) if '\\u00' in s else s)).lower()
+    hits, limit_t = [], time.time() - days * 86400
+    for f in glob.glob(str(PROJECTS / '*/*.jsonl')):
+        if os.path.getmtime(f) < limit_t:
+            continue
+        raw = pathlib.Path(f).read_text(encoding='utf-8', errors='ignore')
+        if words[0] not in strip(raw):
+            continue
+        cwd, turn = None, None  # turn = [timestamp, prompt, assistant text so far]
+
+        def close():
+            if turn is None:
+                return
+            text = turn[1] + '\n> ' + turn[2] if turn[2] else turn[1]
+            low = fold(text)
+            name = re.split(r'[\\/]', (cwd or '').rstrip('\\/'))[-1] or '?'
+            if all(w in low for w in words) and (not project or fold(project) == fold(name)):
+                i = max(0, low.index(words[0]) - around // 3)
+                hits.append({'date': turn[0][:10], 'ts': turn[0], 'project': name, 'id': pathlib.Path(f).stem,
+                             'text': SECRET.sub('***', ' '.join(text[i:i + around].split()))})
+        for line in raw.splitlines():
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            cwd = cwd or d.get('cwd')
+            m = d.get('message') if isinstance(d.get('message'), dict) else {}
+            c = m.get('content')
+            if d.get('type') == 'user' and isinstance(c, str) and len(c) > 3 and not ROBOT.search(c.strip()):
+                close()
+                turn = [d.get('timestamp', ''), c.strip(), '']
+            elif d.get('type') == 'assistant' and turn is not None and isinstance(c, list) and len(turn[2]) < 4000:  # cap per turn
+                turn[2] += ' '.join(b.get('text', '') for b in c if isinstance(b, dict) and b.get('type') == 'text')
+        close()
+    return sorted(hits, key=lambda h: h['ts'], reverse=True)[:limit]
+
+
 def ledger(event):
     """Helena's own spending (distillation, worker), so the budget report can show net savings."""
     HOME.mkdir(exist_ok=True)
     with open(HOME / 'ledger.jsonl', 'a', encoding='utf-8') as f:
         f.write(json.dumps({'ts': time.strftime('%Y-%m-%dT%H:%M:%S'), **event}) + '\n')
+
+
+if __name__ == '__main__':  # python history.py recall <words...> [--days N] [--project name]
+    sys.stdout.reconfigure(encoding='utf-8')
+    a, opts = sys.argv[2:], {}
+    for k in ('--days', '--project'):
+        if k in a:
+            i = a.index(k)
+            opts[k], a = (a[i + 1] if i + 1 < len(a) else ''), a[:i] + a[i + 2:]
+    if sys.argv[1:2] != ['recall'] or not a:
+        sys.exit('usage: history.py recall <words...> [--days N] [--project name]')
+    found = recall(a, int(opts.get('--days') or 30), opts.get('--project'))
+    for h in found:
+        print(f"{h['date']}  {h['project']}  {h['id'][:8]}\n{h['text']}\n")
+    if not found:
+        print(f"Nothing found for: {' '.join(a)}")
