@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.4.0-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.4.5-black">
 </p>
 
 ---
@@ -200,7 +200,8 @@ python extras/measure_context.py            # how many tokens each enabled plugi
 ## What she does on her own
 
 - **Saves tokens.** Every message re-reads the whole context, so she keeps it small: a project brief from git at
-  session start (no re-exploring the repo), the 2 memory notes that match the request delivered whole (no round trip to
+  session start (no re-exploring the repo), a long `HANDOFF.md` handed over as its "Next" section only (the rest is
+  read when needed), the 2 memory notes that match the request delivered whole (no round trip to
   read them), lockfiles / build output / huge files / unbounded `git log` blocked before they flood the context, a
   warning by real context size (120k / 250k / 500k tokens) that asks for `HANDOFF.md` + `/clear`, and a hint when a broad
   search or a long-output command on Opus should go to a Haiku subagent (never `/model` mid-session: the switch re-reads
@@ -321,10 +322,11 @@ and sessions are kept short.
 | **100 KB** | the cap: lockfiles, build output and huge files are blocked before they reach the context |
 | **0** | refusals for a command a flag fixes: `git log`, `git status`, `pytest`, `pip install`, `npm install`, `cargo` and recursive `grep` get the quiet flag and run. A refusal costs one more model call |
 
-Not every idea pays, and the benchmark says which. Two cost tasks (`noisy-tests`, `release-notes`; Sonnet, 3 rounds)
-measured the rewrite: both columns passed 3/3 and a session cost **$0.135 alone vs $0.143 with Helena**, $0.134 vs
-$0.140. Sonnet limited its own output, so there was nothing to cut, and Helena's session-start text is paid on every
-call. No saving is claimed for it; what it does remove is the refusal the trim hook used to answer with.
+Not every idea pays, and the benchmark says which. Cost per solved task (Sonnet, 3 rounds, 1.4.5), alone vs with
+Helena: `noisy-tests` **$0.132 vs $0.138**, `release-notes` $0.134 vs $0.136, `secret-in-commit` $0.132 vs $0.136.
+Where Sonnet solves the task alone, Helena costs a few cents more: her session-start text (993 tokens on an empty
+folder) is paid on every call. She pays back where Sonnet alone fails: `git-rule` $0.201 vs $0.138 (alone 2/3), and
+four tasks alone never solved (0/3) that Helena solved 3/3.
 
 `/helena:budget` shows where to look instead: every time the context was paid in full rather than read from the cache
 (and why), files read twice, and what a subagent costs before it does anything. The full reference is in
@@ -401,7 +403,7 @@ These are guardrails for the AI, not a sandbox: whoever owns the machine can tur
 | `~/.helena/library/` | skills that cost zero context until a kit asks for them (`CATALOG.md` is the index) |
 | `~/.helena/eval/tasks/` | your own benchmark tasks (they can depend on your memory and kits) |
 | `~/.helena/ledger.jsonl` | what Helena's background work cost |
-| `<project>/HANDOFF.md` | where you stopped; injected at session start in that folder, checked against the repo |
+| `<project>/HANDOFF.md` | where you stopped; injected at session start in that folder (past 4 KB, only its "Next"), checked against the repo |
 | `<project>/.helena/git` | that project's git rules |
 | `<project>/.helena/memory/` | the team's memory notes, committed with the code |
 | `<project>/.helena/policy` · `.helena/test` | the team's rules for AIs · the done check's test command |
@@ -417,7 +419,7 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 
 | Where | What |
 |---|---|
-| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo, the instruction file the AI does not read (and the cost of a heavy one), the memory index (yours + the team's, STALE marks), what looks wrong in the repo's own AI config (`CLAUDE.md`, `.mcp.json`, `.claude/settings*.json`), news, runs the worker if overdue |
+| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo (past 4 KB, only its "Next" goes in), the instruction file the AI does not read (and the cost of a heavy one), the memory index (yours + the team's, STALE marks), what looks wrong in the repo's own AI config (`CLAUDE.md`, `.mcp.json`, `.claude/settings*.json`), news, runs the worker if overdue |
 | `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the redo note; the undo snapshot. Subagent reports and notifications are not treated as requests |
 | `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, and their `checks:` / `until:` |
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys (AWS and Slack included), `.env` files and anything that breaks `.helena/git`; adds `gitleaks` findings when it is installed |
@@ -450,7 +452,8 @@ back to the library.
 
 ```bash
 python eval/run.py -n 1                  # everything (eval/tasks + ~/.helena/eval/tasks)
-python eval/run.py git-rule -n 3         # one task, 3 rounds
+python eval/run.py git-rule -n 3         # one task, 3 rounds (the columns take turns going first)
+python eval/run.py --probe               # Helena's fixed weight: one "Reply OK" call per column, no task
 python eval/promote.py                   # list skill candidates from the Inbox; pass a name to turn one into a task
 python eval/test_guard.py                # guard hook, no Claude calls
 python eval/test_trim.py                 # trim hook: what is rewritten, what is refused, what is left alone (no LLM)
@@ -473,7 +476,7 @@ python eval/registry.py                  # site/registry.json: every piece, its 
 ```
 
 Each run records its tokens and cost too; `eval/results.json` keeps the last result per task (pass rate per column,
-tokens per run), and a task's `uses` file names the hook or skill it measures. `eval/registry.py` joins that with each
+tokens per run split into uncached / cache write / cache read / output, turns, cost per solved task), and a task's `uses` file names the hook or skill it measures. `eval/registry.py` joins that with each
 piece's context cost and security scan: a piece with no benchmark says so instead of claiming a win.
 
 A task folder has `prompt.md`, `fixture/`, `check.py` (exit 0 = pass), and optionally `setup.py` (prepares the folder),

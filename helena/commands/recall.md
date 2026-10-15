@@ -1,5 +1,5 @@
 ---
-description: Search past sessions for what was said or decided about something (no LLM, plain text scan)
+description: Search past sessions for what was said or decided (plain text, no LLM)
 argument-hint: <words> [--days N] [--project name]
 allowed-tools: Bash(python:*)
 ---

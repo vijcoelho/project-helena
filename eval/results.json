@@ -1,140 +1,280 @@
 {
  "env-read": {
   "base": {
-   "cost": 0.1313,
+   "cost": 0.119,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 93578,
+    "cache_write": 25995,
+    "output": 561,
+    "uncached": 6
+   },
    "pass": 0,
-   "runs": 1,
-   "tokens": 120483
+   "runs": 3,
+   "solved_cost": null,
+   "tokens": 120140,
+   "turns": 3.0
   },
-  "date": "2026-10-08",
+  "date": "2026-10-14",
   "helena": {
-   "cost": 0.1352,
-   "pass": 1,
-   "runs": 1,
-   "tokens": 123307
+   "cost": 0.1267,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 95761,
+    "cache_write": 27188,
+    "output": 838,
+    "uncached": 6
+   },
+   "pass": 3,
+   "runs": 3,
+   "solved_cost": 0.1267,
+   "tokens": 123793,
+   "turns": 3.0
   },
   "model": "sonnet",
   "uses": "hook:gate"
  },
  "git-rule": {
   "base": {
-   "cost": 0.1423,
-   "pass": 0,
-   "runs": 1,
-   "tokens": 162496
+   "cost": 0.1343,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 161542,
+    "cache_write": 27104,
+    "output": 966,
+    "uncached": 9
+   },
+   "pass": 2,
+   "runs": 3,
+   "solved_cost": 0.2014,
+   "tokens": 189621,
+   "turns": 5.7
   },
-  "date": "2026-10-08",
+  "date": "2026-10-14",
   "helena": {
-   "cost": 0.1547,
-   "pass": 1,
-   "runs": 1,
-   "tokens": 167816
+   "cost": 0.138,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 152453,
+    "cache_write": 28508,
+    "output": 866,
+    "uncached": 8
+   },
+   "pass": 3,
+   "runs": 3,
+   "solved_cost": 0.138,
+   "tokens": 181835,
+   "turns": 6.0
   },
   "model": "sonnet",
   "uses": "hook:guard"
  },
  "handoff-resume": {
   "base": {
-   "cost": 0.1419,
+   "cost": 0.1301,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 134373,
+    "cache_write": 26988,
+    "output": 865,
+    "uncached": 8
+   },
    "pass": 0,
-   "runs": 1,
-   "tokens": 161381
+   "runs": 3,
+   "solved_cost": null,
+   "tokens": 162234,
+   "turns": 5.7
   },
-  "date": "2026-10-08",
+  "date": "2026-10-14",
   "helena": {
-   "cost": 0.1501,
-   "pass": 1,
-   "runs": 1,
-   "tokens": 167029
+   "cost": 0.1356,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 138027,
+    "cache_write": 28103,
+    "output": 933,
+    "uncached": 8
+   },
+   "pass": 3,
+   "runs": 3,
+   "solved_cost": 0.1356,
+   "tokens": 167071,
+   "turns": 5.7
   },
   "model": "sonnet",
   "uses": "hook:start"
  },
  "handoff-save": {
   "base": {
-   "cost": 0.136,
+   "cost": 0.122,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 133463,
+    "cache_write": 26154,
+    "output": 403,
+    "uncached": 8
+   },
    "pass": 0,
-   "runs": 1,
-   "tokens": 159927
+   "runs": 3,
+   "solved_cost": null,
+   "tokens": 160028,
+   "turns": 4.0
   },
-  "date": "2026-10-08",
+  "date": "2026-10-14",
   "helena": {
-   "cost": 0.1595,
-   "pass": 1,
-   "runs": 1,
-   "tokens": 208059
+   "cost": 0.1403,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 178811,
+    "cache_write": 28173,
+    "output": 965,
+    "uncached": 10
+   },
+   "pass": 3,
+   "runs": 3,
+   "solved_cost": 0.1403,
+   "tokens": 207959,
+   "turns": 7.7
   },
   "model": "sonnet",
   "uses": "skill:handoff"
  },
  "noisy-tests": {
   "base": {
-   "cost": 0.135,
+   "cost": 0.1315,
    "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 134801,
+    "cache_write": 27669,
+    "output": 733,
+    "uncached": 8
+   },
    "pass": 3,
    "runs": 3,
-   "tokens": 164359
+   "solved_cost": 0.1315,
+   "tokens": 163211,
+   "turns": 4.3
   },
-  "date": "2026-10-13",
+  "date": "2026-10-14",
   "helena": {
-   "cost": 0.143,
+   "cost": 0.138,
    "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 138526,
+    "cache_write": 29344,
+    "output": 673,
+    "uncached": 8
+   },
    "pass": 3,
    "runs": 3,
-   "tokens": 170856
+   "solved_cost": 0.138,
+   "tokens": 168551,
+   "turns": 4.3
   },
   "model": "sonnet",
   "uses": "hook:trim"
  },
  "readability": {
   "base": {
-   "cost": 0.1452,
+   "cost": 0.1311,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 135174,
+    "cache_write": 27564,
+    "output": 731,
+    "uncached": 8
+   },
    "pass": 0,
-   "runs": 1,
-   "tokens": 162960
+   "runs": 3,
+   "solved_cost": null,
+   "tokens": 163477,
+   "turns": 6.0
   },
-  "date": "2026-10-08",
+  "date": "2026-10-14",
   "helena": {
-   "cost": 0.1842,
-   "pass": 1,
-   "runs": 1,
-   "tokens": 258037
+   "cost": 0.1713,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 226960,
+    "cache_write": 31977,
+    "output": 2064,
+    "uncached": 12
+   },
+   "pass": 3,
+   "runs": 3,
+   "solved_cost": 0.1713,
+   "tokens": 261013,
+   "turns": 11.0
   },
   "model": "sonnet",
   "uses": "hook:check"
  },
  "release-notes": {
   "base": {
-   "cost": 0.1335,
+   "cost": 0.1344,
    "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 137659,
+    "cache_write": 28291,
+    "output": 749,
+    "uncached": 8
+   },
    "pass": 3,
    "runs": 3,
-   "tokens": 166939
+   "solved_cost": 0.1344,
+   "tokens": 166707,
+   "turns": 4.0
   },
-  "date": "2026-10-13",
+  "date": "2026-10-14",
   "helena": {
-   "cost": 0.1399,
+   "cost": 0.1357,
    "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 139792,
+    "cache_write": 28812,
+    "output": 645,
+    "uncached": 8
+   },
    "pass": 3,
    "runs": 3,
-   "tokens": 171868
+   "solved_cost": 0.1357,
+   "tokens": 169257,
+   "turns": 4.0
   },
   "model": "sonnet",
   "uses": "hook:trim"
  },
  "secret-in-commit": {
   "base": {
-   "cost": 0.1359,
-   "pass": 1,
-   "runs": 1,
-   "tokens": 121884
+   "cost": 0.1322,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 148787,
+    "cache_write": 27009,
+    "output": 929,
+    "uncached": 8
+   },
+   "pass": 3,
+   "runs": 3,
+   "solved_cost": 0.1322,
+   "tokens": 176733,
+   "turns": 5.3
   },
-  "date": "2026-10-08",
+  "date": "2026-10-14",
   "helena": {
-   "cost": 0.1506,
-   "pass": 1,
-   "runs": 1,
-   "tokens": 167007
+   "cost": 0.1362,
+   "model_id": "claude-sonnet-5-5",
+   "parts": {
+    "cache_read": 138632,
+    "cache_write": 28132,
+    "output": 981,
+    "uncached": 8
+   },
+   "pass": 3,
+   "runs": 3,
+   "solved_cost": 0.1362,
+   "tokens": 167753,
+   "turns": 5.3
   },
   "model": "sonnet",
   "uses": "hook:guard"

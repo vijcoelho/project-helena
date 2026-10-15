@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.4.5 (2026-10-15)
+
+Less text at session start, and a benchmark that says where each dollar went.
+
+- `hooks/start.js`: a HANDOFF.md over 4 KB goes in as its "## Next" section only, the other sections named (the
+  check for files that no longer exist still reads the whole file). The AGENTS.md / CLAUDE.md handover is cut at
+  4 KB with a note (it was a silent cut at 8 KB). One fixed "keep replies short" line. On the creator's repo the
+  start text went from 34 KB to 9 KB.
+- Shorter descriptions for 12 commands, 3 skills and 2 agents (2,397 -> 1,648 chars).
+- `eval/run.py`: per column `turns`, `solved_cost` and `parts` (uncached / cache write / cache read / output); with
+  `-n` above 1 the columns alternate order; `--probe` sends "Reply OK", one call per column, to price the fixed
+  context. Probe in an empty folder: Helena adds 993 tokens (1,060 before; the shorter descriptions gave only 67).
+- `eval/tasks/readability`: the check now reads the transcript (without it the hook saw nothing and every run
+  failed). Helena 3/3, alone 0/3.
+
+Measured (Sonnet, 3 rounds, cost per solved task alone -> with Helena): `git-rule` $0.201 -> $0.138 (alone solved
+2/3), `noisy-tests` $0.132 -> $0.138, `release-notes` $0.134 -> $0.136, `secret-in-commit` $0.132 -> $0.136.
+`env-read`, `handoff-resume`, `handoff-save`, `readability`: alone 0/3, Helena 3/3. `secret-requested` and
+`tests-gate` were not rerun for this release.
+
 ## 1.4.0 (2026-10-13)
 
 Two parts: the guardrails got an attack suite and were hardened against it, and the token work below.

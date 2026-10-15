@@ -7,6 +7,7 @@
 //  5. news from the background worker (a skill Helena created, plugins she turned off), to tell the user
 //  6. what looks wrong in the repo's AI config (CLAUDE.md / AGENTS.md aimed at the AI, .mcp.json or settings that pipe a download
 //     into a shell, hooks, permissions switched off), once per content. Too late to stop the load, so it only tells.
+//  7. one fixed line asking for short replies
 // It also starts the worker when it is overdue (SessionEnd does not fire if the terminal is killed).
 const fs = require('fs'), path = require('path'), { execSync, spawn } = require('child_process');
 const crypto = require('crypto');
@@ -14,6 +15,21 @@ const { HOME, MEMORY, aimed } = require('./paths');
 const { field, notes, mark } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const HEAVY = 12e3;  // bytes of CLAUDE.md / AGENTS.md (~3k tokens) past which she mentions what it costs
+const HANDOFF_MAX = 4000;  // bytes (~1k tokens): a bigger handoff goes in as its "Next" section only, the rest is read on demand
+const SECTION = /^##\s+(.+)$/gm;
+
+// a long handoff is re-read on every message of the session: hand over the part that is acted on, name the rest
+function brief(name, text) {
+  if (text.length <= HANDOFF_MAX) return text;
+  const heads = [...text.matchAll(SECTION)];
+  const at = heads.findIndex(m => /^next\b/i.test(m[1].trim()));
+  const others = heads.filter((m, i) => i !== at).map(m => m[1].trim());
+  let next = at < 0 ? '' : text.slice(heads[at].index, at + 1 < heads.length ? heads[at + 1].index : undefined).trim();
+  if (next.length > HANDOFF_MAX) next = next.slice(0, HANDOFF_MAX) + '\n…';
+  return (next || '(no "## Next" section)') +
+    `\n\n(${name} is ${Math.round(text.length / 1000)} KB; only "Next" is shown here.` +
+    `${others.length ? ` Read the file when you need the rest: ${others.join(', ')}.` : ''})`;
+}
 const out = [], cwd = process.cwd();
 let ev = {};
 try { ev = JSON.parse(fs.readFileSync(0, 'utf8')); } catch {}  // empty when helena-mcp runs this for another AI
@@ -23,7 +39,7 @@ const git = a => execSync(`git ${a}`, { cwd, encoding: 'utf8', stdio: ['ignore',
 for (const name of ['HANDOFF.md', 'ONDE-PAREI.md']) {
   let text;
   try { text = fs.readFileSync(name, 'utf8'); } catch { continue; }
-  out.push(`There is a ${name} in this folder (handoff from the last session):\n\n${text}` +
+  out.push(`There is a ${name} in this folder (handoff from the last session):\n\n${brief(name, text)}` +
     `\nWhen you finish any item under "Next", update ${name}: move it to "Done" and write the next step.\n`);
   // the next AI (or the same one after /clear) picks up from what is true now, not from what was true when it was written
   const check = [], at = fs.statSync(name).mtimeMs;
@@ -47,9 +63,11 @@ for (const name of ['HANDOFF.md', 'ONDE-PAREI.md']) {
 const who = /[\\/]\.codex[\\/]/.test(ev.transcript_path || '') ? 'codex' : ev.transcript_path ? 'claude' : 'other';
 const own = { claude: ['CLAUDE.md'], codex: ['AGENTS.md'], other: [] }[who];
 const rules = ['AGENTS.md', 'CLAUDE.md'].find(f => fs.existsSync(f));
-if (rules && !own.some(f => fs.existsSync(f)))
+if (rules && !own.some(f => fs.existsSync(f))) {
+  const text = fs.readFileSync(rules, 'utf8');
   out.push(`This project's instructions (${rules}, written for every AI that works here; follow them):\n\n` +
-    fs.readFileSync(rules, 'utf8').slice(0, 8000));
+    (text.length <= HANDOFF_MAX ? text : text.slice(0, HANDOFF_MAX) + `\n…\n(cut here: read ${rules} for the rest before you change anything)`));
+}
 
 // the instruction file this AI reads by itself is paid again on every message: say so when it has grown (once a week)
 const mine = own.find(f => fs.existsSync(f)), size = mine ? fs.statSync(mine).size : 0;
@@ -164,4 +182,6 @@ if (overdue && !process.env.HELENA_EVAL) {
   }).unref();
 }
 
-if (out.length) console.log(out.join('\n'));
+// output is paid once, then re-read on every later message: short answers cost less (JetBrains 2026: ~10%, no quality loss)
+out.push('Keep replies short: answer first, no recap of what you just did, no closing offer, unless the user asks for detail.');
+console.log(out.join('\n'));

@@ -1,6 +1,6 @@
 ---
 name: library
-description: When a request needs a specialty that is not among the loaded skills (animation, 3D, design systems, security audits, scraping, payments...), check Helena's library and load only what is needed.
+description: A request needs a specialty no loaded skill covers (animation, 3D, security audit, scraping, payments...): load only that skill from the Helena library.
 ---
 
 # Helena's library

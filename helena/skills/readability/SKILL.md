@@ -1,6 +1,6 @@
 ---
 name: readability
-description: Before delivering ANY visual change (site, landing page, app, dashboard, theme, color, hero, section), check the contrast of every text on the page and fix what is unreadable, even outside the requested part.
+description: Before delivering ANY visual change (site, page, app, dashboard, theme, color): check every text's contrast on the page and fix what is unreadable.
 ---
 
 # Readability before saying "done"

@@ -72,6 +72,14 @@ with tempfile.TemporaryDirectory() as tmp:
     check('changed after it was written: ' in out and 'src/db.js' in out.split('changed after it was written: ')[1][:200], 'later change not reported')
     check('restate in one line the next step' in out, 'no restate request')
 
+    # 3b. a long handoff goes in as its "Next" only; the other sections are named, the file check still runs on all of it
+    (repo / 'HANDOFF.md').write_text('# Handoff\n## Done\n' + '- DONE-LINE old work\n' * 400 +
+                                     '## Next\n- NEXT-STEP wire the cart\n## Decisions\n- see `src/gone/x.js`\n')
+    out = node('start.js', repo, env, {'transcript_path': str(t / '.claude' / 'projects' / 'x' / 's.jsonl')})
+    check('NEXT-STEP' in out and 'DONE-LINE' not in out, 'long handoff not cut to its Next section')
+    check('Read the file when you need the rest: Done, Decisions' in out, 'cut sections not named')
+    check('src/gone/x.js' in out, 'gone-file check skipped the cut part')
+
     # 4. one instruction file: Claude gets AGENTS.md when the repo has no CLAUDE.md; Codex reads AGENTS.md itself
     (repo / 'AGENTS.md').write_text('Run tests with npm test. Use pnpm.\n')
     claude = node('start.js', repo, env, {'transcript_path': str(t / '.claude' / 'projects' / 'x' / 's.jsonl')})
