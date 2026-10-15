@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: When the user is about to leave or pause ("I have to go", "save everything", "we'll continue later", "leave it for another AI"), or asks to continue ("pick up where you left off"). The handoff always goes in HANDOFF.md at the project root.
+description: User is leaving or pausing ("I have to go", "save everything", "continue later") or asks to pick up where they left off. Always HANDOFF.md at the project root.
 ---
 
 # Handoff: HANDOFF.md

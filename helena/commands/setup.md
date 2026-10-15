@@ -1,5 +1,5 @@
 ---
-description: First day with Helena - point her at your Obsidian vault and let her learn from your past sessions, so she does not start empty
+description: First day: point Helena at your vault and let her learn from past sessions
 argument-hint: [vault path] [number of past sessions, default 10]
 allowed-tools: Bash(python:*), Read, Write
 ---

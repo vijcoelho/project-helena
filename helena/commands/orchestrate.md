@@ -1,5 +1,5 @@
 ---
-description: Plan here and hand the coding to one cheaper worker at a time; the tests run before you read any diff
+description: Plan here, hand the coding to one cheaper worker at a time, tests before the diff
 argument-hint: <task>
 ---
 

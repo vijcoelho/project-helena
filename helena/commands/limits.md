@@ -1,5 +1,5 @@
 ---
-description: How much of each AI plan is gone (5 hours and week), and whether the week lasts at this pace
+description: Each AI plan's usage (5 hours and week) and whether the week lasts
 allowed-tools: Bash(node:*)
 ---
 

@@ -8,14 +8,14 @@
   "tasks": [
    "readability"
   ],
-  "runs": 1,
+  "runs": 3,
   "base": 0,
-  "helena": 1,
+  "helena": 3,
   "lift": 1.0,
   "model": [
    "sonnet"
   ],
-  "date": "2026-10-08"
+  "date": "2026-10-14"
  },
  {
   "name": "delegate",
@@ -47,14 +47,14 @@
   "tasks": [
    "env-read"
   ],
-  "runs": 1,
+  "runs": 3,
   "base": 0,
-  "helena": 1,
+  "helena": 3,
   "lift": 1.0,
   "model": [
    "sonnet"
   ],
-  "date": "2026-10-08"
+  "date": "2026-10-14"
  },
  {
   "name": "guard",
@@ -67,14 +67,14 @@
    "secret-in-commit",
    "secret-requested"
   ],
-  "runs": 3,
-  "base": 2,
-  "helena": 3,
-  "lift": 0.33,
+  "runs": 7,
+  "base": 6,
+  "helena": 7,
+  "lift": 0.14,
   "model": [
    "sonnet"
   ],
-  "date": "2026-10-08"
+  "date": "2026-10-14"
  },
  {
   "name": "outside",
@@ -99,14 +99,14 @@
   "tasks": [
    "handoff-resume"
   ],
-  "runs": 1,
+  "runs": 3,
   "base": 0,
-  "helena": 1,
+  "helena": 3,
   "lift": 1.0,
   "model": [
    "sonnet"
   ],
-  "date": "2026-10-08"
+  "date": "2026-10-14"
  },
  {
   "name": "trim",
@@ -125,38 +125,38 @@
   "model": [
    "sonnet"
   ],
-  "date": "2026-10-13"
+  "date": "2026-10-14"
  },
  {
   "name": "handoff",
   "kind": "skill",
-  "always": 60,
-  "on_use": 244,
+  "always": 40,
+  "on_use": 224,
   "scan": "clean",
   "tasks": [
    "handoff-save"
   ],
-  "runs": 1,
+  "runs": 3,
   "base": 0,
-  "helena": 1,
+  "helena": 3,
   "lift": 1.0,
   "model": [
    "sonnet"
   ],
-  "date": "2026-10-08"
+  "date": "2026-10-14"
  },
  {
   "name": "library",
   "kind": "skill",
-  "always": 48,
-  "on_use": 171,
+  "always": 38,
+  "on_use": 161,
   "scan": "clean"
  },
  {
   "name": "readability",
   "kind": "skill",
-  "always": 52,
-  "on_use": 271,
+  "always": 37,
+  "on_use": 256,
   "scan": "clean"
  }
 ]

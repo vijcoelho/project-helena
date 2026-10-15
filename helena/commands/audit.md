@@ -1,5 +1,5 @@
 ---
-description: What Helena's hooks blocked or asked about (secrets, packages, destructive commands, tests, team policy)
+description: What Helena's hooks blocked or asked about, and where the AI reached out
 argument-hint: [days] [--json]
 allowed-tools: Bash(python:*)
 ---

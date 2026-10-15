@@ -1,5 +1,5 @@
 ---
-description: Share one of your memory notes with the team: copies it into this repo's .helena/memory, reviewed like code
+description: Copy one of your memory notes into this repo's .helena/memory for the team
 argument-hint: <note>
 ---
 

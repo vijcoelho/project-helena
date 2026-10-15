@@ -1,5 +1,5 @@
 ---
-description: Routines Helena runs by herself every so often (read-only, with a spending cap). List, add, remove, or run one now
+description: Read-only routines Helena runs on a schedule with a spending cap: list, add, remove, run
 argument-hint: [what to do and how often | remove <name> | run <name>]
 allowed-tools: Bash(python:*)
 ---

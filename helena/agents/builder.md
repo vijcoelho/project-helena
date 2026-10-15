@@ -1,6 +1,6 @@
 ---
 name: builder
-description: The worker that writes code, on Sonnet. Give it one step with the files it touches, what done means and the test command; it makes the change, runs the tests and reports in a few lines. Run one at a time.
+description: Writes code on Sonnet. Give it one step, the files, what done means and the test command; it changes, tests and reports in a few lines. One at a time.
 model: sonnet
 effort: medium
 tools: Read, Grep, Glob, Edit, Write, Bash

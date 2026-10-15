@@ -1,5 +1,5 @@
 ---
-description: Show what Helena has learned so far (memories, kits, library, skill candidates)
+description: What Helena has learned: memories, kits, library, skill candidates
 ---
 
 Show the user what their Helena knows. Read only, change nothing.

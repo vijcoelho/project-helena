@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read-only locator on Haiku. Ask it where something is defined, what calls it, or which files a change touches; it returns paths and line numbers, never file contents. Starts at about a tenth of a general-purpose worker's context.
+description: Read-only locator on Haiku: where something is defined, what calls it, which files a change touches. Returns paths and lines, never contents.
 model: haiku
 effort: medium
 tools: Read, Grep, Glob

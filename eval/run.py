@@ -4,6 +4,11 @@
     python eval/run.py git-rule -n 3           # one task, 3 rounds per column
     python eval/run.py --model opus            # another model (default: sonnet, to save quota)
     python eval/run.py -n 3 --model haiku --out eval/frontier/haiku.json   # one file per model, for extras/chart.py
+    python eval/run.py --probe                 # Helena's fixed weight: one "Reply OK" call per column, no task
+
+With -n above 1 the columns take turns (base, helena, then helena, base...), so neither always runs on a warm cache.
+Each column records its turns and its tokens split four ways (uncached, cache write, cache read, output): a saving that
+comes with more turns shows up there, not only in the total.
 
 Each round happens in a clean copy of the fixture, in a temp folder outside the repo.
 A skill only joins Helena if the "helena" column beats "base".
@@ -61,11 +66,36 @@ def run(task, with_helena, model):
         prep.kill()
         kill_ports(folder)
     note = (chk.stdout.strip().splitlines() or [''])[-1][:90]
-    u = result.get('usage') or {}
-    tokens = sum(u.get(k) or 0 for k in ('input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens', 'output_tokens'))
     used = result.get('modelUsage') or {}  # the alias (--model sonnet) says nothing a year later: keep the id that answered
-    model_id = max(used, key=lambda m: used[m].get('costUSD') or 0, default='')
-    return chk.returncode == 0, result.get('total_cost_usd') or 0, folder, note, tokens, model_id
+    return {'ok': chk.returncode == 0, 'cost': result.get('total_cost_usd') or 0, 'folder': folder, 'note': note,
+            'turns': result.get('num_turns') or 0, 'parts': parts(result),
+            'model_id': max(used, key=lambda m: used[m].get('costUSD') or 0, default='')}
+
+
+PARTS = {'uncached': 'input_tokens', 'cache_write': 'cache_creation_input_tokens',
+         'cache_read': 'cache_read_input_tokens', 'output': 'output_tokens'}
+
+
+def parts(result):
+    u = result.get('usage') or {}
+    return {k: u.get(v) or 0 for k, v in PARTS.items()}
+
+
+def probe(model):
+    """What Helena adds before any work: one "Reply OK" call in an empty folder, per column (a few cents)."""
+    for with_helena in (False, True):
+        folder = tempfile.mkdtemp(prefix='helena-probe-')
+        cmd = [CLAUDE, '-p', '--output-format', 'json', '--max-turns', '1', '--no-session-persistence',
+               '--model', model, '--settings', str(ROOT / 'no-helena.json')]
+        cmd += ['--plugin-dir', str(HELENA)] if with_helena else []
+        r = subprocess.run(cmd, input='Reply OK', cwd=folder, env=dict(os.environ, HELENA_EVAL='1'), capture_output=True,
+                           text=True, encoding='utf-8', errors='replace', timeout=300)
+        try:
+            p = parts(json.loads(r.stdout or '{}'))
+        except json.JSONDecodeError:
+            p = {}
+        print(f"{'helena' if with_helena else 'base':7} {sum(p.values()):>7,} tok  " +
+              '  '.join(f'{k} {v:,}' for k, v in p.items()), flush=True)
 
 
 def kill_ports(folder):
@@ -87,7 +117,10 @@ def main():
     ap.add_argument('-n', type=int, default=1)
     ap.add_argument('--model', default='sonnet')
     ap.add_argument('--out', type=pathlib.Path, default=RESULTS)
+    ap.add_argument('--probe', action='store_true')
     a = ap.parse_args()
+    if a.probe:
+        return probe(a.model)
 
     found = sorted((p for d in (ROOT / 'tasks', MINE / 'tasks') if d.exists() for p in d.iterdir() if p.is_dir()),
                    key=lambda p: p.name)
@@ -95,23 +128,30 @@ def main():
     score = {False: [0, 0], True: [0, 0]}
     saved = json.loads(a.out.read_text(encoding='utf-8')) if a.out.exists() else {}
     for t in chosen:
+        runs = {False: [], True: []}
+        for i in range(a.n):
+            for with_helena in ((False, True) if i % 2 == 0 else (True, False)):
+                r = run(t, with_helena, a.model)
+                runs[with_helena].append(r)
+                print(f"{t.name:24} {'helena' if with_helena else 'base':7} {'PASS' if r['ok'] else 'fail':5} "
+                      f"${r['cost']:.3f} {sum(r['parts'].values()) // 1000:>4}k tok {r['turns']:>3} turns  "
+                      f"{r['note']}  {r['folder']}", flush=True)
         col = {}
-        for with_helena in (False, True):
-            runs = [run(t, with_helena, a.model) for _ in range(a.n)]
-            for ok, cost, folder, note, tokens, _ in runs:
-                print(f"{t.name:24} {'helena' if with_helena else 'base':7} {'PASS' if ok else 'fail':5} "
-                      f"${cost:.3f} {tokens // 1000:>4}k tok  {note}  {folder}", flush=True)
-            score[with_helena][0] += sum(r[0] for r in runs)
-            score[with_helena][1] += len(runs)
-            col['helena' if with_helena else 'base'] = {'pass': sum(r[0] for r in runs), 'runs': len(runs),
-                                                        'cost': round(sum(r[1] for r in runs) / len(runs), 4),
-                                                        'tokens': sum(r[4] for r in runs) // len(runs),
-                                                        'model_id': runs[0][5]}
+        for with_helena, rs in runs.items():
+            score[with_helena][0] += sum(r['ok'] for r in rs)
+            score[with_helena][1] += len(rs)
+            n, ok, cost = len(rs), sum(r['ok'] for r in rs), sum(r['cost'] for r in rs)
+            avg = {k: sum(r['parts'][k] for r in rs) // n for k in PARTS}
+            # a cheap run that fails is not a saving: what counts is what one solved task cost
+            col['helena' if with_helena else 'base'] = {
+                'pass': ok, 'runs': n, 'cost': round(cost / n, 4), 'solved_cost': round(cost / ok, 4) if ok else None,
+                'tokens': sum(avg.values()), 'parts': avg, 'turns': round(sum(r['turns'] for r in rs) / n, 1),
+                'model_id': rs[0]['model_id']}
         b, h = col['base'], col['helena']
-        # a cheap run that fails is not a saving: what counts is what one solved task cost
-        solved = lambda c: f"${c['cost'] * c['runs'] / c['pass']:.3f}" if c['pass'] else 'none solved'
+        solved = lambda c: f"${c['solved_cost']:.3f}" if c['pass'] else 'none solved'
         print(f"{t.name:24} lift {h['pass'] / h['runs'] - b['pass'] / b['runs']:+.0%}, "
-              f"tokens {h['tokens'] - b['tokens']:+,} per run, per solved task: base {solved(b)}, helena {solved(h)}", flush=True)
+              f"tokens {h['tokens'] - b['tokens']:+,} per run, turns {b['turns']} -> {h['turns']}, "
+              f"per solved task: base {solved(b)}, helena {solved(h)}", flush=True)
         if t.parent == ROOT / 'tasks':  # your own tasks (~/.helena/eval) stay out of the shared results file
             uses = (t / 'uses').read_text().strip() if (t / 'uses').exists() else ''
             saved[t.name] = {'uses': uses, 'model': a.model, 'date': datetime.date.today().isoformat(), **col}

@@ -1,5 +1,5 @@
 ---
-description: The skills Helena created by herself from your repeated requests, and how often each was used
+description: Skills Helena created from your repeated requests, and how often each was used
 allowed-tools: Bash(python:*)
 ---
 

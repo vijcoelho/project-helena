@@ -1,5 +1,5 @@
 ---
-description: Where your tokens went this week (per day, per project, what filled the context, subagents by model) and Helena's own cost
+description: Where your tokens went this week, what subagents cost, and Helena's own cost
 argument-hint: [days]
 allowed-tools: Bash(python:*)
 ---
