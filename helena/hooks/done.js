@@ -46,11 +46,25 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   if (!edited.length) return;
   let root = ev.cwd || process.cwd();
   try { root = execSync('git rev-parse --show-toplevel', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).trim(); } catch {}
+  const run = c => spawnSync(c, { cwd: root, shell: true, encoding: 'utf8', timeout: TIMEOUT, env: { ...process.env, CI: '1', FORCE_COLOR: '0' }, windowsHide: true });
   const cmd = command(root);
-  if (!cmd) return;
-  const r = spawnSync(cmd, { cwd: root, shell: true, encoding: 'utf8', timeout: TIMEOUT, env: { ...process.env, CI: '1', FORCE_COLOR: '0' }, windowsHide: true });
+  const r = cmd ? run(cmd) : { status: 0 };
   const output = `${r.stdout || ''}\n${r.stderr || ''}`.trim();
-  if (r.error || r.status === 0 || r.status === null || MISSING.test(output)) return;
+  if (r.error || r.status === null || MISSING.test(output)) return;
+  if (r.status === 0) {
+    // the human's hidden acceptance tests (.helena/holdout): the AI gets the names of the failing ones, never a message, a trace or a file
+    const files = (() => { try { return fs.readdirSync(path.join(root, '.helena', 'holdout')); } catch { return []; } })();
+    const hc = files.some(f => /^test_.*\.py$|_test\.py$/.test(f)) ? 'python -m pytest -q -rfE --tb=no --color=no -p no:cacheprovider .helena/holdout'
+      : files.some(f => /\.test\.(js|mjs|cjs)$/.test(f)) ? 'node --test .helena/holdout' : '';
+    if (!hc) return;
+    const h = run(hc), ho = `${h.stdout || ''}\n${h.stderr || ''}`;
+    if (h.error || h.status === 0 || h.status === null || MISSING.test(ho)) return;
+    const names = [...new Set([...ho.matchAll(/^(?:FAILED|ERROR) (\S+)|^\s*not ok \d+ - (.+)$/gm)].map(m => (m[1] || m[2]).trim()))].slice(0, 20);
+    const why = 'hidden acceptance tests failed' + (names.length ? ': ' + names.join(', ') : '');
+    audit({ ...ev, tool_input: { command: hc } }, 'done', 'block', why);
+    console.log(JSON.stringify({ decision: 'block', reason: why }));
+    return;
+  }
   const why = `Helena / done check: you edited code this turn (${edited.map(f => path.basename(f)).slice(0, 5).join(', ')}) and \`${cmd}\` fails. ` +
     'Fix the code, not the test: do not weaken, skip or delete tests to make them pass. If this failure was already there ' +
     'before your change, say so to the user plainly instead of calling the work done.';

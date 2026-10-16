@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- `tests: spec-only` (opt-in): a line in `.helena/delegate` or `~/.helena/delegate`. The gate then asks before the AI
+  writes a NEW test file (`test_*.py`, `*_test.py`, `*.test` / `*.spec` with js, ts, jsx, tsx, mjs or cjs, `*_test.go`);
+  editing an existing test is never asked. Session start gets one fixed line saying so. Why: DeepSWE found the same
+  pass rate with 9% less spend, and forced TDD cost $1.73 per task against $1.12. Not measured in this repo yet, so it
+  is off by default.
+- Hidden acceptance tests, `.helena/holdout/` (written by the human). `gate.js` denies Read / Grep / Glob on it and any
+  shell command that names the folder, and asks on edits. `done.js` runs it (`pytest`, or `node --test` for js) after
+  the normal tests pass and gives the AI only the names of the failing tests, never a trace or a file. Limits:
+  symlinks into the folder are not covered; jest and vitest may collect `.helena/holdout` in a normal `npm test` run
+  and print its assertions, so add it to their exclude.
+
 ## 1.4.5 (2026-10-15)
 
 Less text at session start, and a benchmark that says where each dollar went.
@@ -17,8 +30,13 @@ Less text at session start, and a benchmark that says where each dollar went.
 
 Measured (Sonnet, 3 rounds, cost per solved task alone -> with Helena): `git-rule` $0.201 -> $0.138 (alone solved
 2/3), `noisy-tests` $0.132 -> $0.138, `release-notes` $0.134 -> $0.136, `secret-in-commit` $0.132 -> $0.136.
-`env-read`, `handoff-resume`, `handoff-save`, `readability`: alone 0/3, Helena 3/3. `secret-requested` and
-`tests-gate` were not rerun for this release.
+`env-read`, `handoff-resume`, `handoff-save`, `readability`: alone 0/3, Helena 3/3.
+
+Rerun afterwards (Sonnet, two runs of 3 rounds = 6 rounds each; logs `eval/frontier/eval-145.log` and
+`eval-145c.log`): `secret-requested` alone 5/6 (one run leaked the key into git), Helena 6/6, per solved task
+$0.168 -> $0.142. `tests-gate` alone 1/6, Helena 4/6, per solved task $0.791 -> $0.227, but each Helena run costs more
+($0.152 vs $0.132 on average). The two 3-round runs disagreed a lot (`tests-gate` with Helena: 3/3, then 1/3), so
+3 rounds is too few to trust these numbers.
 
 ## 1.4.0 (2026-10-13)
 

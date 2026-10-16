@@ -11,7 +11,7 @@
 // It also starts the worker when it is overdue (SessionEnd does not fire if the terminal is killed).
 const fs = require('fs'), path = require('path'), { execSync, spawn } = require('child_process');
 const crypto = require('crypto');
-const { HOME, MEMORY, aimed } = require('./paths');
+const { HOME, MEMORY, aimed, specOnly } = require('./paths');
 const { field, notes, mark } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const HEAVY = 12e3;  // bytes of CLAUDE.md / AGENTS.md (~3k tokens) past which she mentions what it costs
@@ -184,4 +184,5 @@ if (overdue && !process.env.HELENA_EVAL) {
 
 // output is paid once, then re-read on every later message: short answers cost less (JetBrains 2026: ~10%, no quality loss)
 out.push('Keep replies short: answer first, no recap of what you just did, no closing offer, unless the user asks for detail.');
+if (specOnly(cwd)) out.push('Tests are spec-only here: write a test only when the user asks for it, or as a repro of the bug being fixed.');
 console.log(out.join('\n'));

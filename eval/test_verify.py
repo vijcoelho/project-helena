@@ -165,6 +165,28 @@ with tempfile.TemporaryDirectory() as tmp:
     (ts / '.helena' / 'test').write_text('off\n')
     check(which(ts) == '', '.helena/test off did not win')
 
+    # 11. tests: spec-only adds one fixed line to the start text, only when on
+    ST = 'Tests are spec-only here'
+    start = lambda: node('start.js', repo, env, {'transcript_path': str(t / '.claude' / 'projects' / 'x' / 's.jsonl')})
+    check(ST not in start(), 'spec-only line present while off')
+    (repo / '.helena' / 'delegate').write_text('tests: spec-only\n')
+    check(ST in start() and start() == start(), 'spec-only line missing or unstable when on')
+    (repo / '.helena' / 'delegate').unlink()
+
+    # 12. hidden acceptance tests (.helena/holdout): a failing one blocks with its name only, never the assertion; passing says nothing
+    hr = mkrepo('hold', {'package.json': {'scripts': {'test': 'node -e 0'}}, 'a.js': 'x\n',
+                         '.helena/holdout/test_secret.py': 'def test_total_is_three():\n    assert 1 + 1 == 3, "SECRET-ASSERT-MSG"\n\n\ndef test_ok():\n    assert True\n'})
+    htr = t / 'hold.jsonl'
+    htr.write_text('\n'.join(json.dumps(l) for l in [{'type': 'user', 'message': {'content': 'go'}}, {'type': 'assistant', 'message': {'content': [
+        {'type': 'tool_use', 'name': 'Edit', 'input': {'file_path': str(hr / 'a.js')}}]}}]) + '\n')
+    stop = lambda: node('done.js', hr, env, {'transcript_path': str(htr), 'cwd': str(hr)})
+    out = json.loads(stop() or '{}')
+    reason = out.get('reason', '')
+    check(out.get('decision') == 'block' and 'hidden acceptance tests failed' in reason and 'test_total_is_three' in reason, 'failing holdout did not block: ' + str(out))
+    check('SECRET-ASSERT-MSG' not in reason and 'assert' not in reason.lower() and 'test_ok' not in reason and 'Traceback' not in reason, 'holdout reason leaked: ' + reason)
+    (hr / '.helena' / 'holdout' / 'test_secret.py').write_text('def test_total_is_three():\n    assert True\n')
+    check(stop().strip() == '', 'passing holdout blocked or spoke: ' + stop())
+
 for e in errors:
     print('failed:', e)
 print('ok: stale notes flagged, supersedes archives, handoff checked, AGENTS.md shared, agent text ignored, repo AI config checked, tsc chosen' if not errors else f'{len(errors)} error(s)')

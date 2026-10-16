@@ -133,7 +133,35 @@ with tempfile.TemporaryDirectory() as tmp:
     if 'STRIPE_KEY, DATABASE_URL' not in why or '=x' in why:
         errors.append('the .env reason should list key names only: ' + why)
 
-    (d / '.helena').mkdir()
+    # .helena/holdout: the human's hidden tests; same protection as .env, Write asks
+    (d / '.helena' / 'holdout').mkdir(parents=True)
+    (d / '.helena' / 'holdout' / 'test_a.py').write_text('def test_a():\n    assert 1 == 2, "SECRET-ASSERT"\n')
+    H = str(d / '.helena' / 'holdout' / 'test_a.py')
+    hold = [('Read', {'file_path': H}, 'deny'), ('Read', {'file_path': '.HELENA\\Holdout\\test_a.py'}, 'deny'),
+            ('Read', {'file_path': '.helena/./holdout/../holdout/test_a.py'}, 'deny'),
+            ('Grep', {'pattern': 'assert', 'path': '.helena/holdout'}, 'deny'), ('Grep', {'pattern': 'assert', 'path': '.helena'}, 'deny'),
+            ('Glob', {'pattern': '.helena/holdout/*.py'}, 'deny'), ('Glob', {'pattern': '.helena/**'}, 'deny'),
+            ('Bash', {'command': 'cat .helena/holdout/test_a.py'}, 'deny'), ('Bash', {'command': 'type .helena\\holdout\\test_a.py'}, 'deny'),
+            ('Bash', {'command': 'Get-Content .helena/holdout/test_a.py'}, 'deny'), ('Bash', {'command': 'grep -r assert .helena/holdout'}, 'deny'),
+            ('Bash', {'command': 'cat .helena/hold*/*'}, 'deny'), ('Bash', {'command': 'cat .helena/holdout/*.py'}, 'deny'),
+            ('Bash', {'command': "cat .helena/hold''out/test_a.py"}, 'deny'),
+            ('Bash', {'command': 'python -m pytest .helena/holdout -vv'}, 'deny'),
+            ('Bash', {'command': 'git commit -m "document .helena/holdout"'}, 'allow'),
+            ('Bash', {'command': "git commit -F - <<'EOF'\nnames .helena/holdout\nEOF\ncat .helena/holdout/test_a.py"}, 'deny'),
+            ('Bash', {'command': 'python -c "print(open(\'.helena/holdout/test_a.py\').read())"'}, 'deny'),
+            ('Bash', {'command': 'node -e "console.log(require(\'fs\').readFileSync(\'.helena\\\\holdout\\\\test_a.py\',\'utf8\'))"'}, 'deny'),
+            ('Bash', {'command': 'cp .helena/holdout/test_a.py /tmp/x'}, 'deny'), ('Bash', {'command': 'cp .helena/holdout/test_a.py /tmp/'}, 'deny'),
+            ('Bash', {'command': 'mv .helena/holdout /tmp/h'}, 'deny'),
+            ('Write', {'file_path': H, 'content': 'x'}, 'ask'), ('Edit', {'file_path': H, 'old_string': 'a', 'new_string': 'b'}, 'ask'),
+            ('Read', {'file_path': str(d / '.helena' / 'policy')}, 'allow'), ('Grep', {'pattern': 'x', 'path': 'src'}, 'allow'),
+            ('Glob', {'pattern': '**/*.py'}, 'allow'), ('Bash', {'command': 'cat .helena/policy'}, 'allow'),
+            ('Bash', {'command': 'cat *'}, 'allow'), ('Bash', {'command': 'cat holdout.txt'}, 'allow'), ('Write', {'file_path': str(d / 'src.js'), 'content': 'x'}, 'allow')]
+    for tool, inp, want in hold:
+        got, why = decision(tool, inp)
+        if got != want or (want != 'allow' and ('hidden acceptance tests' not in why or 'SECRET' in why)):
+            errors.append(f'holdout {tool} {inp.get("command") or inp.get("file_path") or inp}: {got} (expected {want}) {why[:120]}')
+
+    (d / '.helena').mkdir(exist_ok=True)
     (d / '.helena' / 'policy').write_text('deny: terraform apply\nask: kubectl\nmcp: github, helena  # the only servers here\n')
     for tool, inp, want in [('Bash', {'command': 'terraform apply -auto-approve'}, 'deny'), ('Bash', {'command': 'kubectl get pods'}, 'ask'),
                             ('mcp__github__create_issue', {}, 'allow'), ('mcp__plugin_x_helena__helena_start', {}, 'allow'),
@@ -141,6 +169,21 @@ with tempfile.TemporaryDirectory() as tmp:
         got, why = decision(tool, inp)
         if got != want:
             errors.append(f'policy {tool} {inp}: {got} (expected {want})')
+
+    # tests: spec-only (opt-in): a NEW test file asks, an edit of an existing one or a non-test file does not
+    spec = [('Write', {'file_path': str(d / 'tests' / 'test_new.py'), 'content': 'x'}), ('Write', {'file_path': str(d / 'cart_test.go'), 'content': 'x'}),
+            ('Write', {'file_path': str(d / 'a.spec.tsx'), 'content': 'x'}), ('Write', {'file_path': test, 'content': 'expect(1).toBe(1)\nexpect(2).toBe(2)'}),
+            ('Edit', {'file_path': test, 'old_string': 'toBe(3)', 'new_string': 'toBe(3)'}), ('Write', {'file_path': str(d / 'src.js'), 'content': 'x'})]
+    for tool, inp in spec:
+        got, why = decision(tool, inp)
+        if got != 'allow':
+            errors.append(f'spec-only off: {inp["file_path"]} {got}')
+    (d / '.helena' / 'delegate').write_text('model: sonnet\ntests: spec-only\n')
+    for (tool, inp), want in zip(spec, ['ask', 'ask', 'ask', 'allow', 'allow', 'allow']):
+        got, why = decision(tool, inp)
+        if got != want or (want == 'ask' and 'spec-only' not in why):
+            errors.append(f'spec-only on: {tool} {inp["file_path"]}: {got} (expected {want})')
+    (d / '.helena' / 'delegate').unlink()
 
     log = home / '.helena' / 'audit.jsonl'
     rows = [json.loads(l) for l in log.read_text(encoding='utf-8').splitlines()] if log.exists() else []

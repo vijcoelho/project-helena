@@ -264,7 +264,9 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   Haiku, and never on a model above the session's (on a Sonnet session only Explore moves, on a Haiku session nothing
   does). With a `.helena/delegate` file in the repo (or `~/.helena/delegate`), the caps too: at most 3 run at once and
   at most 8 start per request of yours; the next one is refused with the reason. Each line can be changed or turned
-  `off` (`model: off` and `search: off` in `~/.helena/delegate` stop the pins everywhere):
+  `off` (`model: off` and `search: off` in `~/.helena/delegate` stop the pins everywhere). A line `tests: spec-only`
+  (opt-in) makes the gate ask before the AI writes a new test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`,
+  `*_test.go`) and adds one line to the session start; editing an existing test is never asked:
 
   ```
   model: sonnet
@@ -407,6 +409,7 @@ These are guardrails for the AI, not a sandbox: whoever owns the machine can tur
 | `<project>/.helena/git` | that project's git rules |
 | `<project>/.helena/memory/` | the team's memory notes, committed with the code |
 | `<project>/.helena/policy` · `.helena/test` | the team's rules for AIs · the done check's test command |
+| `<project>/.helena/holdout/` | acceptance tests only you write (pytest or `node --test`): the AI cannot read them, the gate denies any command that names the folder; once the normal tests pass, `done` runs them and gives the AI only the failing test names. Symlinks are not covered; add the folder to the exclude of jest / vitest |
 | `<project>/.helena/delegate` | the subagent caps for that repo, and the model / effort pins when you want other ones (`~/.helena/delegate` for every repo) |
 | `~/.helena/audit.jsonl` | every hook decision (`/helena:audit`) |
 | `~/.helena/egress.jsonl` | every host, web search and MCP server the AI reached |
@@ -423,7 +426,7 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 | `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the redo note; the undo snapshot. Subagent reports and notifications are not treated as requests |
 | `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, and their `checks:` / `until:` |
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys (AWS and Slack included), `.env` files and anything that breaks `.helena/git`; adds `gitleaks` findings when it is installed |
-| `helena/hooks/gate.js` | PreToolUse: `.env` reads (also through quote tricks, globs, one-liners and copies), made-up or brand-new packages and releases under 72 hours old, destructive commands (also through a variable, an interpreter or base64), weakened or deleted tests, erasing the audit trail, `.helena/policy`; logs the hosts a `curl` / `wget` names |
+| `helena/hooks/gate.js` | PreToolUse: `.env` reads (also through quote tricks, globs, one-liners and copies), made-up or brand-new packages and releases under 72 hours old, destructive commands (also through a variable, an interpreter or base64), weakened or deleted tests (with `tests: spec-only`, new test files too), the hidden tests in `.helena/holdout`, erasing the audit trail, `.helena/policy`; logs the hosts a `curl` / `wget` names |
 | `helena/hooks/delegate.js` | PreToolUse (Agent) and SubagentStop: a model below the session's for workers started without one (always); with `.helena/delegate`, how many run at once, how many start per request, and their effort |
 | `helena/agents/scout.md` · `builder.md` | the two workers `/helena:orchestrate` uses: a read-only locator on Haiku, a writer on Sonnet |
 | `helena/hooks/outside.js` | PostToolUse (WebFetch, WebSearch, MCP, and the output of `gh issue` / `gh pr` / `gh api`): flags a line written for an AI in text that came from outside, also in invisible characters or an HTML comment; logs where each call went |
