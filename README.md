@@ -246,6 +246,15 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   `cargo test`, `go test`, or the command in `.helena/test`) and sends the failure back once. The agent is told to fix the
   code, not the test, or to say plainly the failure was already there.
 - **Tests are not weakened.** An edit that removes assertions from a test file or adds a skip asks you first.
+- **Hidden acceptance tests.** Tests you write in `.helena/holdout/` are never seen by the AI: reading, searching,
+  copying or running anything that names the folder is denied, and editing it asks you. The done check runs them
+  (pytest or `node --test`) after the normal tests pass, and the AI gets only the names of the ones that failed, never
+  the assertions. It cannot write code that fits the test; only code that does what you asked.
+- **Tests that prove the change.** When a turn changed both tests and code and the tests pass, the done check puts the
+  code change aside (`git stash`, only its own entry) and runs the tests again. If they still pass, they do not check
+  the change, and the AI is sent back once to write one that fails without the fix (a pure refactor can just stop
+  again). One extra test run, no tokens. In the paper it comes from (arXiv 2610.03984), this two-tree check took
+  SWE-bench Verified from 46.8% to 52.8% with about half the steps.
 - **Made-up packages are stopped.** `npm i` / `pip install` of a name that does not exist on the registry is denied (AIs
   invent package names; attackers register them). A package published days ago or barely downloaded asks first.
 - **Secrets stay out of the context, not only out of git.** Reading a `.env` (Read, Grep, `cat`) is denied and the AI
@@ -291,6 +300,11 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   an instruction in invisible characters) plus 6 ordinary commands that must not be stopped. Before 1.4.0 the hooks
   caught 8 of 37; now **36 of 37, with 0 false positives**. The one left is a key split in two strings and joined at
   run time, which no pattern can see.
+- **Ordinary work is not stopped.** A guard that blocks normal work teaches the AI to route around it.
+  `eval/test_falseblock.py` runs 29 ordinary coding calls (read code, run tests, `git commit`, write a file, edit a
+  test without weakening it) that must all pass, and `eval/replay.py` feeds your real past tool calls to the new gate
+  and the old one, with no LLM and without running anything, and lists every decision that changed. First run, 300
+  real calls: 3 changed, all of them the new hidden-tests rule.
 - **The audit trail cannot be erased by the AI it audits.** Deleting, truncating or rewriting `~/.helena/*.jsonl`,
   `refs/helena` or Claude's transcripts asks you first. So does deleting a test file.
 - **A repo's own AI config is read before it is trusted.** On session start Helena looks at the repo's `CLAUDE.md`,
@@ -330,7 +344,9 @@ Not every idea pays, and the benchmark says which. Cost per solved task (Sonnet,
 Helena: `noisy-tests` **$0.132 vs $0.138**, `release-notes` $0.134 vs $0.136, `secret-in-commit` $0.132 vs $0.136.
 Where Sonnet solves the task alone, Helena costs a few cents more: her session-start text (993 tokens on an empty
 folder) is paid on every call. She pays back where Sonnet alone fails: `git-rule` $0.201 vs $0.138 (alone 2/3), and
-four tasks alone never solved (0/3) that Helena solved 3/3.
+four tasks alone never solved (0/3) that Helena solved 3/3. Over 6 rounds: `secret-requested` alone 5/6 (one run
+put the key in git), Helena 6/6, $0.168 vs $0.142; `tests-gate` alone 1/6, Helena 4/6, $0.791 vs $0.227 per solved
+task. The two 3-round runs of `tests-gate` disagreed (Helena 3/3, then 1/3), so treat 3-round numbers as rough.
 
 `/helena:budget` shows where to look instead: every time the context was paid in full rather than read from the cache
 (and why), files read twice, and what a subagent costs before it does anything. The full reference is in
