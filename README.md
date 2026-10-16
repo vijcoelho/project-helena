@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.4.5-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.5.0-black">
 </p>
 
 ---
@@ -410,6 +410,7 @@ These are guardrails for the AI, not a sandbox: whoever owns the machine can tur
 | `<project>/.helena/memory/` | the team's memory notes, committed with the code |
 | `<project>/.helena/policy` · `.helena/test` | the team's rules for AIs · the done check's test command |
 | `<project>/.helena/holdout/` | acceptance tests only you write (pytest or `node --test`): the AI cannot read them, the gate denies any command that names the folder; once the normal tests pass, `done` runs them and gives the AI only the failing test names. Symlinks are not covered; add the folder to the exclude of jest / vitest |
+| differential check (in `done`) | when a change touches both tests and code and the tests pass, `done` stashes the code files (`helena-differential`), reruns the same test command and restores them; if the suite still passes without the change, the tests do not check it and it blocks once per diff (a pure refactor can just stop again). Only its own stash entry is touched; if it cannot restore, it blocks and says how to `git stash pop`. Costs one extra test run, no tokens. Why: arXiv 2610.03984, search guided by a two-tree differential solved 52.8% of SWE-bench Verified vs 46.8% for the baseline, with about half the steps; without the differential it fell to 47.4% |
 | `<project>/.helena/delegate` | the subagent caps for that repo, and the model / effort pins when you want other ones (`~/.helena/delegate` for every repo) |
 | `~/.helena/audit.jsonl` | every hook decision (`/helena:audit`) |
 | `~/.helena/egress.jsonl` | every host, web search and MCP server the AI reached |

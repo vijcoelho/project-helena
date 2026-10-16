@@ -21,12 +21,11 @@
 // Every decision lands in ~/.helena/audit.jsonl. Local hooks can be turned off by whoever owns the machine: this is a
 // guardrail for the AI, not a sandbox.
 const fs = require('fs'), os = require('os'), path = require('path'), { execSync } = require('child_process');
-const { audit, egress, specOnly } = require('./paths');
+const { audit, egress, specOnly, TEST } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 
 const ENV = /(^|[\\/])\.env(\.[\w-]+)?$/, ENV_OK = /\.env\.(example|sample|template)$/;
 const ENV_IN_CMD = /\b(cat|type|Get-Content|gc|less|more|head|tail|bat|grep|rg|findstr|Select-String|sed|awk|strings|xxd)\b[^;&|]*?(?:^|[\s'"=])((?:[^\s'"=;|&]*[\\/])?\.env(?:\.[\w-]+)?)(?=$|[\s'";|&)])/i;
-const TEST = /(^|[\\/])(tests?|__tests__|spec)[\\/]|[._-](test|spec)\.[a-z]+$|(^|[\\/])test_[^\\/]+\.py$|_test\.(go|py)$/i;
 const ASSERT = /\bassert\w*\b|\bexpect\s*\(|\.should\b|\.to(Be|Equal|StrictEqual|Have|Throw|Match|Contain)\w*\s*\(/g;
 const SKIP = /\b(it|test|describe)\.(skip|todo)\b|\bx(it|describe|test)\s*\(|@pytest\.mark\.(skip|xfail)|\bpytest\.skip\(|@unittest\.skip|\bt\.Skip\(|#\[ignore\]/g;
 const NEW_TEST = /(^|[\\/])(test_[^\\/]+\.py|[^\\/]+_test\.py|[^\\/]+\.(test|spec)\.(js|ts|jsx|tsx|mjs|cjs)|[^\\/]+_test\.go)$/;

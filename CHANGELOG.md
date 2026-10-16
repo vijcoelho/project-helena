@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 (2026-10-16)
 
 - `tests: spec-only` (opt-in): a line in `.helena/delegate` or `~/.helena/delegate`. The gate then asks before the AI
   writes a NEW test file (`test_*.py`, `*_test.py`, `*.test` / `*.spec` with js, ts, jsx, tsx, mjs or cjs, `*_test.go`);
@@ -12,6 +12,14 @@
   the normal tests pass and gives the AI only the names of the failing tests, never a trace or a file. Limits:
   symlinks into the folder are not covered; jest and vitest may collect `.helena/holdout` in a normal `npm test` run
   and print its assertions, so add it to their exclude.
+- Differential check in `done.js`. Once the normal tests (and the holdout) pass, and only when the diff against HEAD
+  changes both test files and code files, it stashes the code files (`helena-differential`), reruns the same test
+  command and puts them back. Only its own stash entry is touched, never the user's; a leftover one is popped on the
+  next run, and if the files cannot be put back it blocks and says how to `git stash pop`. If the suite still passes
+  without the change, the tests do not check it: it blocks once per diff (a pure refactor can just stop again).
+  Why: arXiv 2610.03984, guided search with a two-tree differential reached 52.8% on SWE-bench Verified against
+  46.8%, with about half the steps; without the differential it fell to 47.4%. Cost: one extra test-suite run in
+  those cases, no tokens.
 
 ## 1.4.5 (2026-10-15)
 

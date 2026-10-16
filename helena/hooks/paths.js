@@ -128,4 +128,5 @@ const specOnly = cwd => {
   }
   return false;
 };
-module.exports = { specOnly, aimed, AIMED, audit, bg, egress, turnTools, lastCall, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };
+const TEST = /(^|[\\/])(tests?|__tests__|spec)[\\/]|[._-](test|spec)\.[a-z]+$|(^|[\\/])test_[^\\/]+\.py$|_test\.(go|py)$/i;
+module.exports = { TEST, specOnly, aimed, AIMED, audit, bg, egress, turnTools, lastCall, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };
