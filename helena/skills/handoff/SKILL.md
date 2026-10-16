@@ -22,6 +22,7 @@ Rewrite (do not pile up history) `HANDOFF.md` with exactly these sections:
 ## Decisions
 - choices made and why (what must not be undone without talking first)
 - what was considered and rejected, and why (so the next AI does not try it again)
+- a decision that changed keeps its line, marked `superseded by: <the new one>`; never delete it
 ```
 
 ## When continuing

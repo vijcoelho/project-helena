@@ -6,7 +6,7 @@
 //   tsconfig.json with typescript installed (and nothing above) → npx tsc --noEmit, so a turn that breaks types is sent back
 // A suite slower than 4 minutes, or a test runner that is not installed, never blocks. Blocks once per turn at most.
 const fs = require('fs'), path = require('path'), { spawnSync, execSync } = require('child_process');
-const { audit, turnTools, TEST } = require('./paths');
+const { audit, event, turnTools, TEST } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const CODE = /\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|kt|rb|php|cs|c|cc|cpp|h|swift|vue|svelte|astro)$/i;
 const MISSING = /No module named pytest|command not found|is not recognized as|Missing script: "?test|ENOENT|not installed/i;
@@ -63,13 +63,14 @@ function differential(ev, root, cmd, run) {
   if (!(git(root, ['stash', 'list']).stdout || '').includes('helena-differential')) return;  // nothing was stashed
   let r, back;
   try { r = run(cmd); } finally { back = recover(root); }
-  if (back === false) { audit({ ...ev, tool_input: { command: cmd } }, 'done', 'block', stuck); console.log(JSON.stringify({ decision: 'block', reason: stuck })); return; }
+  if (back === false) { audit({ ...ev, tool_input: { command: cmd } }, 'done', 'block', stuck); console.log(JSON.stringify({ decision: 'block', reason: stuck })); return true; }
   if (r.error || r.status !== 0) { audit({ ...ev, tool_input: { command: cmd } }, 'done', 'allow', 'differential: tests fail without the change'); return; }
   try { fs.writeFileSync(mark, hash); } catch {}
   const why = `Helena / differential check: the new or changed tests (${tests.slice(0, 5).join(', ')}) pass even with your code change reverted, so they do not check it. ` +
     'Make one of them fail without the fix; or, if this is a pure refactor, say so and stop again.';
   audit({ ...ev, tool_input: { command: cmd } }, 'done', 'block', why);
   console.log(JSON.stringify({ decision: 'block', reason: why }));
+  return true;
 }
 
 let input = '';
@@ -110,7 +111,8 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
         return;
       }
     }
-    if (cmd) differential(ev, root, cmd, run);
+    if (cmd && differential(ev, root, cmd, run)) return;
+    event(ev, 'done', { cmd, holdout: !!hc, edited: edited.map(f => path.basename(f)).slice(0, 5) });  // cmd '' = nothing to run
     return;
   }
   const why = `Helena / done check: you edited code this turn (${edited.map(f => path.basename(f)).slice(0, 5).join(', ')}) and \`${cmd}\` fails. ` +

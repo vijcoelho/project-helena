@@ -163,6 +163,9 @@
 
   /* instalar */
   .terminal { border: 1px solid var(--line); background: #000; max-width: 820px; }
+  .janela { margin: 40px 0 0; max-width: 1100px; }
+  .janela img { width: 100%; height: auto; display: block; border: 1px solid var(--line); }
+  .janela figcaption { color: var(--dim); font-size: 12px; margin-top: 8px; }
   .terminal .topo { display: flex; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--line); color: var(--dim); font-size: 12px; }
   .terminal button { background: none; border: 1px solid var(--line); color: var(--fg); font: inherit; padding: 2px 10px; cursor: pointer; }
   .terminal button:hover { border-color: var(--fg); }
@@ -209,6 +212,7 @@
     <li class="l"><a href="#sua"><span class="pt">a sua</span><span class="en">yours</span></a></li>
     <li class="l"><a href="#ias"><span class="pt">qualquer ia</span><span class="en">any ai</span></a></li>
     <li class="l"><a href="#confere"><span class="pt">confere</span><span class="en">checks</span></a></li>
+    <li class="l"><a href="#app"><span class="pt">app</span><span class="en">app</span></a></li>
     <li class="l"><a href="#porque"><span class="pt">história</span><span class="en">story</span></a></li>
     <li class="l"><a href="#sozinha"><span class="pt">sozinha</span><span class="en">on her own</span></a></li>
     <li class="l"><a href="#economia"><span class="pt">economia</span><span class="en">savings</span></a></li>
@@ -226,7 +230,7 @@
 <main>
   <section class="hero" id="topo">
     <div>
-      <p class="rotulo">project helena · v1.5.0 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
+      <p class="rotulo">project helena · v1.6.0 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
       <h1><span id="digita">Helena</span><span class="cursor"></span></h1>
       <p class="sub">
         <span class="pt">A camada que <b>confere</b>, em cima do Claude Code, do Codex e de qualquer IA. Memória que se confere contra o código, troca de IA sem perder nada, <b>nada de "pronto" com teste falhando</b>, e um benchmark que prova o que fica.</span>
@@ -435,6 +439,39 @@ and attackers register exactly those names. Check the real name in the docs befo
 <span class="c"># cat .env</span>
 Helena / secrets: .env holds secret values, … Its keys are: STRIPE_KEY, DATABASE_URL. Work with the key names; …</pre>
     </div>
+  </section>
+
+  <section id="app">
+    <p class="rotulo"><span class="pt">o app</span><span class="en">the app</span></p>
+    <h2 class="surge"><span class="pt">O terminal mostra o que a IA diz. A Helena mostra o que ela fez.</span><span class="en">The terminal shows what the AI says. Helena shows what it did.</span></h2>
+    <p class="texto surge">
+      <span class="pt">O <b>/helena:app</b> abre a janela dela: um chat que roda o Claude Code, o Codex e o Gemini do seu login, com a camada da Helena por cima. Cada subagente aparece trabalhando, passo a passo. Até quatro painéis lado a lado, cada um com sua IA. <b>/model</b> troca de IA no meio da conversa e a próxima continua de onde a outra parou. Sem conta, sem API key, e nada fica ligado depois que você fecha a janela. Depois da primeira vez ela fica no Menu Iniciar do Windows e abre sem terminal, em qualquer pasta, em português ou inglês (PT / EN no topo, como aqui).</span>
+      <span class="en"><b>/helena:app</b> opens her window: a chat that runs the Claude Code, Codex and Gemini you are logged into, with Helena's layer on top. Every subagent shows working, step by step. Up to four panes side by side, each with its own AI. <b>/model</b> switches AI mid-conversation and the next one picks up where the other stopped. No account, no API key, and nothing keeps running once you close the window. After the first time she sits in the Windows Start menu and opens with no terminal, in any folder, in English or Portuguese (PT / EN at the top, like here).</span>
+    </p>
+    <figure class="janela surge">
+      <img src="assets/img/app.jpg" width="1600" height="900" loading="lazy" alt="App da Helena: quatro painéis com Claude Haiku, Codex, Gemini e Claude Sonnet trabalhando ao mesmo tempo; dois subagentes aparecem em Agentes agora">
+      <figcaption><span class="pt">Claude, Codex, Gemini e Claude Sonnet ao mesmo tempo, em pedidos reais. Dois subagentes trabalhando, no canto da esquerda.</span><span class="en">Claude, Codex, Gemini and Claude Sonnet at once, on real requests. Two subagents working, in the left corner.</span></figcaption>
+    </figure>
+    <div class="cartoes surge" style="margin-top:48px">
+      <div><strong><span class="pt">ao vivo</span><span class="en">live</span></strong><p><span class="pt">Cada subagente vira um cartão com cada passo, o tempo, os tokens e o que ele devolveu. No canto, "Agentes agora" mostra todos os que estão trabalhando, em qualquer painel. Nada de "waiting…".</span><span class="en">Every subagent is a card with each step, its time, tokens and what it handed back. In the corner, "Agents now" lists every one working, in any pane. No "waiting…".</span></p></div>
+      <div><strong><span class="pt">3 IAs</span><span class="en">3 AIs</span></strong><p><span class="pt">Claude Code, Codex e Gemini (pelo Antigravity) do seu login, até quatro painéis lado a lado. <b>/model</b> troca de IA no meio da conversa e a próxima recebe as últimas mensagens. Sem API key.</span><span class="en">The Claude Code, Codex and Gemini (through Antigravity) you are logged into, up to four panes side by side. <b>/model</b> switches AI mid-conversation and the next one gets the last messages. No API key.</span></p></div>
+      <div><strong><span class="pt">continua</span><span class="en">carry on</span></strong><p><span class="pt">As sessões do terminal das últimas 12 horas aparecem na coluna. Um clique continua a sessão numa cópia: a original segue intacta no terminal.</span><span class="en">Terminal sessions from the last 12 hours show in the column. One click continues a session in a copy: the original stays untouched in the terminal.</span></p></div>
+      <div><strong><span class="pt">o que fez</span><span class="en">what it did</span></strong><p><span class="pt">O que ela barrou, conferiu antes do "pronto", as notas que entregou à IA, a memória vencida, o custo de cada turno e o uso de cada plano na semana.</span><span class="en">What she blocked, checked before "done", the notes she handed the AI, stale memory, each turn's cost and every plan's use this week.</span></p></div>
+      <div><strong><span class="pt">sem terminal</span><span class="en">no terminal</span></strong><p><span class="pt">A primeira vez é <b>/helena:app</b>. Depois ela fica no Menu Iniciar do Windows, na janela dela, sem nenhum console piscando, e desliga sozinha quando você fecha.</span><span class="en">The first time is <b>/helena:app</b>. After that she sits in the Windows Start menu, in her own window, with no console flashing, and shuts down when you close it.</span></p></div>
+      <div><strong>PT / EN</strong><p><span class="pt">Português ou inglês no topo, como neste site. Qualquer pasta: uma das suas sessões ou outra pelo seletor do Windows.</span><span class="en">English or Portuguese at the top, like this site. Any folder: one of your sessions' or another through the Windows folder dialog.</span></p></div>
+    </div>
+    <p class="rotulo" style="margin-top:72px"><span class="pt">o ecossistema</span><span class="en">the ecosystem</span></p>
+    <ol class="passos" style="margin-top:48px">
+      <li class="surge"><span class="n">01</span><span class="v"><span class="pt">Plugin</span><span class="en">Plugin</span></span><p><span class="pt">Hooks que conferem, memória no seu Obsidian, skills que só entram quando o pedido precisa.</span><span class="en">Hooks that check, memory in your Obsidian, skills that only load when a request needs them.</span></p><code>claude plugin install helena@helena</code></li>
+      <li class="surge"><span class="n">02</span><span class="v"><span class="pt">App</span><span class="en">App</span></span><p><span class="pt">A janela acima: o chat com as IAs que você já assina, subagentes visíveis e até quatro painéis.</span><span class="en">The window above: the chat over the AIs you already pay for, visible subagents and up to four panes.</span></p><code>/helena:app</code></li>
+      <li class="surge"><span class="n">03</span><span class="v"><span class="pt">Qualquer IA</span><span class="en">Any AI</span></span><p><span class="pt">A mesma memória e o mesmo handoff no Codex, Gemini, opencode, Cursor e outras, por MCP.</span><span class="en">The same memory and handoff in Codex, Gemini, opencode, Cursor and others, over MCP.</span></p><code>mcp.js</code></li>
+      <li class="surge"><span class="n">04</span><span class="v"><span class="pt">Registro com prova</span><span class="en">Registry with proof</span></span><p><span class="pt">Cada peça com o ganho medido contra o Claude sozinho. Empate sai.</span><span class="en">Every piece with its gain measured against Claude alone. A tie is dropped.</span></p><code>registry.json</code></li>
+      <li class="surge"><span class="n">05</span><span class="v"><span class="pt">Times</span><span class="en">Teams</span></span><p><span class="pt">Memória revisada como código, política do time, testes que a IA não vê.</span><span class="en">Memory reviewed like code, team policy, tests the AI never sees.</span></p><code>.helena/</code></li>
+    </ol>
+    <p class="texto surge" style="margin-top:32px">
+      <span class="pt">Próximo: a conferência dela em cada turno, as perguntas dos hooks como cartões de aprovação, aviso no Windows quando ela precisa de você e uma linha do tempo do turno com desfazer.</span>
+      <span class="en">Next: her check on every turn, the hooks' questions as approval cards, a Windows notification when she needs you, and a timeline of the turn with undo.</span>
+    </p>
   </section>
 
   <section id="como">

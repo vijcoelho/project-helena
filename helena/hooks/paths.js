@@ -4,6 +4,7 @@
 //   ~/.helena/library/     skills that only load when a kit asks for them
 //   ~/.helena/audit.jsonl  every time a hook blocked or asked about something (/helena:audit, exportable for a team)
 //   ~/.helena/egress.jsonl every host, search and MCP server the AI reached (/helena:audit lists them)
+//   ~/.helena/events.jsonl what went right, for the app (helena/app): done checks that passed, notes and kits handed over
 const fs = require('fs'), path = require('path'), os = require('os'), { spawn } = require('child_process');
 const HOME = path.join(os.homedir(), '.helena');
 const readVault = () => { try { return fs.readFileSync(path.join(HOME, 'vault'), 'utf8').trim(); } catch {} };
@@ -39,6 +40,15 @@ const egress = (ev, to) => {
     fs.appendFileSync(path.join(HOME, 'egress.jsonl'), JSON.stringify({
       ts: new Date().toISOString().slice(0, 19), project: path.basename(ev.cwd || process.cwd()), session: ev.session_id || '',
       tool: ev.tool_name || '', to: String(to).split('@').pop().slice(0, 80),  // user:password@host keeps the host only
+    }) + '\n');
+  } catch {}
+};
+// one line per thing the app shows that is not a block: { ts, project, session, kind, ...data }
+const event = (ev, kind, data) => {
+  try {
+    fs.mkdirSync(HOME, { recursive: true });
+    fs.appendFileSync(path.join(HOME, 'events.jsonl'), JSON.stringify({
+      ts: new Date().toISOString().slice(0, 19), project: path.basename(ev.cwd || process.cwd()), session: ev.session_id || '', kind, ...data,
     }) + '\n');
   } catch {}
 };
@@ -129,4 +139,4 @@ const specOnly = cwd => {
   return false;
 };
 const TEST = /(^|[\\/])(tests?|__tests__|spec)[\\/]|[._-](test|spec)\.[a-z]+$|(^|[\\/])test_[^\\/]+\.py$|_test\.(go|py)$/i;
-module.exports = { TEST, specOnly, aimed, AIMED, audit, bg, egress, turnTools, lastCall, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };
+module.exports = { TEST, specOnly, aimed, AIMED, audit, event, bg, egress, turnTools, lastCall, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };

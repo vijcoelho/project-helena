@@ -216,6 +216,11 @@ with tempfile.TemporaryDirectory() as tmp:
     check(dstop().strip() == '', 'second stop with the same diff blocked again')
     dr, dstop = drepo('diff_b', "process.exit(require('../app.js') === 2 ? 0 : 1);\n")
     check(dstop().strip() == '', 'test that fails without the change blocked')
+    events = [json.loads(l) for l in (home / '.helena' / 'events.jsonl').read_text(encoding='utf-8').splitlines()]
+    check(events[-1]['kind'] == 'done' and events[-1]['cmd'] == 'node tests/check.js' and events[-1]['project'] == 'diff_b',
+          'passing check not logged for the app: ' + str(events[-1]))
+    # diff_a stopped twice: the first was sent back (not logged), the second let through on purpose (logged once)
+    check(sum(e['project'] == 'diff_a' for e in events) == 1, 'a check that sent the work back was logged as passed')
     for nm, kw in (('diff_c1', {'tests': False}), ('diff_c2', {'code': False})):
         dr, dstop = drepo(nm, 'process.exit(0); // new\n', **kw)
         check(dstop().strip() == '' and 'helena-differential' not in stashes(dr), nm + ': check was not skipped')

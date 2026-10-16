@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.6.0 (2026-10-16)
+
+- The Helena app, `/helena:app`: one window with what Helena blocked, checked, remembered and spent, live. Sessions of
+  the last 12 hours (last request, model, context, cache, last done check), every hook decision, notes handed to the
+  AI, stale notes and why, every AI's limits with the weekly pace, Helena's own cost and the hosts the AI reached.
+  `helena/app/server.js` (node, no dependencies) reads the files the hooks already write; it answers only on
+  127.0.0.1 to a Host header naming it, only GET, and exits 90 s after the window stops polling. A second launch reuses
+  the running server. Windows opens an Edge app window; macOS and Linux a browser tab. Read-only.
+- `~/.helena/events.jsonl`: what went right, for the app. `done.js` logs a done check that passed (command, whether
+  the holdout ran, files edited); `router.js` logs the notes and kits it handed over. Blocks still go to `audit.jsonl`
+  only, so `/helena:audit` is unchanged.
+- The app is now a chat: it runs the `claude` CLI you are logged into (`claude -p`, stream-json), so Helena's hooks
+  run on it, with no API key. Each subagent shows as a card with every step live, its time, tokens and what it handed
+  back; each turn shows its own cost. Sessions are grouped by what they need (needs you, working, recent); clicking one
+  continues it in a copy (`--fork-session`), so the terminal running it is untouched. The page carries a per-launch
+  token that `POST /api/chat` requires. The background is the site's character field and blurs once the conversation
+  starts; Helena in pixels (black bob, sunglasses up, headset, from the site portrait) stands on the input and shows
+  what is happening. Esc stops a run.
+- Panes: up to four conversations side by side, each with its own AI, model, folder and Helena (Ctrl+\ splits,
+  Ctrl+1-4 jumps, Ctrl+B hides the sessions; one pane with tabs on a phone). Codex (`codex exec --json`, resumed with
+  `exec resume`) and Gemini through Antigravity (`agy -p --output-format stream-json`) run beside Claude. `/model` switches
+  model or AI mid-conversation, and the next AI gets the last messages. A `/` menu lists the app's commands and every
+  Helena command. Codex runs with Helena's MCP tools approved (`exec` never asks, so they were refused before).
+- Subagents of every AI, live: Claude's come in its stream; Codex's are threads of their own, followed from their logs in
+  `~/.codex/sessions` (role and nickname, each command, what it handed back); Gemini's (agy `invoke_subagent`) from the
+  transcript each one writes. The stream stays open until they finish (2 minutes of silence counts as stopped). An
+  "Agentes agora" corner in the sessions column and a counter in the title bar list every subagent working in every
+  pane, with the step it is on; a click goes to its card.
+- `/model` lists what each CLI offers: every Claude model in the catalog compiled into Claude Code (the one its own
+  `/model` reads: Fable 5.1 down to Haiku 4.5, with context, knowledge cutoff, default effort; read once per CLI version
+  into `~/.helena/claude-models.json`), Codex's visible models from
+  `~/.codex/models_cache.json`, Antigravity's from `agy models`; then the reasoning efforts the chosen model takes
+  (`--effort`, `model_reasoning_effort`). `/model <id>` takes any id the CLI accepts, listed or not; the lists refresh
+  every 10 minutes. Thin dark scrollbars everywhere.
+- Windows: Helena's own frameless window (`app/shell/Helena.cs`, built once with the `csc` that ships with Windows and
+  the WebView2 DLLs from NuGet, into `~/.helena/app-shell`), with her title bar and buttons and her face as the icon
+  (`app/icon.png`, from the site portrait). Falls back to an Edge app window. The first `/helena:app` adds Helena to
+  the Start menu: `Helena.exe` with no address finds the running server or starts one itself, with no console, so the
+  app opens without Claude Code. "Outra pasta…" (folder menu and the first screen) opens the Windows folder dialog, or
+  asks for a path in a browser. No program the app starts flashes a terminal (`eval/test_app.py` checks `windowsHide`).
+- The app speaks English and Portuguese: PT / EN at the top, like the site. It starts in the system's language and keeps
+  the choice (`helena-lang`); switching redraws everything on screen, the model hints included (the server now sends
+  each model's context, cutoff and default effort, and the page writes them), and the run's errors come in it too.
+  The app's own commands follow the language (`/new` or `/novo`, `/split` or `/dividir`...).
+- Handoff and `/helena:orchestrate`: a decision that changes mid-run keeps its line under `## Decisions`, marked
+  `superseded by: <the new one>`, instead of being deleted, so a cold worker sees what replaced what.
+- `eval/test_app.py`; `eval/test_verify.py` also checks that a passing done check is logged and a sent-back one is not.
+
 ## 1.5.0 (2026-10-16)
 
 - `tests: spec-only` (opt-in): a line in `.helena/delegate` or `~/.helena/delegate`. The gate then asks before the AI
