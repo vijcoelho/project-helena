@@ -21,14 +21,14 @@
 // Every decision lands in ~/.helena/audit.jsonl. Local hooks can be turned off by whoever owns the machine: this is a
 // guardrail for the AI, not a sandbox.
 const fs = require('fs'), os = require('os'), path = require('path'), { execSync } = require('child_process');
-const { audit, egress } = require('./paths');
+const { audit, egress, specOnly, TEST } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 
 const ENV = /(^|[\\/])\.env(\.[\w-]+)?$/, ENV_OK = /\.env\.(example|sample|template)$/;
 const ENV_IN_CMD = /\b(cat|type|Get-Content|gc|less|more|head|tail|bat|grep|rg|findstr|Select-String|sed|awk|strings|xxd)\b[^;&|]*?(?:^|[\s'"=])((?:[^\s'"=;|&]*[\\/])?\.env(?:\.[\w-]+)?)(?=$|[\s'";|&)])/i;
-const TEST = /(^|[\\/])(tests?|__tests__|spec)[\\/]|[._-](test|spec)\.[a-z]+$|(^|[\\/])test_[^\\/]+\.py$|_test\.(go|py)$/i;
 const ASSERT = /\bassert\w*\b|\bexpect\s*\(|\.should\b|\.to(Be|Equal|StrictEqual|Have|Throw|Match|Contain)\w*\s*\(/g;
 const SKIP = /\b(it|test|describe)\.(skip|todo)\b|\bx(it|describe|test)\s*\(|@pytest\.mark\.(skip|xfail)|\bpytest\.skip\(|@unittest\.skip|\bt\.Skip\(|#\[ignore\]/g;
+const NEW_TEST = /(^|[\\/])(test_[^\\/]+\.py|[^\\/]+_test\.py|[^\\/]+\.(test|spec)\.(js|ts|jsx|tsx|mjs|cjs)|[^\\/]+_test\.go)$/;
 const DANGER = [
   [/\bDROP\s+(TABLE|DATABASE|SCHEMA|USER)\b/i, 'drops a database object'],
   [/\bTRUNCATE\s+(TABLE\s+)?["`\w]/i, 'empties a table'],
@@ -100,8 +100,22 @@ function risky(cmd, cwd) {
   return null;
 }
 
+// .helena/holdout: the human's hidden acceptance tests, same rule as .env (any slash style, ../ and ./ folded, any case).
+// A tool path may also be .helena itself or .helena/* (a recursive Grep / Glob would list or read the holdout)
+const HOLD = /(^|\/)\.helena\/holdout(\/|$)/i, HOLD_WIDE = /(^|\/)\.helena(\/?$|\/\*)/i;
+const holdNorm = p => path.posix.normalize(unq(String(p)).replace(/\\/g, '/'));
+const holdPath = (p, wide) => !!p && (HOLD.test(holdNorm(p)) || !!wide && HOLD_WIDE.test(holdNorm(p)));
+let holdFound = '';
+const holdWhy = 'Helena / holdout: .helena/holdout holds the human\'s hidden acceptance tests; you cannot read, copy or edit them, and done runs them for you.';
+
 // .env reached some way the plain rule misses: a glob that matches it, an interpreter one-liner, cp / mv of it
 function envTok(t, cwd) {
+  const h = holdNorm(t);
+  if (HOLD.test(h)) return (holdFound = h);
+  if (/[*?\[]/.test(t) && !/["']/.test(t) && /\//.test(h) && !/^[*?\[]/.test(h)) {  // a glob that can expand to the folder or a file in it
+    const g = new RegExp('^' + h.replace(/[.+^${}()|\\]/g, '\\$&').replace(/\*+/g, '[^/]*').replace(/\?/g, '[^/]') + '$', 'i');
+    if (['.helena/holdout', '.helena/holdout/a.py'].some(s => g.test(s))) return (holdFound = h);
+  }
   if (!/[*?\[]/.test(t)) return ENV.test(unq(t)) && !ENV_OK.test(unq(t)) ? unq(t) : null;  // unq: .e''nv is .env
   if (/["']/.test(t)) return null;  // a quoted glob is not expanded by the shell
   const dir = path.dirname(t), base = path.basename(t);
@@ -119,12 +133,14 @@ function envHit(cmd, cwd) {
     if (cp) {
       // a copy that is still named .env (cp .env .env.backup), or goes into a folder, stays behind the same rule: let it be
       const all = cp[1].trim().split(/\s+/).filter(t => !/^-/.test(t)), to = unq(all[all.length - 1] || '');
+      for (const t of all) { const f = envTok(t, cwd); if (f && HOLD.test(f)) return f; }  // the holdout never gets the "kept" pass
       const kept = ENV.test(to) || (() => { try { return fs.statSync(path.resolve(cwd, to)).isDirectory(); } catch { return /[\\/]$/.test(to); } })();
       if (!kept) for (const t of all.slice(0, -1)) { const f = envTok(t, cwd); if (f) return f; }
     }
   }
   const py = cmd.match(/\b(?:python3?|py|node|ruby|perl|php|deno)\b[^;&|]*?\s-[cepr]\b(.*)/);
   if (py) for (const m of py[1].matchAll(/(?:^|[\s'"(\/\\=])(\.env(?:\.[\w-]+)?)(?=$|[\s'")\\,\]}])/g)) if (!ENV_OK.test(m[1])) return m[1];
+  if (py && /\.helena(?:[\\/]|\\\\)+holdout/i.test(unq(py[1]))) return (holdFound = '.helena/holdout');
   return null;
 }
 
@@ -217,6 +233,9 @@ async function decide(ev) {
     return null;
   }
 
+  if (['Read', 'NotebookRead'].includes(tool) && [t.file_path, t.notebook_path].some(p => holdPath(p))) return deny(ev, holdWhy);
+  if (['Grep', 'Glob'].includes(tool) && [t.path, t.glob, t.pattern].some((p, i) => holdPath(p, true) && (i < 2 || tool === 'Glob'))) return deny(ev, holdWhy);
+  if (['Edit', 'Write', 'MultiEdit'].includes(tool) && holdPath(t.file_path)) return ask(ev, holdWhy.replace('you cannot read, copy or edit them', 'you must not rewrite them'));
   if (tool === 'Read' && t.file_path && ENV.test(t.file_path) && !ENV_OK.test(t.file_path))
     return deny(ev, envWhy(t.file_path, envKeys(path.resolve(cwd, t.file_path))));
   if (tool === 'Grep' && [t.path, t.glob].some(p => p && ENV.test(p) && !ENV_OK.test(p)))
@@ -224,6 +243,9 @@ async function decide(ev) {
 
   if (['Edit', 'Write', 'MultiEdit'].includes(tool) && t.file_path && trail(t.file_path, cwd))
     return ask(ev, 'Helena / audit: this edit rewrites the log of what the AI did, which must not be erasable by the AI. Approve only if you meant it.');
+
+  if (tool === 'Write' && t.file_path && NEW_TEST.test(t.file_path) && !fs.existsSync(path.resolve(cwd, t.file_path)) && specOnly(cwd))
+    return ask(ev, 'Helena / tests: tests are spec-only here (tests: spec-only). Write this test only if the user asked for it or it reproduces the bug being fixed.');
 
   if (['Edit', 'Write', 'MultiEdit'].includes(tool) && t.file_path && TEST.test(t.file_path)) {
     let before = '', after = '';
@@ -242,6 +264,11 @@ async function decide(ev) {
   if (!cmd) return null;
   const env = cmd.match(ENV_IN_CMD);
   const envf = env && !ENV_OK.test(env[2]) ? env[2] : envHit(cmd, cwd);
+  if (envf && envf === holdFound) return deny(ev, holdWhy);
+  // any command naming the folder: a test runner pointed at it (pytest .helena/holdout) would print the assertions
+  // (a heredoc body or a -m message is text, not a path: a commit message may name the folder)
+  const bare = cmd.replace(/<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n\s*\1\b/g, '').replace(/\s-m\s*("[^"]*"|'[^']*')/g, '');
+  if (/\.helena[\\/]+holdout/i.test(unq(bare))) return deny(ev, holdWhy);
   if (envf) return deny(ev, envWhy(envf, envKeys(path.resolve(cwd, envf))));
 
   const rules = policy(cwd);

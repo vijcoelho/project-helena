@@ -29,7 +29,18 @@
   "kind": "hook",
   "always": 0,
   "on_use": 0,
-  "scan": "n/a"
+  "scan": "n/a",
+  "tasks": [
+   "tests-gate"
+  ],
+  "runs": 3,
+  "base": 0,
+  "helena": 1,
+  "lift": 0.33,
+  "model": [
+   "sonnet"
+  ],
+  "date": "2026-10-16"
  },
  {
   "name": "end",
@@ -67,14 +78,14 @@
    "secret-in-commit",
    "secret-requested"
   ],
-  "runs": 7,
-  "base": 6,
-  "helena": 7,
-  "lift": 0.14,
+  "runs": 9,
+  "base": 7,
+  "helena": 9,
+  "lift": 0.22,
   "model": [
    "sonnet"
   ],
-  "date": "2026-10-14"
+  "date": "2026-10-16"
  },
  {
   "name": "outside",

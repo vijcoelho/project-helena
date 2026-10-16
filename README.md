@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.4.5-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.5.0-black">
 </p>
 
 ---
@@ -180,6 +180,7 @@ not read it.
 | `/helena:recall <words>` | Search your recorded sessions (no LLM, no index): date, project and the turn where it was said |
 | `/helena:audit [days]` | What the hooks blocked or asked about, and where the AI reached outside this machine; `--json` for a team's own log tools |
 | `/helena:orchestrate <task>` | Plan in this session and hand the coding to one cheaper worker at a time; the tests run before the diff is read |
+| `/helena:race <task>` | Two workers try two approaches in separate worktrees; the one whose tests pass is applied here (tie: smaller diff). Only for a task with two real ways to do it; costs two workers |
 | `/helena:share <note>` | Copy one of your memory notes into the repo's `.helena/memory/`, reviewed like code |
 | `/painel` | A pane with context by category and Helena's own spending (Claude Code 2.1.287+) |
 
@@ -264,7 +265,9 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   Haiku, and never on a model above the session's (on a Sonnet session only Explore moves, on a Haiku session nothing
   does). With a `.helena/delegate` file in the repo (or `~/.helena/delegate`), the caps too: at most 3 run at once and
   at most 8 start per request of yours; the next one is refused with the reason. Each line can be changed or turned
-  `off` (`model: off` and `search: off` in `~/.helena/delegate` stop the pins everywhere):
+  `off` (`model: off` and `search: off` in `~/.helena/delegate` stop the pins everywhere). A line `tests: spec-only`
+  (opt-in) makes the gate ask before the AI writes a new test file (`test_*.py`, `*_test.py`, `*.test.*`, `*.spec.*`,
+  `*_test.go`) and adds one line to the session start; editing an existing test is never asked:
 
   ```
   model: sonnet
@@ -279,7 +282,8 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   `/helena:orchestrate <task>` is the loop that uses it: the session plans, a `helena:scout` (Haiku, read-only) finds
   the files, one `helena:builder` (Sonnet) at a time writes, and the diff is read only after the tests pass. No saving
   is claimed for it yet: published measurements of "strong model plans, cheap model codes" go both ways, and
-  `/helena:budget` shows what your workers cost so you can compare.
+  `/helena:budget` shows what your workers cost so you can compare. `/helena:race <task>` is the two-approach version: two builders in separate worktrees, the tests
+  pick the winner.
 - **Where the AI reached out.** Every fetched host, web search, MCP server and URL in a `curl` / `wget` leaves one line
   in `~/.helena/egress.jsonl`; `/helena:audit` lists the most used.
 - **Attacked on purpose.** `eval/test_redteam.py` feeds 37 bypass attempts to the hooks (a delete hidden in a variable
@@ -407,6 +411,8 @@ These are guardrails for the AI, not a sandbox: whoever owns the machine can tur
 | `<project>/.helena/git` | that project's git rules |
 | `<project>/.helena/memory/` | the team's memory notes, committed with the code |
 | `<project>/.helena/policy` · `.helena/test` | the team's rules for AIs · the done check's test command |
+| `<project>/.helena/holdout/` | acceptance tests only you write (pytest or `node --test`): the AI cannot read them, the gate denies any command that names the folder; once the normal tests pass, `done` runs them and gives the AI only the failing test names. Symlinks are not covered; add the folder to the exclude of jest / vitest |
+| differential check (in `done`) | when a change touches both tests and code and the tests pass, `done` stashes the code files (`helena-differential`), reruns the same test command and restores them; if the suite still passes without the change, the tests do not check it and it blocks once per diff (a pure refactor can just stop again). Only its own stash entry is touched; if it cannot restore, it blocks and says how to `git stash pop`. Costs one extra test run, no tokens. Why: arXiv 2610.03984, search guided by a two-tree differential solved 52.8% of SWE-bench Verified vs 46.8% for the baseline, with about half the steps; without the differential it fell to 47.4% |
 | `<project>/.helena/delegate` | the subagent caps for that repo, and the model / effort pins when you want other ones (`~/.helena/delegate` for every repo) |
 | `~/.helena/audit.jsonl` | every hook decision (`/helena:audit`) |
 | `~/.helena/egress.jsonl` | every host, web search and MCP server the AI reached |
@@ -423,7 +429,7 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 | `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the redo note; the undo snapshot. Subagent reports and notifications are not treated as requests |
 | `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, and their `checks:` / `until:` |
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys (AWS and Slack included), `.env` files and anything that breaks `.helena/git`; adds `gitleaks` findings when it is installed |
-| `helena/hooks/gate.js` | PreToolUse: `.env` reads (also through quote tricks, globs, one-liners and copies), made-up or brand-new packages and releases under 72 hours old, destructive commands (also through a variable, an interpreter or base64), weakened or deleted tests, erasing the audit trail, `.helena/policy`; logs the hosts a `curl` / `wget` names |
+| `helena/hooks/gate.js` | PreToolUse: `.env` reads (also through quote tricks, globs, one-liners and copies), made-up or brand-new packages and releases under 72 hours old, destructive commands (also through a variable, an interpreter or base64), weakened or deleted tests (with `tests: spec-only`, new test files too), the hidden tests in `.helena/holdout`, erasing the audit trail, `.helena/policy`; logs the hosts a `curl` / `wget` names |
 | `helena/hooks/delegate.js` | PreToolUse (Agent) and SubagentStop: a model below the session's for workers started without one (always); with `.helena/delegate`, how many run at once, how many start per request, and their effort |
 | `helena/agents/scout.md` · `builder.md` | the two workers `/helena:orchestrate` uses: a read-only locator on Haiku, a writer on Sonnet |
 | `helena/hooks/outside.js` | PostToolUse (WebFetch, WebSearch, MCP, and the output of `gh issue` / `gh pr` / `gh api`): flags a line written for an AI in text that came from outside, also in invisible characters or an HTML comment; logs where each call went |
@@ -466,6 +472,8 @@ python eval/test_verify.py               # STALE notes, supersedes, handoff chec
 python eval/test_outside.py              # lines aimed at an AI in fetched pages and tool results (no LLM)
 python eval/test_gate.py                 # .env, packages, destructive commands, tests, team policy, audit (no LLM)
 python eval/test_redteam.py              # 37 bypass attempts against the hooks, and 6 commands that must pass (no LLM)
+python eval/test_falseblock.py           # 29 ordinary coding calls must all be allowed, spec-only on and off (no LLM)
+python eval/replay.py --last 300         # replay real transcript calls through gate.js here and on main, show changed decisions (runs nothing)
 python eval/test_recall.py               # search over recorded sessions: words, accents, days, project, masked keys (no LLM)
 python eval/test_rewind.py               # undo snapshots and the done check (no LLM)
 python eval/test_limits.py               # limit warning, ready command, weekly pace (no LLM)

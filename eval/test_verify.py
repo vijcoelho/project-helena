@@ -165,6 +165,80 @@ with tempfile.TemporaryDirectory() as tmp:
     (ts / '.helena' / 'test').write_text('off\n')
     check(which(ts) == '', '.helena/test off did not win')
 
+    # 11. tests: spec-only adds one fixed line to the start text, only when on
+    ST = 'Tests are spec-only here'
+    start = lambda: node('start.js', repo, env, {'transcript_path': str(t / '.claude' / 'projects' / 'x' / 's.jsonl')})
+    check(ST not in start(), 'spec-only line present while off')
+    (repo / '.helena' / 'delegate').write_text('tests: spec-only\n')
+    check(ST in start() and start() == start(), 'spec-only line missing or unstable when on')
+    (repo / '.helena' / 'delegate').unlink()
+
+    # 12. hidden acceptance tests (.helena/holdout): a failing one blocks with its name only, never the assertion; passing says nothing
+    hr = mkrepo('hold', {'package.json': {'scripts': {'test': 'node -e 0'}}, 'a.js': 'x\n',
+                         '.helena/holdout/test_secret.py': 'def test_total_is_three():\n    assert 1 + 1 == 3, "SECRET-ASSERT-MSG"\n\n\ndef test_ok():\n    assert True\n'})
+    htr = t / 'hold.jsonl'
+    htr.write_text('\n'.join(json.dumps(l) for l in [{'type': 'user', 'message': {'content': 'go'}}, {'type': 'assistant', 'message': {'content': [
+        {'type': 'tool_use', 'name': 'Edit', 'input': {'file_path': str(hr / 'a.js')}}]}}]) + '\n')
+    stop = lambda: node('done.js', hr, env, {'transcript_path': str(htr), 'cwd': str(hr)})
+    out = json.loads(stop() or '{}')
+    reason = out.get('reason', '')
+    check(out.get('decision') == 'block' and 'hidden acceptance tests failed' in reason and 'test_total_is_three' in reason, 'failing holdout did not block: ' + str(out))
+    check('SECRET-ASSERT-MSG' not in reason and 'assert' not in reason.lower() and 'test_ok' not in reason and 'Traceback' not in reason, 'holdout reason leaked: ' + reason)
+    (hr / '.helena' / 'holdout' / 'test_secret.py').write_text('def test_total_is_three():\n    assert True\n')
+    check(stop().strip() == '', 'passing holdout blocked or spoke: ' + stop())
+
+    # 13. differential check: new tests must fail once the code change is reverted
+    def drepo(name, test_body, code=True, tests=True):
+        r = t / name
+        (r / 'tests').mkdir(parents=True)
+        (r / '.helena').mkdir()
+        (r / 'app.js').write_text('module.exports = 1;\n')
+        (r / 'tests' / 'check.js').write_text('process.exit(0);\n')
+        (r / '.helena' / 'test').write_text('node tests/check.js\n')
+        g = lambda *a: subprocess.run(['git', '-c', 'user.email=t@t', '-c', 'user.name=t', *a], cwd=r, check=True, capture_output=True)
+        g('init', '-q'); g('add', '.'); g('commit', '-qm', 'init')
+        if code:
+            (r / 'app.js').write_text('module.exports = 2;\n')
+        if tests:
+            (r / 'tests' / 'check.js').write_text(test_body)
+        (r / 'extra.js').write_text('module.exports = 3;\n') if code else None  # untracked code file
+        tr = t / (name + '.jsonl')
+        tr.write_text('\n'.join(json.dumps(l) for l in [{'type': 'user', 'message': {'content': 'go'}}, {'type': 'assistant', 'message': {'content': [
+            {'type': 'tool_use', 'name': 'Edit', 'input': {'file_path': str(r / 'app.js')}}]}}]) + '\n')
+        return r, lambda: node('done.js', r, env, {'transcript_path': str(tr), 'cwd': str(r)})
+    snap = lambda r: {str(p.relative_to(r)): p.read_bytes() for p in r.rglob('*') if p.is_file() and '.git' not in p.relative_to(r).parts}
+    stashes = lambda r: subprocess.run(['git', 'stash', 'list'], cwd=r, capture_output=True, text=True).stdout
+    dr, dstop = drepo('diff_a', 'process.exit(0); // new\n')
+    before = snap(dr)
+    out = json.loads(dstop() or '{}')
+    check(out.get('decision') == 'block' and 'check.js' in out.get('reason', '') and 'pure refactor' in out.get('reason', ''), 'test that passes both ways did not block: ' + str(out))
+    check(snap(dr) == before and 'helena-differential' not in stashes(dr), 'differential check changed the working tree or left a stash')
+    check(dstop().strip() == '', 'second stop with the same diff blocked again')
+    dr, dstop = drepo('diff_b', "process.exit(require('../app.js') === 2 ? 0 : 1);\n")
+    check(dstop().strip() == '', 'test that fails without the change blocked')
+    for nm, kw in (('diff_c1', {'tests': False}), ('diff_c2', {'code': False})):
+        dr, dstop = drepo(nm, 'process.exit(0); // new\n', **kw)
+        check(dstop().strip() == '' and 'helena-differential' not in stashes(dr), nm + ': check was not skipped')
+    dr, dstop = drepo('diff_e', "process.exit(require('../app.js') === 2 ? 0 : 1);\n")
+    before = snap(dr)
+    subprocess.run(['git', 'stash', 'push', '-u', '-m', 'helena-differential', '--', 'app.js', 'extra.js'], cwd=dr, check=True, capture_output=True)
+    check(snap(dr) != before, 'test setup: stash did not remove the code')
+    dstop()
+    check(snap(dr) == before and 'helena-differential' not in stashes(dr), 'leftover helena-differential stash was not popped')
+    dr, _ = drepo('diff_g', "process.exit(require('../app.js') === 2 ? 0 : 1);\n")  # recovered on a turn with no edits too
+    before = snap(dr)
+    subprocess.run(['git', 'stash', 'push', '-u', '-m', 'helena-differential', '--', 'app.js', 'extra.js'], cwd=dr, check=True, capture_output=True)
+    quiet = t / 'diff_g_quiet.jsonl'
+    quiet.write_text(json.dumps({'type': 'user', 'message': {'content': 'hi'}}) + '\n')
+    node('done.js', dr, env, {'transcript_path': str(quiet), 'cwd': str(dr)})
+    check(snap(dr) == before and 'helena-differential' not in stashes(dr), 'leftover stash not popped on a turn with no edits')
+    dr, dstop = drepo('diff_f', 'process.exit(0); // new\n')  # the user's own stash is never popped by the check
+    (dr / 'own.txt').write_text('mine\n')
+    subprocess.run(['git', 'stash', 'push', '-u', '-m', 'mine', '--', 'own.txt'], cwd=dr, check=True, capture_output=True)
+    before = snap(dr)
+    dstop()
+    check(snap(dr) == before and 'mine' in stashes(dr) and 'helena-differential' not in stashes(dr), "differential check touched the user's own stash")
+
 for e in errors:
     print('failed:', e)
 print('ok: stale notes flagged, supersedes archives, handoff checked, AGENTS.md shared, agent text ignored, repo AI config checked, tsc chosen' if not errors else f'{len(errors)} error(s)')

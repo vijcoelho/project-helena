@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.5.0 (2026-10-16)
+
+- `tests: spec-only` (opt-in): a line in `.helena/delegate` or `~/.helena/delegate`. The gate then asks before the AI
+  writes a NEW test file (`test_*.py`, `*_test.py`, `*.test` / `*.spec` with js, ts, jsx, tsx, mjs or cjs, `*_test.go`);
+  editing an existing test is never asked. Session start gets one fixed line saying so. Why: DeepSWE found the same
+  pass rate with 9% less spend, and forced TDD cost $1.73 per task against $1.12. Not measured in this repo yet, so it
+  is off by default.
+- Hidden acceptance tests, `.helena/holdout/` (written by the human). `gate.js` denies Read / Grep / Glob on it and any
+  shell command that names the folder, and asks on edits. `done.js` runs it (`pytest`, or `node --test` for js) after
+  the normal tests pass and gives the AI only the names of the failing tests, never a trace or a file. Limits:
+  symlinks into the folder are not covered; jest and vitest may collect `.helena/holdout` in a normal `npm test` run
+  and print its assertions, so add it to their exclude.
+- Differential check in `done.js`. Once the normal tests (and the holdout) pass, and only when the diff against HEAD
+  changes both test files and code files, it stashes the code files (`helena-differential`), reruns the same test
+  command and puts them back. Only its own stash entry is touched, never the user's; a leftover one is popped on the
+  next run, and if the files cannot be put back it blocks and says how to `git stash pop`. If the suite still passes
+  without the change, the tests do not check it: it blocks once per diff (a pure refactor can just stop again).
+  Why: arXiv 2610.03984, guided search with a two-tree differential reached 52.8% on SWE-bench Verified against
+  46.8%, with about half the steps; without the differential it fell to 47.4%. Cost: one extra test-suite run in
+  those cases, no tokens. A `helena-differential` stash left by a killed check is now put back on the next stop even
+  if that turn edited nothing.
+- `/helena:race <task>`: two `helena:builder` workers try two approaches in separate worktrees, the judge runs the
+  tests in each, the one that passes is applied here (tie: smaller diff) and both worktrees are removed. Only for a
+  task with two real ways to do it; it costs two workers.
+- `eval/replay.py`: replays the tool calls of real Claude Code transcripts through `gate.js` of the working tree and
+  of a git ref (`--ref`, default `main`; `--last N`, `--from`, `--json`). It never runs a command and uses a temp HOME,
+  so the audit log and memory are untouched. Prints the decisions per version and every one that changed. First run,
+  last 300 calls, main against 1.5: 300 allow against 297 allow + 3 deny, all 3 the new holdout rule, on commands
+  from the session that built it.
+- `eval/test_falseblock.py`: 29 ordinary calls of a coding session (read code, run tests, git status / commit, write a
+  source file, edit a test without weakening it) must all be allowed, with spec-only on and off.
+
 ## 1.4.5 (2026-10-15)
 
 Less text at session start, and a benchmark that says where each dollar went.
@@ -17,8 +49,13 @@ Less text at session start, and a benchmark that says where each dollar went.
 
 Measured (Sonnet, 3 rounds, cost per solved task alone -> with Helena): `git-rule` $0.201 -> $0.138 (alone solved
 2/3), `noisy-tests` $0.132 -> $0.138, `release-notes` $0.134 -> $0.136, `secret-in-commit` $0.132 -> $0.136.
-`env-read`, `handoff-resume`, `handoff-save`, `readability`: alone 0/3, Helena 3/3. `secret-requested` and
-`tests-gate` were not rerun for this release.
+`env-read`, `handoff-resume`, `handoff-save`, `readability`: alone 0/3, Helena 3/3.
+
+Rerun afterwards (Sonnet, two runs of 3 rounds = 6 rounds each; logs `eval/frontier/eval-145.log` and
+`eval-145c.log`): `secret-requested` alone 5/6 (one run leaked the key into git), Helena 6/6, per solved task
+$0.168 -> $0.142. `tests-gate` alone 1/6, Helena 4/6, per solved task $0.791 -> $0.227, but each Helena run costs more
+($0.152 vs $0.132 on average). The two 3-round runs disagreed a lot (`tests-gate` with Helena: 3/3, then 1/3), so
+3 rounds is too few to trust these numbers.
 
 ## 1.4.0 (2026-10-13)
 

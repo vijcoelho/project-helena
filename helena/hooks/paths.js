@@ -117,4 +117,16 @@ function aimed(text) {
   else if (/[A-Za-z][​‌‍⁠-⁤﻿]+[A-Za-z]/.test(text)) m = ['zero-width characters inside a word'], how = ' (zero-width characters hiding text)';
   return m ? [m, how] : null;
 }
-module.exports = { aimed, AIMED, audit, bg, egress, turnTools, lastCall, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };
+// `tests: spec-only` in <repo>/.helena/delegate or ~/.helena/delegate (same lookup as delegate.js config(): the first file found decides)
+const specOnly = cwd => {
+  let root = cwd;
+  try { root = require('child_process').execSync('git rev-parse --show-toplevel', { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).trim(); } catch {}
+  for (const f of [path.join(root, '.helena', 'delegate'), path.join(HOME, 'delegate')]) {
+    let text;
+    try { text = fs.readFileSync(f, 'utf8'); } catch { continue; }
+    return /^\s*tests\s*:\s*spec-only/mi.test(text);
+  }
+  return false;
+};
+const TEST = /(^|[\\/])(tests?|__tests__|spec)[\\/]|[._-](test|spec)\.[a-z]+$|(^|[\\/])test_[^\\/]+\.py$|_test\.(go|py)$/i;
+module.exports = { TEST, specOnly, aimed, AIMED, audit, bg, egress, turnTools, lastCall, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };
