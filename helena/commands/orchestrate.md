@@ -14,7 +14,8 @@ loop and nothing else.
    do not know where the code is, ask the `helena:scout` agent (Haiku, read-only) one question and plan from the paths
    it returns. Do not read files here just to find things. Write what you settled, why, and what you rejected under
    `## Decisions` in `HANDOFF.md` at the project root (create it if missing). Workers start cold; the rejected part is
-   what stops the next one reopening it.
+   what stops the next one reopening it. A decision that changes mid-run keeps its line, marked
+   `superseded by: <the new one>`, so a worker sees what replaced what; never delete it.
 3. **One step, one `helena:builder`.** It runs on Sonnet and is the only one that writes. Give it the step, the files,
    what done means, the test command, and tell it to read `## Decisions` in `HANDOFF.md` first and not reopen what is
    there. Never two builders at once: they would edit the same tree.

@@ -11,7 +11,7 @@
 //  - every 6 prompts, distills the new turns in the background, so ideas reach Obsidian mid-session
 // ponytail: word overlap for notes and kits; swap for embeddings if it starts missing obvious matches.
 const fs = require('fs'), path = require('path');
-const { bg, lastCall, HOME, LIBRARY, KITS } = require('./paths');
+const { bg, event, lastCall, HOME, LIBRARY, KITS } = require('./paths');
 const { field, notes, mark: stale } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const CHECKPOINT = 6; // prompts between mid-session distills
@@ -41,7 +41,7 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   // a subagent's report or a task notification arrives as a prompt too: its words are not a request for a kit or a plugin
   const human = !/^\s*(Another Claude session sent a message|<(task-notification|agent-message|system-reminder|local-command-\w+|command-\w+)\b)/.test(ev.prompt || '');
   const prompt = human ? ev.prompt || '' : '', asked = words(prompt), session = ev.session_id || 'x', cwd = ev.cwd || process.cwd();
-  const out = [], stats = load(path.join(HOME, 'stats.json'), { notes: {}, skills: {} });
+  const out = [], sent = { notes: [], kits: [] }, stats = load(path.join(HOME, 'stats.json'), { notes: {}, skills: {} });
   const today = new Date().toISOString().slice(0, 10);
   // a new request of the user's: delegate.js counts workers per request (the file only exists once that hook is in use)
   const workers = path.join(HOME, 'warnings', `${session}-workers`);
@@ -59,6 +59,7 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
     if (!hit || !once(session, 'kit-' + name)) continue;  // already in context this session: repeating it only costs tokens
     const always = (k.always || []).filter(s => where[s]);
     const extra = (k.on_demand || []).filter(s => where[s]);
+    sent.kits.push(name);
     if (name.startsWith('auto:')) for (const s of always) stats.skills[s] = { last: today, uses: ((stats.skills[s] || {}).uses || 0) + 1 };
     out.push(`Helena: kit "${name}".` +
       (always.length ? ' Read before coding: ' + always.map(s => where[s]).join(' , ') + '.' : '') +
@@ -79,6 +80,7 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
     for (const n of scored) {
       if (!once(session, 'note-' + n.file)) continue;
       out.push(`Helena memory (${n.file})${stale(n)}, relevant to this request:\n` + n.text.replace(/^---[\s\S]*?---\n/, '').trim().slice(0, 900));
+      sent.notes.push(n.file);
       stats.notes[n.slug] = { last: today, hits: ((stats.notes[n.slug] || {}).hits || 0) + 1 };
     }
   } catch {}
@@ -159,5 +161,6 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   } catch {}
 
   try { fs.writeFileSync(path.join(HOME, 'stats.json'), JSON.stringify(stats)); } catch {}
+  if (sent.notes.length || sent.kits.length) event(ev, 'router', sent);
   if (out.length) console.log(out.join('\n'));
 });

@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.5.0-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.6.0-black">
 </p>
 
 ---
@@ -42,6 +42,7 @@ Prove     eval/run.py          every task runs with and without Helena; a skill 
 - [Other AIs](#other-ais)
 - [Your first day](#your-first-day)
 - [Commands](#commands)
+- [The app](#the-app)
 - [What she does on her own](#what-she-does-on-her-own)
 - [She checks the work](#she-checks-the-work)
 - [Token savings](#token-savings)
@@ -178,6 +179,7 @@ not read it.
 | `/helena:rewind [n]` | Undo: the folder as it was before the last request (or n back). Run it again to undo the rewind |
 | `/helena:limits` | Every AI plan's usage (5 hours and week) and whether the week lasts at this pace |
 | `/helena:recall <words>` | Search your recorded sessions (no LLM, no index): date, project and the turn where it was said |
+| `/helena:app` | Open the Helena app: a chat over Claude Code, Codex and Gemini with live subagent cards, up to four panes, `/model`, and what she blocked, checked, remembered and spent |
 | `/helena:audit [days]` | What the hooks blocked or asked about, and where the AI reached outside this machine; `--json` for a team's own log tools |
 | `/helena:orchestrate <task>` | Plan in this session and hand the coding to one cheaper worker at a time; the tests run before the diff is read |
 | `/helena:race <task>` | Two workers try two approaches in separate worktrees; the one whose tests pass is applied here (tie: smaller diff). Only for a task with two real ways to do it; costs two workers |
@@ -197,6 +199,41 @@ python helena/budget.py 7                   # token report for the last 7 days
 python helena/scan.py <skill-folder>        # security scan of a skill (library.py install runs it; --trust to override)
 python extras/measure_context.py            # how many tokens each enabled plugin adds to every message
 ```
+
+## The app
+
+**The terminal shows what the AI says. Helena shows what it did, and whether it holds.** `/helena:app` opens Helena's
+own window: a chat that runs the AI CLIs you are already logged into (Claude Code, Codex, Gemini through Antigravity),
+with Helena's layer on top. No account, no API key, no new agent: the same CLI, the same sessions.
+
+![The Helena app: Claude Haiku, Codex, Gemini and Claude Sonnet in four panes at once, two subagents working in the left corner](site/assets/img/app.jpg)
+
+Open it with `/helena:app` in Claude Code. After that first time it is in the Windows Start menu as **Helena**: it opens
+without a terminal and starts its own server with no console. It closes by itself 90 s after the window does.
+
+| What | How |
+|---|---|
+| Subagents you can see | Each subagent is a card with every step it takes, live, its time, tokens and what it handed back. No "waiting…" stub |
+| Up to four panes | Each pane is its own conversation, AI, model and folder; run Claude, Codex and Gemini side by side (Ctrl+\ splits, Ctrl+1-4 jumps) |
+| `/model` | Switch model or AI in the middle of a conversation; the next AI gets the last messages, so it carries on instead of starting cold |
+| `/` menu | The app's commands (`/new`, `/split`, `/folder`, `/panel`; `/novo`, `/dividir`, `/pasta`, `/painel` in Portuguese) and every Helena command, run by the CLI |
+| Any folder | Pick one of your sessions' folders, or any other through the Windows folder dialog (a typed path in a browser) |
+| Start menu | After the first `/helena:app`, Helena is in the Windows Start menu: it opens with no terminal and starts its own server, with no console |
+| English and Portuguese | PT / EN at the top, like the site; it starts in your system's language and keeps your choice |
+| Sessions | Claude Code sessions of the last 12 hours, grouped into needs you, working and recent, with the last done check. A click continues one in a copy (`--fork-session`): the terminal running it is untouched |
+| What Helena did | Every block, question, sent-back turn, passed check and note handed to the AI; memory (stale notes and why), her own cost, where the AI reached outside the machine; every plan's 5-hour and weekly use |
+| Cost per turn | Dollars per Claude turn, tokens per Codex turn |
+
+On Windows it is a frameless window of its own (`app/shell/Helena.cs`, compiled once into `~/.helena/app-shell` with
+the `csc` that ships with Windows; the WebView2 DLLs come from the official NuGet package, downloaded once), with
+Helena's title bar and buttons and her face as the icon. If that cannot be built it opens an Edge app window; macOS and
+Linux open a browser tab. The server answers only on 127.0.0.1, only to a Host header naming it, the chat only with the
+token written into the page, and it exits about a minute and a half after the window closes. Runs use the CLI's
+accept-edits mode; Helena's hooks still gate them. Codex runs with Helena's MCP tools approved, so it gets her memory
+too.
+
+Next: Helena's done check shown on each turn, her questions as approval cards in the chat, a Windows notification when
+she needs you, and a timeline of the turn with undo.
 
 ## What she does on her own
 
