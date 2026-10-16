@@ -180,6 +180,7 @@ not read it.
 | `/helena:recall <words>` | Search your recorded sessions (no LLM, no index): date, project and the turn where it was said |
 | `/helena:audit [days]` | What the hooks blocked or asked about, and where the AI reached outside this machine; `--json` for a team's own log tools |
 | `/helena:orchestrate <task>` | Plan in this session and hand the coding to one cheaper worker at a time; the tests run before the diff is read |
+| `/helena:race <task>` | Two workers try two approaches in separate worktrees; the one whose tests pass is applied here (tie: smaller diff). Only for a task with two real ways to do it; costs two workers |
 | `/helena:share <note>` | Copy one of your memory notes into the repo's `.helena/memory/`, reviewed like code |
 | `/painel` | A pane with context by category and Helena's own spending (Claude Code 2.1.287+) |
 
@@ -281,7 +282,8 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   `/helena:orchestrate <task>` is the loop that uses it: the session plans, a `helena:scout` (Haiku, read-only) finds
   the files, one `helena:builder` (Sonnet) at a time writes, and the diff is read only after the tests pass. No saving
   is claimed for it yet: published measurements of "strong model plans, cheap model codes" go both ways, and
-  `/helena:budget` shows what your workers cost so you can compare.
+  `/helena:budget` shows what your workers cost so you can compare. `/helena:race <task>` is the two-approach version: two builders in separate worktrees, the tests
+  pick the winner.
 - **Where the AI reached out.** Every fetched host, web search, MCP server and URL in a `curl` / `wget` leaves one line
   in `~/.helena/egress.jsonl`; `/helena:audit` lists the most used.
 - **Attacked on purpose.** `eval/test_redteam.py` feeds 37 bypass attempts to the hooks (a delete hidden in a variable
@@ -470,6 +472,8 @@ python eval/test_verify.py               # STALE notes, supersedes, handoff chec
 python eval/test_outside.py              # lines aimed at an AI in fetched pages and tool results (no LLM)
 python eval/test_gate.py                 # .env, packages, destructive commands, tests, team policy, audit (no LLM)
 python eval/test_redteam.py              # 37 bypass attempts against the hooks, and 6 commands that must pass (no LLM)
+python eval/test_falseblock.py           # 29 ordinary coding calls must all be allowed, spec-only on and off (no LLM)
+python eval/replay.py --last 300         # replay real transcript calls through gate.js here and on main, show changed decisions (runs nothing)
 python eval/test_recall.py               # search over recorded sessions: words, accents, days, project, masked keys (no LLM)
 python eval/test_rewind.py               # undo snapshots and the done check (no LLM)
 python eval/test_limits.py               # limit warning, ready command, weekly pace (no LLM)

@@ -225,6 +225,13 @@ with tempfile.TemporaryDirectory() as tmp:
     check(snap(dr) != before, 'test setup: stash did not remove the code')
     dstop()
     check(snap(dr) == before and 'helena-differential' not in stashes(dr), 'leftover helena-differential stash was not popped')
+    dr, _ = drepo('diff_g', "process.exit(require('../app.js') === 2 ? 0 : 1);\n")  # recovered on a turn with no edits too
+    before = snap(dr)
+    subprocess.run(['git', 'stash', 'push', '-u', '-m', 'helena-differential', '--', 'app.js', 'extra.js'], cwd=dr, check=True, capture_output=True)
+    quiet = t / 'diff_g_quiet.jsonl'
+    quiet.write_text(json.dumps({'type': 'user', 'message': {'content': 'hi'}}) + '\n')
+    node('done.js', dr, env, {'transcript_path': str(quiet), 'cwd': str(dr)})
+    check(snap(dr) == before and 'helena-differential' not in stashes(dr), 'leftover stash not popped on a turn with no edits')
     dr, dstop = drepo('diff_f', 'process.exit(0); // new\n')  # the user's own stash is never popped by the check
     (dr / 'own.txt').write_text('mine\n')
     subprocess.run(['git', 'stash', 'push', '-u', '-m', 'mine', '--', 'own.txt'], cwd=dr, check=True, capture_output=True)

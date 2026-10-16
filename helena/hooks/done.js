@@ -81,7 +81,11 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   if (ev.stop_hook_active || !transcript) return;  // already blocked once this turn: no loop
   let edited = [];
   try { edited = editedThisTurn(transcript); } catch { return; }
-  if (!edited.length) return;
+  if (!edited.length) {  // no edits this turn: still put back code a killed check left stashed (fs probe first, git only if a stash exists)
+    const c = ev.cwd || process.cwd();
+    if (fs.existsSync(path.join(c, '.git', 'refs', 'stash')) && recover(c) === false) { audit(ev, 'done', 'block', stuck); console.log(JSON.stringify({ decision: 'block', reason: stuck })); }
+    return;
+  }
   let root = ev.cwd || process.cwd();
   try { root = execSync('git rev-parse --show-toplevel', { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).trim(); } catch {}
   const run = c => spawnSync(c, { cwd: root, shell: true, encoding: 'utf8', timeout: TIMEOUT, env: { ...process.env, CI: '1', FORCE_COLOR: '0' }, windowsHide: true });

@@ -19,7 +19,18 @@
   without the change, the tests do not check it: it blocks once per diff (a pure refactor can just stop again).
   Why: arXiv 2610.03984, guided search with a two-tree differential reached 52.8% on SWE-bench Verified against
   46.8%, with about half the steps; without the differential it fell to 47.4%. Cost: one extra test-suite run in
-  those cases, no tokens.
+  those cases, no tokens. A `helena-differential` stash left by a killed check is now put back on the next stop even
+  if that turn edited nothing.
+- `/helena:race <task>`: two `helena:builder` workers try two approaches in separate worktrees, the judge runs the
+  tests in each, the one that passes is applied here (tie: smaller diff) and both worktrees are removed. Only for a
+  task with two real ways to do it; it costs two workers.
+- `eval/replay.py`: replays the tool calls of real Claude Code transcripts through `gate.js` of the working tree and
+  of a git ref (`--ref`, default `main`; `--last N`, `--from`, `--json`). It never runs a command and uses a temp HOME,
+  so the audit log and memory are untouched. Prints the decisions per version and every one that changed. First run,
+  last 300 calls, main against 1.5: 300 allow against 297 allow + 3 deny, all 3 the new holdout rule, on commands
+  from the session that built it.
+- `eval/test_falseblock.py`: 29 ordinary calls of a coding session (read code, run tests, git status / commit, write a
+  source file, edit a test without weakening it) must all be allowed, with spec-only on and off.
 
 ## 1.4.5 (2026-10-15)
 
