@@ -44,6 +44,7 @@ with tempfile.TemporaryDirectory() as tmp:
         ('Bash', {'command': 'rm -rf ./build dist'}, 'allow'),
         ('Bash', {'command': 'rm -rf /'}, 'ask'),
         ('Bash', {'command': 'git reset --hard HEAD~1'}, 'ask'),
+        ('Bash', {'command': 'bash -c "rm -rf /"'}, 'ask'),
         ('Bash', {'command': 'npm install -D typescript@5.4.5'}, 'allow'),  # pinned: a real package may have shipped a release today
         ('Bash', {'command': 'npm i reqeusts-helper-made-up-by-ai-xyz'}, 'deny'),
         ('Bash', {'command': 'pip install requests==2.32.0'}, 'allow'),

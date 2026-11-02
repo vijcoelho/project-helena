@@ -88,6 +88,13 @@
   "date": "2026-10-16"
  },
  {
+  "name": "nudge",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
+ },
+ {
   "name": "outside",
   "kind": "hook",
   "always": 0,

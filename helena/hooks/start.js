@@ -8,6 +8,7 @@
 //  6. what looks wrong in the repo's AI config (CLAUDE.md / AGENTS.md aimed at the AI, .mcp.json or settings that pipe a download
 //     into a shell, hooks, permissions switched off), once per content. Too late to stop the load, so it only tells.
 //  7. one fixed line asking for short replies
+//  8. after a compaction: the user's own how-to-work rules from before it, word for word (summaries drop those first)
 // It also starts the worker when it is overdue (SessionEnd does not fire if the terminal is killed).
 const fs = require('fs'), path = require('path'), { execSync, spawn } = require('child_process');
 const crypto = require('crypto');
@@ -58,6 +59,27 @@ for (const name of ['HANDOFF.md', 'ONDE-PAREI.md']) {
     `In your first reply, restate in one line the next step you are picking up from ${name}, so the user can confirm it.`);
   break;
 }
+
+// Compaction summaries keep what to build and drop how to work ("don't touch the config", "no internet"), and a rule lost
+// once stays lost. After one, the user's own sentences that read like rules come back word for word. No LLM: a regex.
+// ponytail: keyword match, a rule phrased without one of these words is missed; the transcript path is the fallback.
+const RULE = /\b(n[aã]o|nunca|sempre|jamais|sem|s[oó]|apenas|evite|don'?t|do not|never|always|only|without|avoid|must)\b/i;
+if (ev.source === 'compact' && ev.transcript_path) try {
+  const said = [];
+  for (const line of fs.readFileSync(ev.transcript_path, 'utf8').split('\n')) {
+    if (!line.includes('"user"')) continue;
+    let d;
+    try { d = JSON.parse(line); } catch { continue; }
+    if (d.type !== 'user' || d.isMeta || d.isCompactSummary) continue;
+    const c = d.message && d.message.content;
+    const text = typeof c === 'string' ? c : Array.isArray(c) ? c.filter(b => b.type === 'text').map(b => b.text).join('\n') : '';
+    if (!text || /^\s*</.test(text)) continue;  // command output, hook text, system reminders
+    for (const s of text.split(/(?<=[.!?])\s+|\n+/)) if (s.length > 8 && s.length < 300 && RULE.test(s)) said.push(s.trim());
+  }
+  const keep = [...new Set(said)].slice(-12);
+  if (keep.length) out.push('The conversation was just compacted. Rules the user stated before it, in their words (they still hold unless the user changed them later):\n- ' +
+    keep.join('\n- ') + `\nThe full conversation is in ${ev.transcript_path} if the summary leaves something out.`);
+} catch {}
 
 // one instruction file for every AI: hand it over when this AI reads a different one (capped, it is re-read every message)
 const who = /[\\/]\.codex[\\/]/.test(ev.transcript_path || '') ? 'codex' : ev.transcript_path ? 'claude' : 'other';

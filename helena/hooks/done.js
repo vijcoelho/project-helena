@@ -6,31 +6,15 @@
 //   tsconfig.json with typescript installed (and nothing above) → npx tsc --noEmit, so a turn that breaks types is sent back
 // A suite slower than 4 minutes, or a test runner that is not installed, never blocks. Blocks once per turn at most.
 const fs = require('fs'), path = require('path'), { spawnSync, execSync } = require('child_process');
-const { audit, event, turnTools, TEST } = require('./paths');
+const { audit, event, turn, ASSERT, SKIP, CODE, TEST, TESTISH, testCommand: command } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
-const CODE = /\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|kt|rb|php|cs|c|cc|cpp|h|swift|vue|svelte|astro)$/i;
 const MISSING = /No module named pytest|command not found|is not recognized as|Missing script: "?test|ENOENT|not installed/i;
 const TIMEOUT = 240e3;
 
-function command(root) {
-  const set = (() => { try { return fs.readFileSync(path.join(root, '.helena', 'test'), 'utf8').split('\n').map(l => l.trim()).find(l => l && !l.startsWith('#')); } catch {} })();
-  if (set) return /^off$/i.test(set) ? '' : set;
-  const has = f => fs.existsSync(path.join(root, f));
-  try {
-    const t = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).scripts.test;
-    if (t && !/no test specified/.test(t)) return 'npm test --silent';
-  } catch {}
-  if (['pytest.ini', 'conftest.py', 'tests/conftest.py'].some(has) || (has('tests') && /\[tool\.pytest|pytest/.test((() => { try { return fs.readFileSync(path.join(root, 'pyproject.toml'), 'utf8'); } catch { return ''; } })())))
-    return 'python -m pytest -q -x';
-  if (has('Cargo.toml')) return 'cargo test -q';
-  if (has('go.mod')) return 'go test ./...';
-  if (has('tsconfig.json') && has('node_modules/typescript')) return 'npx tsc --noEmit';
-  return '';
-}
 if (process.argv[2] === '--which') { console.log(command(path.resolve(process.argv[3] || '.'))); process.exit(0); }  // for the tests
 
 // code files the AI edited since the user's last message
-const editedThisTurn = transcript => [...new Set(turnTools(transcript)
+const editedThisTurn = transcript => [...new Set(turn(transcript).blocks.filter(b => b.type === 'tool_use')
   .filter(b => ['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(b.name) && b.input)
   .map(b => b.input.file_path || b.input.notebook_path).filter(f => f && CODE.test(f)))];
 
@@ -73,6 +57,49 @@ function differential(ev, root, cmd, run) {
   return true;
 }
 
+const blockOnce = (ev, root, name, hash, why) => {  // the same finding blocks one time per content, then it is the user's call
+  const gd = (git(root, ['rev-parse', '--git-dir']).stdout || '').trim(), mark = gd && path.resolve(root, gd, name);
+  try { if (mark && fs.readFileSync(mark, 'utf8').trim() === hash) return false; } catch {}
+  try { if (mark) fs.writeFileSync(mark, hash); } catch {}
+  audit(ev, 'done', 'block', why);
+  console.log(JSON.stringify({ decision: 'block', reason: why }));
+  return true;
+};
+
+// tests weakened by any route, including a Bash sed or a script the gate never saw: against HEAD, a test file lost
+// assertions, gained skips, or is gone (the shapes agent-guard looks for). Asked for by the user? One sentence and stop again.
+function weakened(ev, root) {
+  const count = (s, re) => (s.match(re) || []).length, hits = [];
+  for (const part of (git(root, ['diff', 'HEAD', '-U0']).stdout || '').split(/^diff --git /m).slice(1)) {
+    const file = (part.match(/ b\/(.+)\n/) || [])[1];
+    if (!file || !TEST.test(file)) continue;
+    const ls = part.split('\n'), add = ls.filter(l => /^\+(?!\+\+)/.test(l)).join('\n'), del = ls.filter(l => /^-(?!--)/.test(l)).join('\n');
+    if (/^deleted file/m.test(part)) { hits.push(`${file} deleted`); continue; }
+    const lost = count(del, ASSERT) - count(add, ASSERT), skips = count(add, SKIP) - count(del, SKIP);
+    if (lost > 0 || skips > 0) hits.push(`${file} (${[lost > 0 && `${lost} assertion(s) fewer`, skips > 0 && `${skips} skip(s) added`].filter(Boolean).join(', ')})`);
+  }
+  if (!hits.length) return false;
+  return blockOnce(ev, root, 'helena-weakened', hits.join('|'), `Helena / tests weakened: ${hits.slice(0, 5).join('; ')}. ` +
+    'Passing tests mean little after that. Restore them and fix the code instead; if the user asked for this change, say so in one line and stop again.');
+}
+
+// receipts: with no test command to run here, a reply that says the tests pass must match what ran after the last edit
+const CLAIM = /\b(tests?|testes|specs?|suite|build)\b([^.\n]{0,40}?)\b(pass(es|ed|ing)?|green|passam|passou|passando|verdes?)\b/i;
+function receipt(ev, root, transcript) {
+  const t = turn(transcript), text = ((t.blocks.find(b => b.type === 'text') || {}).text || ''), m = text.match(CLAIM);
+  if (!m || /\bnot\b|n't\b|\bn[aã]o\b|\bnem\b/i.test(m[2])) return false;
+  let ran = null;
+  for (const b of t.blocks) {
+    if (b.type !== 'tool_use' || !b.input) continue;
+    if (['Bash', 'PowerShell'].includes(b.name) && TESTISH.test(b.input.command || '')) { ran = b; break; }
+    if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(b.name) && CODE.test(b.input.file_path || b.input.notebook_path || '')) break;
+  }
+  if (ran && !t.failed[ran.id]) return false;
+  return blockOnce(ev, root, 'helena-receipt', (ran ? ran.id : '') + m[0], 'Helena / receipt: you wrote "' + m[0].trim() + '", but ' +
+    (ran ? `the last test run after your last edit failed (\`${String(ran.input.command).slice(0, 80)}\`)` : 'no test ran after your last edit') +
+    '. Run the tests and report what they print, or correct the claim.');
+}
+
 let input = '';
 process.stdin.on('data', d => (input += d)).on('end', () => {
   let ev;
@@ -111,7 +138,9 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
         return;
       }
     }
+    if (weakened(ev, root)) return;
     if (cmd && differential(ev, root, cmd, run)) return;
+    if (!cmd && receipt(ev, root, transcript)) return;
     event(ev, 'done', { cmd, holdout: !!hc, edited: edited.map(f => path.basename(f)).slice(0, 5) });  // cmd '' = nothing to run
     return;
   }
