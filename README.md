@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.6.0-black">
+  <img alt="version" src="https://img.shields.io/badge/version-1.7.0-black">
 </p>
 
 ---
@@ -282,7 +282,19 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
 - **No "done" with failing tests.** When a turn edited code, the Stop hook runs the project's tests (`npm test`, pytest,
   `cargo test`, `go test`, or the command in `.helena/test`) and sends the failure back once. The agent is told to fix the
   code, not the test, or to say plainly the failure was already there.
-- **Tests are not weakened.** An edit that removes assertions from a test file or adds a skip asks you first.
+- **Tests are not weakened.** An edit that removes assertions from a test file or adds a skip asks you first. At
+  Stop she also compares the test files with `HEAD`, so a `sed` or a script the gate never saw is caught too: fewer
+  assertions, more skips or a deleted test file block once (if you asked for it, the AI says so and stops again).
+- **Receipts.** In a project with no test command for her to run, a reply that says "tests pass" must match a green
+  test run after the last code edit. No run, or a red one, and the AI is sent back once to run them or correct the claim.
+- **A test after a few edits.** Agents check their work after only a small share of their edits; a one-line reminder
+  raised the solve rate and cut output tokens in arXiv 2610.34577. After every 3rd code edit with no test run in
+  between, one line asks for the test closest to the change. Silent in a project with no test command.
+- **Loops are cut.** The same call that came back with the same result 4 times in a row is denied, and the AI is told
+  to change approach or say what blocks it. Results are compared, so polling a server whose answer changes passes.
+- **Rules survive compaction.** Compaction summaries keep what to build and drop how to work ("never touch the
+  config"). Right after one, the user's own rule-like sentences from before it come back word for word, with the
+  path of the full transcript. A regex, no LLM.
 - **Hidden acceptance tests.** Tests you write in `.helena/holdout/` are never seen by the AI: reading, searching,
   copying or running anything that names the folder is denied, and editing it asks you. The done check runs them
   (pytest or `node --test`) after the normal tests pass, and the AI gets only the names of the ones that failed, never
@@ -478,17 +490,18 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 
 | Where | What |
 |---|---|
-| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo (past 4 KB, only its "Next" goes in), the instruction file the AI does not read (and the cost of a heavy one), the memory index (yours + the team's, STALE marks), what looks wrong in the repo's own AI config (`CLAUDE.md`, `.mcp.json`, `.claude/settings*.json`), news, runs the worker if overdue |
+| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo (past 4 KB, only its "Next" goes in), the instruction file the AI does not read (and the cost of a heavy one), the memory index (yours + the team's, STALE marks), what looks wrong in the repo's own AI config (`CLAUDE.md`, `.mcp.json`, `.claude/settings*.json`), news, runs the worker if overdue; after a compaction, the user's own rules from before it, word for word |
 | `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the redo note; the undo snapshot. Subagent reports and notifications are not treated as requests |
 | `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, and their `checks:` / `until:` |
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys (AWS and Slack included), `.env` files and anything that breaks `.helena/git`; adds `gitleaks` findings when it is installed |
-| `helena/hooks/gate.js` | PreToolUse: `.env` reads (also through quote tricks, globs, one-liners and copies), made-up or brand-new packages and releases under 72 hours old, destructive commands (also through a variable, an interpreter or base64), weakened or deleted tests (with `tests: spec-only`, new test files too), the hidden tests in `.helena/holdout`, erasing the audit trail, `.helena/policy`; logs the hosts a `curl` / `wget` names |
+| `helena/hooks/gate.js` | PreToolUse: `.env` reads (also through quote tricks, globs, one-liners and copies), made-up or brand-new packages and releases under 72 hours old, destructive commands (also through a variable, an interpreter, base64 or `sh -c "…"`), the same call with the same result 4 times in a row, weakened or deleted tests (with `tests: spec-only`, new test files too), the hidden tests in `.helena/holdout`, erasing the audit trail, `.helena/policy`; logs the hosts a `curl` / `wget` names |
 | `helena/hooks/delegate.js` | PreToolUse (Agent) and SubagentStop: a model below the session's for workers started without one (always); with `.helena/delegate`, how many run at once, how many start per request, and their effort |
 | `helena/agents/scout.md` · `builder.md` | the two workers `/helena:orchestrate` uses: a read-only locator on Haiku, a writer on Sonnet |
 | `helena/hooks/outside.js` | PostToolUse (WebFetch, WebSearch, MCP, and the output of `gh issue` / `gh pr` / `gh api`): flags a line written for an AI in text that came from outside, also in invisible characters or an HTML comment; logs where each call went |
 | `helena/hooks/trim.js` | PreToolUse: adds the quiet flag to `git log`, `git status`, `pytest`, `pip install`, `npm install`, `cargo` and recursive `grep` and lets them run (`rtk rewrite` first when rtk is installed); blocks lockfiles, build output, files over 100 KB and what no flag makes lean |
 | `helena/hooks/check.js` | Stop: if the session touched front-end files, checks contrast on the `.html` and on live localhost URLs |
-| `helena/hooks/done.js` | Stop and SubagentStop: if this turn (or this subagent) edited code, runs the tests (or `npx tsc --noEmit` in a TypeScript project with none) and sends a failure back |
+| `helena/hooks/done.js` | Stop and SubagentStop: if this turn (or this subagent) edited code, runs the tests (or `npx tsc --noEmit` in a TypeScript project with none) and sends a failure back; tests weakened against `HEAD`; receipts for "tests pass" when there is no test command |
+| `helena/hooks/nudge.js` | PostToolUse (Edit / Write): after every 3rd code edit with no test run, one line asks for the nearest test |
 | `helena/hooks/limits.js` · `rewind.js` | plan usage and weekly pace (`/helena:limits`) · undo snapshots (`/helena:rewind`) |
 | `helena/scan.py` · `helena/audit.py` | skill security scan · hook decision report |
 | `helena/hooks/end.js` → `helena/distill.py` | SessionEnd (and every 6 prompts, from router.js): Haiku reads the new turns in the background and writes memory, skill candidates and "## Learned" lessons |
@@ -509,6 +522,10 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 Every task runs as a full Claude Code session, once without Helena and once with her. A skill that does not win goes
 back to the library.
 
+With `-n 2` or more, `run.py` also prints the noise floor (how often re-running the same column flipped a task;
+arXiv 2610.04433 saw 13%, as much as switching harness) and an exact McNemar p on the rounds only one column
+passed. A lift below the noise, or p >= 0.05, is not a result yet. Each task also records the CLI version.
+
 ```bash
 python eval/run.py -n 1                  # everything (eval/tasks + ~/.helena/eval/tasks)
 python eval/run.py git-rule -n 3         # one task, 3 rounds (the columns take turns going first)
@@ -526,6 +543,7 @@ python eval/test_outside.py              # lines aimed at an AI in fetched pages
 python eval/test_gate.py                 # .env, packages, destructive commands, tests, team policy, audit (no LLM)
 python eval/test_redteam.py              # 37 bypass attempts against the hooks, and 6 commands that must pass (no LLM)
 python eval/test_falseblock.py           # 29 ordinary coding calls must all be allowed, spec-only on and off (no LLM)
+python eval/test_receipts.py             # loop cut, post-edit reminder, weakened tests, receipts, rules after compaction (no LLM)
 python eval/replay.py --last 300         # replay real transcript calls through gate.js here and on main, show changed decisions (runs nothing)
 python eval/test_recall.py               # search over recorded sessions: words, accents, days, project, masked keys (no LLM)
 python eval/test_rewind.py               # undo snapshots and the done check (no LLM)
