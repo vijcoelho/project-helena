@@ -7,6 +7,9 @@
     python eval/run.py --probe                 # Helena's fixed weight: one "Reply OK" call per column, no task
 
 With -n above 1 the columns take turns (base, helena, then helena, base...), so neither always runs on a warm cache.
+It also prints the noise floor: how often re-running the SAME column flipped a task (one study saw 13%, as much as
+switching harness: arXiv 2610.04433), and an exact McNemar test on the rounds where only one column passed. A lift
+below the noise, or p >= 0.05, is not a result yet.
 Each column records its turns and its tokens split four ways (uncached, cache write, cache read, output): a saving that
 comes with more turns shows up there, not only in the total.
 
@@ -21,7 +24,7 @@ setup.py (prepares the folder before the session), prepare.py (runs alongside th
 between the columns; {helena} and {task} become paths) and an empty `persist` file (the session keeps its transcript,
 which the done check reads). Fake CLIs for tasks go in eval/shims/ or ~/.helena/eval/shims/.
 """
-import argparse, datetime, json, os, pathlib, shutil, subprocess, sys, tempfile
+import argparse, datetime, json, math, os, pathlib, shutil, subprocess, sys, tempfile
 
 # built at runtime so no key-shaped string lives in the repo (secret scanners and the guard hook)
 FAKE_KEY = 'sk_' + 'live_' + '51FakeX9' + 'X9' * 12
@@ -98,6 +101,12 @@ def probe(model):
               '  '.join(f'{k} {v:,}' for k, v in p.items()), flush=True)
 
 
+def mcnemar(b, c):
+    """Exact two-sided McNemar p-value: b rounds only base passed, c rounds only helena passed."""
+    n = b + c
+    return min(1.0, 2 * sum(math.comb(n, i) for i in range(min(b, c) + 1)) / 2 ** n) if n else 1.0
+
+
 def kill_ports(folder):
     """Stops only the servers the agent started (ports where prepare.py saw the fixture's app)."""
     seen = folder / '.ports_seen'
@@ -127,6 +136,8 @@ def main():
     chosen = [t for t in found if not a.tasks or t.name in a.tasks]
     score = {False: [0, 0], True: [0, 0]}
     saved = json.loads(a.out.read_text(encoding='utf-8')) if a.out.exists() else {}
+    flips, only = [0, 0], {False: 0, True: 0}  # same-column reruns that disagree / rounds only one column passed
+    cli = subprocess.run([CLAUDE, '--version'], capture_output=True, text=True).stdout.split(' ')[0].strip()
     for t in chosen:
         runs = {False: [], True: []}
         for i in range(a.n):
@@ -136,6 +147,13 @@ def main():
                 print(f"{t.name:24} {'helena' if with_helena else 'base':7} {'PASS' if r['ok'] else 'fail':5} "
                       f"${r['cost']:.3f} {sum(r['parts'].values()) // 1000:>4}k tok {r['turns']:>3} turns  "
                       f"{r['note']}  {r['folder']}", flush=True)
+        for rs in runs.values():
+            for x, y in zip(rs, rs[1:]):
+                flips[0] += x['ok'] != y['ok']
+                flips[1] += 1
+        for b, h in zip(runs[False], runs[True]):
+            if b['ok'] != h['ok']:
+                only[h['ok']] += 1
         col = {}
         for with_helena, rs in runs.items():
             score[with_helena][0] += sum(r['ok'] for r in rs)
@@ -154,11 +172,17 @@ def main():
               f"per solved task: base {solved(b)}, helena {solved(h)}", flush=True)
         if t.parent == ROOT / 'tasks':  # your own tasks (~/.helena/eval) stay out of the shared results file
             uses = (t / 'uses').read_text().strip() if (t / 'uses').exists() else ''
-            saved[t.name] = {'uses': uses, 'model': a.model, 'date': datetime.date.today().isoformat(), **col}
+            saved[t.name] = {'uses': uses, 'model': a.model, 'cli': cli, 'date': datetime.date.today().isoformat(), **col}
             a.out.parent.mkdir(parents=True, exist_ok=True)  # written per task: a long run that dies keeps what it finished
             a.out.write_text(json.dumps(saved, indent=1, sort_keys=True) + '\n', encoding='utf-8')
     for with_helena, (ok, total) in score.items():
         print(f"{'helena' if with_helena else 'base':7} {ok}/{total}")
+    if flips[1]:
+        print(f"noise: {flips[0]}/{flips[1]} reruns of the same column flipped ({flips[0] / flips[1]:.0%}); a lift below that is chance")
+    if only[False] + only[True]:
+        p = mcnemar(only[False], only[True])
+        print(f"only helena passed {only[True]} rounds, only base {only[False]}: exact McNemar p = {p:.2f}" +
+              ('' if p < 0.05 else ' (not significant: run more rounds before calling it)'))
 
 
 if __name__ == '__main__':

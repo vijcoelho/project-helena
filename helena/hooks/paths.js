@@ -52,13 +52,14 @@ const event = (ev, kind, data) => {
     }) + '\n');
   } catch {}
 };
-// tool calls the AI made since the user's last message. Reads the transcript from the end: it reaches megabytes and the
-// Stop hooks run on every turn, so parsing all of it each time was the slowest thing Helena did.
-const turnTools = transcript => {
+// what the AI did since the user's last message: its blocks (text, tool_use) newest first, and which tool calls came back
+// as errors (tool_use_id -> true) and a short print of what each returned (`seen`, to tell a loop from a poll). Reads the transcript from the end: it reaches megabytes and the Stop hooks run on every
+// turn, so parsing all of it each time was the slowest thing Helena did.
+const turn = transcript => {
   const fd = fs.openSync(transcript, 'r'), size = fs.fstatSync(fd).size;
   try {
     for (let n = 1 << 20; ; n *= 4) {
-      const len = Math.min(n, size), buf = Buffer.alloc(len), tools = [];
+      const len = Math.min(n, size), buf = Buffer.alloc(len), blocks = [], failed = {}, seen = {};
       fs.readSync(fd, buf, 0, len, size - len);
       const lines = buf.toString('utf8').split('\n');
       if (len < size) lines.shift();  // cut in half
@@ -66,13 +67,15 @@ const turnTools = transcript => {
         let d;
         try { d = JSON.parse(line); } catch { continue; }
         const c = d.message && d.message.content;
-        if (d.type === 'user' && (typeof c === 'string' || (Array.isArray(c) && c.some(b => b.type === 'text')))) return tools;
-        if (d.type === 'assistant' && Array.isArray(c)) tools.push(...c.filter(b => b.type === 'tool_use'));
+        if (d.type === 'user' && (typeof c === 'string' || (Array.isArray(c) && c.some(b => b.type === 'text')))) return { blocks, failed, seen };
+        if (d.type === 'user' && Array.isArray(c)) for (const b of c) if (b.type === 'tool_result') { if (b.is_error) failed[b.tool_use_id] = true; seen[b.tool_use_id] = JSON.stringify(b.content || '').length + ':' + JSON.stringify(b.content || '').slice(-200); }
+        if (d.type === 'assistant' && Array.isArray(c)) blocks.push(...c.slice().reverse());
       }
-      if (len === size) return tools;
+      if (len === size) return { blocks, failed, seen };
     }
   } finally { fs.closeSync(fd); }
 };
+const turnTools = transcript => turn(transcript).blocks.filter(b => b.type === 'tool_use');
 // the session's last model call, from the end of its transcript: context size, the model that answered, when, and how
 // long its cache lives (`ttl`, 5 minutes or 1 hour, from the last call that wrote to the cache)
 const lastCall = transcript => {
@@ -138,5 +141,29 @@ const specOnly = cwd => {
   }
   return false;
 };
+// the project's test command (done.js runs it, nudge.js names it). The first line of <repo>/.helena/test (a command, or
+// "off"), else what the project has: package.json "test" → npm test, pytest config → pytest, Cargo, go.mod, tsconfig → tsc
+function testCommand(root) {
+  const set = (() => { try { return fs.readFileSync(path.join(root, '.helena', 'test'), 'utf8').split('\n').map(l => l.trim()).find(l => l && !l.startsWith('#')); } catch {} })();
+  if (set) return /^off$/i.test(set) ? '' : set;
+  const has = f => fs.existsSync(path.join(root, f));
+  try {
+    const t = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).scripts.test;
+    if (t && !/no test specified/.test(t)) return 'npm test --silent';
+  } catch {}
+  if (['pytest.ini', 'conftest.py', 'tests/conftest.py'].some(has) || (has('tests') && /\[tool\.pytest|pytest/.test((() => { try { return fs.readFileSync(path.join(root, 'pyproject.toml'), 'utf8'); } catch { return ''; } })())))
+    return 'python -m pytest -q -x';
+  if (has('Cargo.toml')) return 'cargo test -q';
+  if (has('go.mod')) return 'go test ./...';
+  if (has('tsconfig.json') && has('node_modules/typescript')) return 'npx tsc --noEmit';
+  return '';
+}
+// assertions and skips in test code: an edit that removes the first or adds the second weakens the tests (gate.js, done.js)
+const ASSERT = /\bassert\w*\b|\bexpect\s*\(|\.should\b|\.to(Be|Equal|StrictEqual|Have|Throw|Match|Contain)\w*\s*\(/g;
+const SKIP = /\b(it|test|describe)\.(skip|todo)\b|\bx(it|describe|test)\s*\(|@pytest\.mark\.(skip|xfail)|\bpytest\.skip\(|@unittest\.skip|\bt\.Skip\(|#\[ignore\]/g;
+// a code file (done.js runs the tests when one was edited)
+const CODE = /\.(js|jsx|ts|tsx|mjs|cjs|py|go|rs|java|kt|rb|php|cs|c|cc|cpp|h|swift|vue|svelte|astro)$/i;
+// a command the AI ran that checks code: what a test run looks like in a transcript
+const TESTISH = /\b(test|tests|pytest|jest|vitest|mocha|unittest|tsc|cargo\s+check|go\s+vet|tox|nox|phpunit|rspec)\b|\btest_\w+|\w_test\b|\.(test|spec)\.\w+/i;
 const TEST = /(^|[\\/])(tests?|__tests__|spec)[\\/]|[._-](test|spec)\.[a-z]+$|(^|[\\/])test_[^\\/]+\.py$|_test\.(go|py)$/i;
-module.exports = { TEST, specOnly, aimed, AIMED, audit, event, bg, egress, turnTools, lastCall, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };
+module.exports = { ASSERT, SKIP, CODE, TEST, TESTISH, testCommand, specOnly, aimed, AIMED, audit, event, bg, egress, turn, turnTools, lastCall, HOME, VAULT, MEMORY: path.join(VAULT, 'Memory'), LIBRARY: path.join(HOME, 'library'), KITS: path.join(HOME, 'kits.json') };

@@ -17,17 +17,16 @@
 //      deny: terraform apply        a regex per line; matching commands are denied
 //      ask: kubectl                 matching commands ask first
 //      mcp: github, helena          only these MCP servers may be used in this repo
+//  - loops: the same call that came back with the same result 4 times in a row is denied (a poll whose output changes passes)
 //  - a curl / wget / Invoke-WebRequest leaves the hosts it names in ~/.helena/egress.jsonl (never blocks)
 // Every decision lands in ~/.helena/audit.jsonl. Local hooks can be turned off by whoever owns the machine: this is a
 // guardrail for the AI, not a sandbox.
 const fs = require('fs'), os = require('os'), path = require('path'), { execSync } = require('child_process');
-const { audit, egress, specOnly, TEST } = require('./paths');
+const { audit, egress, specOnly, turn, TEST, ASSERT, SKIP } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 
 const ENV = /(^|[\\/])\.env(\.[\w-]+)?$/, ENV_OK = /\.env\.(example|sample|template)$/;
 const ENV_IN_CMD = /\b(cat|type|Get-Content|gc|less|more|head|tail|bat|grep|rg|findstr|Select-String|sed|awk|strings|xxd)\b[^;&|]*?(?:^|[\s'"=])((?:[^\s'"=;|&]*[\\/])?\.env(?:\.[\w-]+)?)(?=$|[\s'";|&)])/i;
-const ASSERT = /\bassert\w*\b|\bexpect\s*\(|\.should\b|\.to(Be|Equal|StrictEqual|Have|Throw|Match|Contain)\w*\s*\(/g;
-const SKIP = /\b(it|test|describe)\.(skip|todo)\b|\bx(it|describe|test)\s*\(|@pytest\.mark\.(skip|xfail)|\bpytest\.skip\(|@unittest\.skip|\bt\.Skip\(|#\[ignore\]/g;
 const NEW_TEST = /(^|[\\/])(test_[^\\/]+\.py|[^\\/]+_test\.py|[^\\/]+\.(test|spec)\.(js|ts|jsx|tsx|mjs|cjs)|[^\\/]+_test\.go)$/;
 const DANGER = [
   [/\bDROP\s+(TABLE|DATABASE|SCHEMA|USER)\b/i, 'drops a database object'],
@@ -293,17 +292,38 @@ async function decide(ev) {
     if (odd.length) return ask(ev, `Helena / packages: ${odd.join(', ')}. Make sure it is the package you mean, not a look-alike.`);
   }
 
-  const why = [...DANGER.filter(([r]) => r.test(cmd)).map(d => d[1]), risky(cmd, cwd)].find(Boolean);
+  // `bash -c "rm -rf /"`: the quoted script is a command too (the closing quote hid the target from the patterns)
+  const wrapped = [cmd, ...[...cmd.matchAll(/\b(?:ba|z|da)?sh\s+-c\s+(["'])(.*?)\1/g)].map(m => m[2])];
+  const why = wrapped.flatMap(c => [...DANGER.filter(([r]) => r.test(c)).map(d => d[1]), risky(c, cwd)]).find(Boolean);
   if (why) return ask(ev, `Helena / destructive: this command ${why}. It runs only if the user approves it now.`);
   for (const r of rules.ask) if (re(r) && re(r).test(cmd))
     return ask(ev, `Helena / team policy: commands matching "${r}" need the user's OK in this repo (.helena/policy).`);
   return null;
 }
 
+// the same call with the same result, again and again, is a loop and not progress. Compares what each call returned, so
+// polling a server or re-running tests that go from red to green passes.
+const LOOP = 4;
+function looping(ev) {
+  if (!ev.transcript_path) return null;
+  let t;
+  try { t = turn(ev.transcript_path); } catch { return null; }
+  const key = JSON.stringify([ev.tool_name, ev.tool_input]), sig = c => JSON.stringify([c.name, c.input]);
+  const calls = t.blocks.filter(b => b.type === 'tool_use');
+  if (calls[0] && !t.seen[calls[0].id] && sig(calls[0]) === key) calls.shift();  // this call, already written, no result yet
+  let n = 0, out;
+  for (const c of calls) {
+    if (sig(c) !== key || !t.seen[c.id] || (out !== undefined && t.seen[c.id] !== out)) break;
+    out = t.seen[c.id]; n++;
+  }
+  return n >= LOOP ? deny(ev, `Helena / loop: you made this exact call ${n} times in a row and got the same result each time. ` +
+    'Do not repeat it: read the result again, change the approach, or tell the user what is blocking you.') : null;
+}
+
 let input = '';
 process.stdin.on('data', d => (input += d)).on('end', async () => {
   let ev;
   try { ev = JSON.parse(input); } catch { return; }
-  const out = await decide(ev);
+  const out = looping(ev) || await decide(ev);
   if (out) console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...out } }));
 });
