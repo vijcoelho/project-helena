@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.7.0 (2026-11-02)
+
+- Receipts (`done.js`): in a project with no test command, a reply that says the tests pass must match a green
+  test-like run after the last code edit; no run or a red one blocks once.
+- Tests weakened, at Stop (`done.js`): against `HEAD`, a test file with fewer assertions, more skips, or deleted blocks
+  once per diff. Catches edits through Bash or a script, which the gate never sees.
+- `nudge.js` (new, PostToolUse Edit/Write): after every 3rd code edit with no test run in between, one line asks for
+  the nearest test (arXiv 2610.34577: agents check after few of their edits; the reminder raised the score and cut
+  output tokens). Silent without a test command.
+- Loop cut (`gate.js`): the same call with the same result 4 times in a row in one turn is denied. Results are
+  compared, so a poll whose output changes passes. Idea from a "same call, same result" detector.
+- `gate.js`: `bash -c "rm -rf /"` was allowed; the quoted script of `sh -c` / `bash -c` is checked too.
+- After a compaction (`start.js`, `source: compact`): the user's own rule-like sentences from before it come back word
+  for word, with the transcript path. Summaries drop how-to-work rules first.
+- `eval/run.py`: noise floor (same-column flips across rounds), exact McNemar p, CLI version per task.
+- `paths.js`: `turn()` reads this turn's blocks newest first with which tool calls failed and what each returned;
+  `testCommand`, `CODE`, `ASSERT`, `SKIP`, `TESTISH` shared by the hooks.
+- `eval/test_receipts.py`: tests for all of the above.
+
 ## 1.6.0 (2026-10-16)
 
 - The Helena app, `/helena:app`: one window with what Helena blocked, checked, remembered and spent, live. Sessions of
