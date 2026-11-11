@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Copy one of your memory notes into this repo's .helena/memory for the team
 argument-hint: <note>
 ---

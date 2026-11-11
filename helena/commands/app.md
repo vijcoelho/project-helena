@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Open the Helena app, a window with what Helena knows, checked and spent
 allowed-tools: Bash(node:*)
 ---

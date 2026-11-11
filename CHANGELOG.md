@@ -1,5 +1,89 @@
 # Changelog
 
+## 2.0.0 (2026-11-11)
+
+What a tool call costs is the context it re-reads times the model's price. 30 days of the creator's sessions (8,483
+model calls) showed the tokens go into calls x context, not into tool output. So 2.0 keeps the main session thin and
+moves work to workers.
+
+- `start.js`: Claude Code shows only a 2 KB preview of a hook output past 10,000 characters and files the rest. The
+  session start was 14.3 KB in the creator's repo, so the memory index was not reaching the model. Now it always fits
+  (9.5 KB max; 6.7 KB measured there). The memory index is a budget (1 KB): this project's and the team's notes first,
+  then the ones handed over most, and a line saying how many are not listed. `router.js` still hands any note over
+  whole when a request matches it.
+- Call-cost line (`gate.js`): past 20 tool calls in one request, on a model at Opus level or above (Opus, Fable,
+  Mythos) with 100k+ of context and no worker started, one line (once per request) says what each call re-reads and
+  names the two cheaper ways: a `helena:builder` with a short brief, or finish and /clear. Never said inside a worker.
+- `brief.js` (new, SubagentStart): every worker of any type starts with the report format (20 lines at most,
+  `path:line`, the long version in a file), the project's check command, the `## Decisions` section of `HANDOFF.md`
+  (last 1,500 characters) and `tests: spec-only` when set. The orchestrator no longer spends output tokens repeating them.
+- Report cap (`delegate.js`): a worker whose last message passes 8,000 characters is sent back once to put the full text
+  in a file and report in 20 lines. `report: <characters>` or `report: off` in `.helena/delegate`.
+- `/helena:orchestrate`, waves: steps that share no file, do not need each other's result and whose files have no
+  uncommitted changes run side by side, up to 3 builders, each in its own git worktree; everything else one at a time.
+  `helena/wave.js land <worktree>...` lands them with one command: each worktree becomes a patch, checked against the
+  main tree and applied; nothing is staged or committed; a patch that collides is NOT LANDED and its worktree is kept.
+  Briefs are under 10 lines. A failed step climbs one rung: a new builder (on `opus` when the session runs on a model
+  above Opus), then the main session. `/helena:race` lands its winner with the same script.
+- `compact.js` (new, PreCompact): tells the compaction summary what to keep (the user's rules in their words, decisions
+  and rejected approaches, files as `path:line`, the check command and its last result, the next step) and what to leave
+  out (file contents, command output). `start.js` still restores the user's rules after compaction.
+- `squeeze.js` (new, PostToolUse Bash / PowerShell): a command output over 4k characters loses colour codes and `\r`
+  progress, and runs of lines that differ only in numbers fold into three; still over 20k, the first 40 and last 80
+  lines stay plus the middle lines that look like a problem. The full output is saved in `~/.helena/out/` (3 days) and
+  the AI is told the path. Commands that print content (cat, head, sed, git diff, git show) are never touched.
+  `# helena:full` skips it. Replayed over 30 days of the creator's sessions (1,846 commands) it would have changed 0
+  outputs, because the model already pipes long output through tail. It is a net for sessions that do not; no saving
+  is announced.
+- `trim.js`: a file refused for being over 100 KB now comes with its outline (up to 40 functions, classes or headings
+  with their line numbers), so the next Read asks for the right part.
+- `/helena:diet` (new, `helena/diet.py`, no LLM): what sits in the context before you type: each plugin, your own
+  skills and agents, CLAUDE.md, with an estimate in tokens and how many times each was called in 30 days;
+  `--off <plugin>` turns one off in this project only. On the creator's machine: 6.6k tokens listed, one plugin of 2.5k
+  tokens never called in 30 days.
+- `router.js`: the routine-command hint now also fires on Fable and Mythos sessions.
+- `eval/test_squeeze.py`: tests for all of the above, no LLM. Red team unchanged: 36 of 37, 0 false positives.
+- Site: the ASCII Helena is redrawn from the same drawing by `extras/ascii.py` (160 x 96 characters; each one is picked
+  by the shape under it, so seams and hair are lines and not dots; the paper outside her is dropped). New section
+  "orchestration", three cards in "savings", numbered section labels, a scroll progress line, corner marks on the
+  portrait, one-line nav. Contrast checked (WCAG AA), desktop and phone, no sideways overflow.
+- Own rules guard (gate.js): an Edit/Write, or a shell command that writes, to `.helena/git`, `.helena/policy`, `.helena/test` or `.helena/delegate` asks first. They are the files her checks read, so an AI that edits them changes what it is checked against. Reading them and `git add/diff/commit` stay free.
+- Repo AI config check (start.js) now also scans tracked nested `CLAUDE.md` / `AGENTS.md` and `.claude/rules/*.md` (40 files at most, root first, then shortest path), naming the file in the warning. Still once per content.
+- Same failure twice (`gate.js`): when the two newest test runs of a request both failed with the same signature (first
+  FAIL / Error line, numbers ignored) and an edit sits between them, one line (once) asks which assumption was wrong.
+  Never blocks, never said inside a worker.
+- PR receipt (`gate.js`, opt-in): with `pr: receipt` in `.helena/git`, `gh pr create` is denied once per session and
+  commit with the line `Checked by Helena: <test command> passed|FAILED after the last edit, at <sha>` (or "no test run
+  after the last edit") to add to the PR body.
+- `/helena:diet` lint: CLAUDE.md / AGENTS.md lines the repo already shows are listed with line ranges and tokens: an npm
+  script restated from `package.json`, a directory tree (4+ lines), a "do not / never" list (8+ lines). Reported, never changed.
+- `/helena:budget`: "Requests checked by tests" counts the requests that ended under the done check, green or blocked at
+  least once, with the average tokens of each (median for green).
+- `/helena:orchestrate` reviews a large change once (more than 3 files or 150 changed lines): a fresh worker reads only
+  the task and the diff and returns up to 5 findings; a second fresh worker tries to prove each one wrong; only findings
+  that stand are fixed or shown. A smaller change skips it.
+- `eval/test_speed.py` (no LLM): runs every command hook in `hooks.json` 5 times with a fake event and a fake HOME and
+  fails when a median passes 1,500 ms (3,000 ms for `start.js`; `HELENA_SPEED_MS` changes it). `done.js`, `check.js`
+  and `end.js` are skipped (tests, browser, model).
+- Measured on 2026-11-11 (Sonnet, 3 rounds per column, both columns 6/6, 0 of 8 reruns flipped): on the two short cost
+  tasks Helena 2.0 costs more, not less. `noisy-tests`: $0.139 without, $0.145 with (turns 8.0 -> 4.7, +7.6k tokens).
+  `release-notes`: $0.138 without, $0.146 with (+21.5k tokens). Her fixed weight is 1,925 tokens per call (`--probe`:
+  44,009 -> 45,934). Same picture as 1.4: on a short task there is nothing to cut and her opening text is paid on
+  every call.
+- So the memory index went from 4.5 KB to 1 KB the same day, and the same run was repeated (Sonnet, 3 rounds per
+  column, both 6/6, 0 of 8 reruns flipped). Fixed weight: 724 tokens per call (`--probe`: 44,009 -> 44,733), down from
+  1,925. `noisy-tests`: $0.137 without, $0.140 with (turns 5.3 -> 5.0, +4.1k tokens). `release-notes`: $0.136 without,
+  $0.138 with (+2.0k tokens). Still more, not less: about 2% instead of 5%. What is left is mostly the list of her
+  commands, skills and agents, which Claude Code puts in every call.
+- So 13 of her 17 commands (the reports and the ones only the user starts: app, audit, budget, diet, limits, skills,
+  status, undo, setup, routines, share, rewind, race) now carry `disable-model-invocation: true`: typed as before, not
+  listed to the model. `router.js` points the model at the command file when a request asks for a report in plain
+  words (fixed phrases, PT and EN, once per session). `/helena:diet` no longer counts a command that is not listed.
+  Measured with every other plugin off (`Reply OK`, Sonnet): 32,501 without her, 33,854 with the commands listed,
+  33,429 hidden: 425 tokens less per call, 928 left. On the creator's machine, where 12 other plugins already fill
+  the listing budget, the same change is worth 18 tokens (724 -> 706). The two cost tasks were not run again.
+- Not claimed: no token saving number for orchestration. The benchmark has no multi-step task that would measure it.
+
 ## 1.7.0 (2026-11-02)
 
 - Receipts (`done.js`): in a project with no test command, a reply that says the tests pass must match a green

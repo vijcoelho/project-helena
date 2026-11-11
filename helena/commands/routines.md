@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Read-only routines Helena runs on a schedule with a spending cap: list, add, remove, run
 argument-hint: [what to do and how often | remove <name> | run <name>]
 allowed-tools: Bash(python:*)

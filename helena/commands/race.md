@@ -1,6 +1,8 @@
 ---
+disable-model-invocation: true
 description: Two workers try two approaches in separate worktrees; the one whose tests pass wins
 argument-hint: <task>
+allowed-tools: Bash(node:*)
 ---
 
 Task: $ARGUMENTS
@@ -20,8 +22,9 @@ winner, only the winner's change reaches this tree. Follow this loop and nothing
 4. **Judge by running, not by reading.** In each worktree the result names, run the test command yourself. The winner
    is the one that passes; both pass: the smaller `git diff --stat`; neither passes: no winner, say why from the two
    failures and stop.
-5. **Bring the winner here:** in its worktree `git add -A` then `git diff --cached HEAD --binary > <scratch>/race.patch`;
-   here `git apply <scratch>/race.patch`; run the test command here once. Then `git worktree remove --force` both
-   worktrees and delete their branches. Add the losing approach to Decisions as rejected, with the reason.
+5. **Bring the winner here** with one command, naming only the winner's worktree:
+   !`node "${CLAUDE_PLUGIN_ROOT}/wave.js" --where`
+   Run the test command here once. Then `git worktree remove --force` the loser's worktree and delete its branch. Add
+   the losing approach to Decisions as rejected, with the reason.
 6. **End with** which approach won and why, the test result here, and the diff stat. `/helena:budget` shows what the
    two workers cost.

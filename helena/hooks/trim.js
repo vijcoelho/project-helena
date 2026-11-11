@@ -3,6 +3,8 @@
 //  - a command that only needs a quieter flag gets the flag and runs (`git log` -> `git log --oneline -n 20`). Nothing is
 //    refused, because a refusal costs one more model call and every call re-reads the whole context
 //  - a command with no lean version that keeps its meaning (dumping a 200 KB log, a lockfile) is refused, with the lean way
+//  - a big file is refused with its outline (where each function, class or heading starts), so the next Read asks for
+//    the part it needs with offset/limit and no Grep round trip is spent finding it
 // Escape hatch: a Bash command containing `helena:full`, or Read with an explicit `limit`.
 // If rtk (github.com/rtk-ai/rtk) is on PATH, its `rtk rewrite` goes first: it knows many more commands than the table here.
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
@@ -10,6 +12,17 @@ if (process.env.HELENA_DISTILLING) process.exit(0);
 const LOCK = /(^|[\\/])(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|Cargo\.lock|composer\.lock|Gemfile\.lock|bun\.lockb?)$/i;
 const BUILT = /([\\/](node_modules|dist|build|\.next|\.nuxt|out|coverage)[\\/])|\.min\.(js|css)$|\.map$/i;
 const BIG = 100 * 1024; // ~25k tokens
+const DEF = /^\s*(?:export\s+)?(?:default\s+)?(?:(?:public|private|protected|static|async|abstract|pub)\s+)*(?:function\*?|class|def|interface|type|enum|struct|impl|trait|fn|func|module|namespace)\s+[\w$<]|^#{1,3}\s+\S|^\s*(?:export\s+)?const\s+[\w$]+\s*=\s*(?:async\s*)?(?:\(|function\b)/;
+// "line: what starts there" for up to 40 definitions or headings, spread over the whole file
+function outline(file) {
+  try {
+    const hits = [];
+    fs.readFileSync(file, 'utf8').split('\n').forEach((l, i) => { if (DEF.test(l)) hits.push(`${i + 1}: ${l.trim().slice(0, 70)}`); });
+    const step = Math.ceil(hits.length / 40);
+    return hits.length ? `\nOutline (line: what starts there${step > 1 ? `; every ${step}th of ${hits.length}` : ''}):\n` +
+      hits.filter((_, i) => i % step === 0).join('\n') : '';
+  } catch { return ''; }
+}
 const LIMITED = /-n\s*\d|-\d+\b|--max-count|--oneline|-1\b/;  // a git log that already says how much it wants
 const LOUD = /\s-[a-zA-Z]*[qv]\b|--quiet|--verbose/;            // a command that already says how much it prints
 
@@ -67,14 +80,17 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   try { ev = JSON.parse(input); } catch { return; }
   const t = ev.tool_input || {}, cwd = ev.cwd || '.';
   const size = f => { try { return fs.statSync(path.resolve(cwd, f)).size; } catch { return 0; } };
-  let why = '', what = '', tokens = 0, quiet = null;
+  let why = '', what = '', tokens = 0, quiet = null, map = '';
 
   // Images cost by pixels, not bytes, and render checks (contact sheets in out/) need to be looked at.
   if (ev.tool_name === 'Read' && t.file_path && !t.limit && !/\.(png|jpe?g|gif|webp)$/i.test(t.file_path)) {
     what = path.basename(t.file_path); tokens = Math.round(size(t.file_path) / 4);
     if (LOCK.test(t.file_path)) why = 'lockfiles are huge and generated; read package.json, or Grep the lockfile for the one package you need';
     else if (BUILT.test(t.file_path)) why = 'this is generated/minified output; read the source file instead';
-    else if (size(t.file_path) > BIG) why = `this file is ${Math.round(size(t.file_path) / 1024)} KB; Grep for what you need or Read with offset/limit`;
+    else if (size(t.file_path) > BIG) {
+      why = `this file is ${Math.round(size(t.file_path) / 1024)} KB (~${Math.round(tokens / 1000)}k tokens); Read the part you need with offset/limit, or Grep it`;
+      map = outline(path.resolve(cwd, t.file_path));
+    }
   } else if (t.command && !/helena:full/.test(t.command)) {
     let cmd = t.command;
     const piped = /\|\s*(head|tail|grep|rg|wc|Select-Object|Select-String|findstr|less|more)\b/i.test(cmd);
@@ -116,7 +132,7 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
       hookEventName: 'PreToolUse', permissionDecision: 'deny',
       permissionDecisionReason: `Helena / context: ${why}. Everything that enters the context is re-read on every message ` +
         'for the rest of the session. If you really need the full output, add the comment `# helena:full` to the command ' +
-        '(or pass limit to Read).',
+        '(or pass limit to Read).' + map,
     },
   }));
 });

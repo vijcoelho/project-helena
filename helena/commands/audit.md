@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: What Helena's hooks blocked or asked about, and where the AI reached out
 argument-hint: [days] [--json]
 allowed-tools: Bash(python:*)

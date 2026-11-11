@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Each AI plan's usage (5 hours and week) and whether the week lasts
 allowed-tools: Bash(node:*)
 ---

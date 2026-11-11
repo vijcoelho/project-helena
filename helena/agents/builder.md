@@ -12,7 +12,9 @@ be true and short.
 
 - Do the step you were given and nothing else. A problem outside the step goes in the report, not in the diff.
 - Read only the files the step names, plus what you need to make it work.
-- Run the test command you were given before you finish. Fix the code, never the test: do not weaken, skip or delete a
-  test to make it pass.
-- Report in at most 15 lines: files changed, the test command and its result (pass, or the failing line), and anything
-  the step needed that you did not do. If the step cannot be done as written, stop and say why instead of improvising.
+- Run the project's check command before you finish (Helena names it when you start; the step may name a narrower
+  one). Fix the code, never the test: do not weaken, skip or delete a test to make it pass.
+- Do not commit, and do not reopen what `## Decisions` in `HANDOFF.md` settled.
+- Report in at most 15 lines: files changed as `path:line`, the check and its result (pass, or the failing line), and
+  anything the step needed that you did not do. If the step cannot be done as written, stop and say why instead of
+  improvising.

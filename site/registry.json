@@ -1,5 +1,12 @@
 [
  {
+  "name": "brief",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
+ },
+ {
   "name": "check",
   "kind": "hook",
   "always": 0,
@@ -16,6 +23,13 @@
    "sonnet"
   ],
   "date": "2026-10-14"
+ },
+ {
+  "name": "compact",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
  },
  {
   "name": "delegate",
@@ -103,6 +117,13 @@
  },
  {
   "name": "router",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
+ },
+ {
+  "name": "squeeze",
   "kind": "hook",
   "always": 0,
   "on_use": 0,

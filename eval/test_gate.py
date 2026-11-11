@@ -162,6 +162,20 @@ with tempfile.TemporaryDirectory() as tmp:
         if got != want or (want != 'allow' and ('hidden acceptance tests' not in why or 'SECRET' in why)):
             errors.append(f'holdout {tool} {inp.get("command") or inp.get("file_path") or inp}: {got} (expected {want}) {why[:120]}')
 
+    # own rules: .helena/git|policy|test|delegate; changes ask, reads and git bookkeeping pass
+    own = [('Edit', {'file_path': '.helena/git', 'old_string': 'no', 'new_string': 'yes'}, 'ask'),
+           ('Write', {'file_path': '.HELENA\\policy', 'content': 'x'}, 'ask'),
+           ('Bash', {'command': 'echo "main: yes" > .helena/git'}, 'ask'), ('Bash', {'command': 'rm .helena/test'}, 'ask'),
+           ('Bash', {'command': 'sed -i s/no/yes/ ./.helena/git'}, 'ask'),
+           ('Bash', {'command': 'git add .helena/git && rm .helena/test'}, 'ask'),
+           ('Bash', {'command': 'cat .helena/git'}, 'allow'), ('Bash', {'command': 'grep main .helena/git'}, 'allow'),
+           ('Bash', {'command': 'git add .helena/git && git commit -m "rule: .helena/git"'}, 'allow'),
+           ('Read', {'file_path': '.helena/policy'}, 'allow'), ('Edit', {'file_path': 'src/helena/git.js', 'old_string': 'a', 'new_string': 'b'}, 'allow')]
+    for tool, inp, want in own:
+        got, why = decision(tool, inp)
+        if got != want or (want == 'ask' and 'own rules' not in why):
+            errors.append(f'own rules {tool} {inp.get("command") or inp.get("file_path")}: {got} (expected {want}) {why[:120]}')
+
     (d / '.helena').mkdir(exist_ok=True)
     (d / '.helena' / 'policy').write_text('deny: terraform apply\nask: kubectl\nmcp: github, helena  # the only servers here\n')
     for tool, inp, want in [('Bash', {'command': 'terraform apply -auto-approve'}, 'deny'), ('Bash', {'command': 'kubectl get pods'}, 'ask'),
@@ -216,6 +230,63 @@ global.fetch = async u => { u = String(u);
         got, why = decision('Bash', {'command': cmd}, ('-r', str(mock)))
         if got != want or hint not in why:
             errors.append(f'fresh release {cmd}: {got} (expected {want}) {why[:160]}')
+
+    # fake transcripts: steps = ('run', command, output or None for green) | ('edit',)
+    def transcript(name, steps):
+        rows = [{'type': 'user', 'message': {'role': 'user', 'content': 'fix it'}}]
+        for i, st in enumerate(steps):
+            inp = {'command': st[1]} if st[0] == 'run' else {'file_path': str(d / 'src.py'), 'old_string': 'a', 'new_string': 'b'}
+            rows.append({'type': 'assistant', 'message': {'role': 'assistant', 'content': [{'type': 'tool_use', 'id': f'{name}{i}', 'name': 'Bash' if st[0] == 'run' else 'Edit', 'input': inp}]}})
+            res = {'type': 'tool_result', 'tool_use_id': f'{name}{i}', 'content': (st[2] or 'ok') if st[0] == 'run' else 'done'}
+            if st[0] == 'run' and st[2]:
+                res['is_error'] = True
+            rows.append({'type': 'user', 'message': {'role': 'user', 'content': [res]}})
+        p = pathlib.Path(tmp) / f'{name}.jsonl'
+        p.write_text('\n'.join(json.dumps(r) for r in rows), encoding='utf-8')
+        return str(p)
+
+    def hook(tool, inp, tp, sid):
+        r = subprocess.run(['node', str(HOOK)], input=json.dumps({'tool_name': tool, 'tool_input': inp, 'cwd': str(d), 'session_id': sid, 'transcript_path': tp}),
+                           capture_output=True, text=True, encoding='utf-8', env=env, timeout=30)
+        return json.loads(r.stdout)['hookSpecificOutput'] if r.stdout.strip() else {}
+
+    # same failure twice
+    T, F1, F2 = 'pytest -q', 'E   AssertionError: 3 != 4\nFAILED test_a.py::t - 1 failed in 0.2s', 'FAILED test_b.py::u - 2 failed'
+    ctx = lambda o: o.get('additionalContext', '')
+    ed = ('edit',)
+    for name, steps, want in [('s1', [('run', T, F1), ed, ('run', T, F1.replace('3', '7'))], True), ('s2', [('run', T, F1), ed, ('run', T, F2)], False),
+                              ('s3', [('run', T, F1), ('run', T, F1)], False), ('s4', [('run', T, F1), ed, ('run', T, None)], False)]:
+        tp = transcript(name, steps)
+        o = hook('Read', {'file_path': str(d / 'src.py')}, tp, name)
+        if want and ('the same test failure came back after your fix (E   AssertionError: N != N)' not in ctx(o) or hook('Read', {'file_path': 'x'}, tp, name)):
+            errors.append(f'same failure {name}: {ctx(o) or "silent"} (or said twice)')
+        if not want and o:
+            errors.append(f'same failure {name} should be silent: {ctx(o)}')
+
+    # PR receipt: opt-in, denied once, three kinds of line
+    PR = {'command': 'gh pr create --title x --body y'}
+    got, _ = decision('Bash', PR)
+    if got != 'allow':
+        errors.append(f'pr receipt without opt-in: {got}')
+    (d / '.helena' / 'git').write_text('main: no\npr: receipt\n')
+    for name, steps, line in [('p1', [ed, ('run', T, None)], 'Checked by Helena: `pytest -q` passed after the last edit'),
+                              ('p2', [ed, ('run', T, F2)], 'Checked by Helena: `pytest -q` FAILED after the last edit'),
+                              ('p3', [('run', T, None), ed], 'Checked by Helena: no test run after the last edit')]:
+        tp = transcript(name, steps)
+        o = hook('Bash', PR, tp, name)
+        if o.get('permissionDecision') != 'deny' or f'run the command again: {line}' not in o.get('permissionDecisionReason', ''):
+            errors.append(f'pr receipt {name}: {o}')
+        if hook('Bash', PR, tp, name).get('permissionDecision'):
+            errors.append(f'pr receipt {name}: second call not let through')
+    for c in ['gh pr create --body "Checked by Helena: nothing"', 'git commit -m "gh pr create later"']:
+        if hook('Bash', {'command': c}, transcript('p4', [ed]), 'p4x').get('permissionDecision'):
+            errors.append(f'pr receipt should pass: {c}')
+    # inside a git repo the line names the short sha
+    subprocess.run('git init -q && git -c user.name=t -c user.email=t@t commit -q --allow-empty -m x', shell=True, cwd=d, check=True)
+    sha = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=d, capture_output=True, text=True).stdout.strip()
+    if f'after the last edit, at {sha}' not in hook('Bash', PR, transcript('p5', [ed, ('run', T, None)]), 'p5').get('permissionDecisionReason', ''):
+        errors.append('pr receipt: short sha missing')
+    (d / '.helena' / 'git').unlink()
 
 for e in errors:
     print('failed:', e)

@@ -68,7 +68,7 @@ const turn = transcript => {
         try { d = JSON.parse(line); } catch { continue; }
         const c = d.message && d.message.content;
         if (d.type === 'user' && (typeof c === 'string' || (Array.isArray(c) && c.some(b => b.type === 'text')))) return { blocks, failed, seen };
-        if (d.type === 'user' && Array.isArray(c)) for (const b of c) if (b.type === 'tool_result') { if (b.is_error) failed[b.tool_use_id] = true; seen[b.tool_use_id] = JSON.stringify(b.content || '').length + ':' + JSON.stringify(b.content || '').slice(-200); }
+        if (d.type === 'user' && Array.isArray(c)) for (const b of c) if (b.type === 'tool_result') { if (b.is_error) failed[b.tool_use_id] = (Array.isArray(b.content) ? b.content.map(x => x.text || '').join('\n') : String(b.content || '')) || true; seen[b.tool_use_id] = JSON.stringify(b.content || '').length + ':' + JSON.stringify(b.content || '').slice(-200); }
         if (d.type === 'assistant' && Array.isArray(c)) blocks.push(...c.slice().reverse());
       }
       if (len === size) return { blocks, failed, seen };

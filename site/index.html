@@ -46,10 +46,10 @@
         transform: translateY(-100%); transition: transform .35s ease; z-index: 10; }
   nav.on { transform: none; }
   nav .marca { font-weight: 800; letter-spacing: .08em; text-decoration: none; }
-  nav ul { display: flex; gap: clamp(14px, 2.6vw, 30px); list-style: none; font-size: 13px; align-items: center; }
-  nav ul a { color: var(--dim); text-decoration: none; }
+  nav ul { display: flex; gap: clamp(12px, 1.7vw, 26px); list-style: none; font-size: 12.5px; align-items: center; }
+  nav ul a { color: var(--dim); text-decoration: none; white-space: nowrap; }
   nav ul a:hover { color: var(--fg); }
-  .troca { background: none; border: 1px solid var(--line); color: var(--dim); font: inherit; font-size: 12px; padding: 4px 8px; cursor: pointer; }
+  .troca { white-space: nowrap; background: none; border: 1px solid var(--line); color: var(--dim); font: inherit; font-size: 12px; padding: 4px 8px; cursor: pointer; }
   .troca b { color: var(--fg); font-weight: 500; }
   .troca:hover { border-color: var(--fg); }
   .idioma { position: absolute; top: 20px; right: clamp(16px, 4vw, 48px); z-index: 2; }
@@ -57,6 +57,15 @@
   section { min-height: 100dvh; padding: clamp(80px, 12vh, 140px) clamp(16px, 6vw, 96px); display: flex; flex-direction: column; justify-content: center; }
   .rotulo { color: var(--dim); font-size: 13px; letter-spacing: .12em; margin-bottom: 28px; }
   .rotulo::before { content: '// '; }
+  main { counter-reset: sec; }
+  main > section[id]:not(.hero) { counter-increment: sec; }
+  main > section[id]:not(.hero) .rotulo::before { content: counter(sec, decimal-leading-zero) ' // '; color: var(--fg); }
+  :focus-visible { outline: 1px solid var(--fg); outline-offset: 3px; }
+  .progresso { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: var(--fg); transform-origin: 0 50%; transform: scaleX(0); z-index: 11; pointer-events: none; }
+  @supports (animation-timeline: scroll()) {
+    .progresso { animation: avanca linear both; animation-timeline: scroll(root); }
+    @keyframes avanca { to { transform: scaleX(1); } }
+  }
   h1, h2 { font-weight: 800; letter-spacing: -.03em; line-height: 1.02; }
   h2 { font-size: clamp(30px, 5vw, 64px); max-width: 18ch; margin-bottom: 40px; }
   .texto { color: var(--dim); max-width: 62ch; font-size: clamp(15px, 1.2vw, 17px); }
@@ -80,6 +89,10 @@
   .btn:hover { background: var(--fg); color: var(--bg); }
   .btn.cheio:hover { background: transparent; color: var(--fg); }
   #helena { color: #bfbfbf; font-weight: 800; -webkit-text-stroke: .4px #bfbfbf; white-space: pre; line-height: 1; letter-spacing: 0; user-select: none; cursor: crosshair; }
+  .moldura { position: relative; width: 100%; max-width: 74vh; margin-left: auto; }
+  .moldura::before, .moldura::after { content: ''; position: absolute; width: 22px; height: 22px; border: 1px solid #6b6b6b; pointer-events: none; }
+  .moldura::before { top: -12px; left: -12px; border-right: 0; border-bottom: 0; }
+  .moldura::after { bottom: 20px; right: -12px; border-left: 0; border-top: 0; }
   .moldura figcaption { color: var(--dim); font-size: 12px; margin-top: 14px; display: flex; justify-content: space-between; gap: 16px; }
   #legenda { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
@@ -143,6 +156,12 @@
   .cartoes div { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 28px 22px; }
   .cartoes strong { display: block; font-size: clamp(28px, 3.4vw, 46px); font-weight: 800; letter-spacing: -.03em; line-height: 1; margin-bottom: 14px; }
   .cartoes p { color: var(--dim); font-size: 13px; }
+  .cartoes div, .numeros div, .fases li { transition: background .25s; }
+  .cartoes div:hover, .numeros div:hover, .fases li:hover { background: #0b0b0b; }
+  #orquestra .terminal { margin: 40px 0 48px; max-width: 980px; }
+  #orquestra .terminal pre { line-height: 1.7; }
+  #orquestra .terminal pre b { color: var(--fg); font-weight: 800; }
+  #orquestra .terminal pre i { font-style: normal; color: var(--dim); }
   .conta { border: 1px solid var(--line); padding: 22px; margin-top: 40px; max-width: 760px; font-size: 14px; }
   .conta .c { color: var(--dim); }
 
@@ -204,6 +223,7 @@
 </head>
 <body>
 <canvas id="campo" aria-hidden="true"></canvas>
+<div class="progresso" aria-hidden="true"></div>
 
 <nav id="nav">
   <a href="#topo" class="marca">HELENA_</a>
@@ -216,6 +236,7 @@
     <li class="l"><a href="#porque"><span class="pt">história</span><span class="en">story</span></a></li>
     <li class="l"><a href="#sozinha"><span class="pt">sozinha</span><span class="en">on her own</span></a></li>
     <li class="l"><a href="#economia"><span class="pt">economia</span><span class="en">savings</span></a></li>
+    <li class="l"><a href="#orquestra"><span class="pt">orquestra</span><span class="en">orchestration</span></a></li>
     <li class="l"><a href="#placar"><span class="pt">placar</span><span class="en">scoreboard</span></a></li>
     <li class="l"><a href="#registro"><span class="pt">registro</span><span class="en">registry</span></a></li>
     <li class="l"><a href="#empresas"><span class="pt">empresas</span><span class="en">teams</span></a></li>
@@ -230,7 +251,7 @@
 <main>
   <section class="hero" id="topo">
     <div>
-      <p class="rotulo">project helena · v1.7.0 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
+      <p class="rotulo">project helena · v2.0.0 · MIT <kbd class="esc" id="esc" aria-hidden="true">esc</kbd></p>
       <h1><span id="digita">Helena</span><span class="cursor"></span></h1>
       <p class="sub">
         <span class="pt">A camada que <b>confere</b>, em cima do Claude Code, do Codex e de qualquer IA. Memória que se confere contra o código, troca de IA sem perder nada, <b>nada de "pronto" com teste falhando</b>, e um benchmark que prova o que fica.</span>
@@ -530,6 +551,9 @@ Helena / secrets: .env holds secret values, … Its keys are: STRIPE_KEY, DATABA
       <div><strong>cache</strong><p><span class="pt">A barra de status mostra até que horas o cache do contexto vive. Responder depois paga tudo de novo; trocar de modelo no meio também, e ela avisa quantos tokens.</span><span class="en">The status line shows until when the context's cache lives. Answering later pays for all of it again; so does switching models mid-session, and she says how many tokens.</span></p></div>
       <div><strong>/budget</strong><p><span class="pt">Sem LLM: cada vez que o contexto foi pago inteiro e por quê, arquivo lido duas vezes, e com quanto contexto um subagente nasce. Mostra também onde não vale mexer.</span><span class="en">No LLM: every time the context was paid in full and why, files read twice, and how much context a subagent starts with. It also shows where not to spend effort.</span></p></div>
       <div><strong>1×</strong><p><span class="pt">por sessão: o kit entra no primeiro pedido que precisa dele, não em todos. O índice de memória corta cada descrição em 90 caracteres.</span><span class="en">per session: a kit comes in on the first request that needs it, not on every one. The memory index cuts each description at 90 characters.</span></p></div>
+      <div><strong>10k</strong><p><span class="pt">caracteres é o teto do CLI pro texto de um hook: passou, vira uma prévia de 2 KB. O início de sessão dela tinha 14,3 KB e a memória não chegava inteira. Agora sempre cabe (6,7 KB medidos): o índice de memória virou orçamento, com as notas do projeto e as mais usadas primeiro.</span><span class="en">characters is the CLI's cap for a hook's text: past it, only a 2 KB preview gets through. Her session start was 14.3 KB and the memory was not arriving whole. Now it always fits (6.7 KB measured): the memory index is a budget, project notes and the most used ones first.</span></p></div>
+      <div><strong>/diet</strong><p><span class="pt">Sem LLM: quanto cada plugin, skill e agente seu pesa antes de você digitar, e quantas vezes foi chamado em 30 dias. Na primeira rodada apareceu um plugin de 2,5k tokens com zero usos.</span><span class="en">No LLM: what each plugin, skill and agent of yours weighs before you type, and how many times it was called in 30 days. The first run showed a 2.5k-token plugin with zero uses.</span></p></div>
+      <div><strong>tail</strong><p><span class="pt">Saída longa de comando é dobrada e cortada, com o texto inteiro salvo em disco. No replay de 30 dias (1.846 comandos) ela mudaria 0: o modelo já usa <b>tail</b>. É rede de proteção. Economia nenhuma anunciada.</span><span class="en">A long command output is folded and cut, with the full text saved on disk. Replayed over 30 days (1,846 commands) it would have changed 0: the model already uses <b>tail</b>. It is a safety net. No saving announced.</span></p></div>
       <div><strong><span class="pt">turno</span><span class="en">turn</span></strong><p><span class="pt">Os hooks de fim leem só o último turno, de trás pra frente, numa sessão de 8 MB. O contraste roda só nas páginas mexidas agora, sem rebloquear o que já passou.</span><span class="en">The end-of-turn hooks read only the last turn, from the end, in an 8 MB session. Contrast runs only on pages touched now, without re-blocking what already passed.</span></p></div>
     </div>
     <div class="conta surge">
@@ -537,6 +561,42 @@ Helena / secrets: .env holds secret values, … Its keys are: STRIPE_KEY, DATABA
       <span class="pt">cada mensagem relê o contexto inteiro<br>~15k tokens fixos a menos × 40 mensagens = <b>~600k tokens</b> que deixam de ser relidos numa sessão</span>
       <span class="en">every message re-reads the whole context<br>~15k fewer fixed tokens × 40 messages = <b>~600k tokens</b> no longer re-read in one session</span>
     </div>
+  </section>
+
+  <section id="orquestra">
+    <p class="rotulo"><span class="pt">orquestra</span><span class="en">orchestration</span></p>
+    <h2 class="surge"><span class="pt">A sessão cara planeja. As baratas escrevem.</span><span class="en">The expensive session plans. The cheap ones write.</span></h2>
+    <p class="texto surge">
+      <span class="pt">Em 30 dias e 8.483 chamadas ao modelo, o gasto não estava na saída das ferramentas. Estava em <b>chamadas × contexto × preço do modelo</b>. Então a 2.0 mantém a sessão principal fina: ela planeja e julga, e quem lê e escreve é um worker que nasce com uns 34k de contexto num modelo mais barato.</span><span class="en">Over 30 days and 8,483 model calls, the spend was not in tool output. It was in <b>calls × context × model price</b>. So 2.0 keeps the main session thin: it plans and judges, and the reading and writing go to a worker that starts near 34k of context on a cheaper model.</span>
+    </p>
+    <div class="terminal surge">
+      <div class="topo"><span>/helena:orchestrate</span><span>2.0</span></div>
+<pre class="pt"><b>plano      aqui, até 12 linhas: passos · arquivos · o que é pronto</b>
+ │
+ ├─ <b>onda 1</b>  ┬ builder A   worktree   src/api/*
+ │          ├ builder B   worktree   src/ui/*
+ │          └ builder C   worktree   docs/*
+ │          <i>wave.js land  →  3 patches conferidos, nada commitado</i>
+ ├─ <b>passo 4</b>   builder     nesta árvore (depende da onda 1)
+ └─ <b>testes</b>  →  só depois alguém lê o diff</pre>
+<pre class="en"><b>plan       here, 12 lines at most: steps · files · what done means</b>
+ │
+ ├─ <b>wave 1</b>  ┬ builder A   worktree   src/api/*
+ │          ├ builder B   worktree   src/ui/*
+ │          └ builder C   worktree   docs/*
+ │          <i>wave.js land  →  3 patches checked, nothing committed</i>
+ ├─ <b>step 4</b>   builder     in this tree (needs wave 1)
+ └─ <b>tests </b>  →  only then someone reads the diff</pre>
+    </div>
+    <div class="cartoes surge">
+      <div><strong>3</strong><p><span class="pt">builders lado a lado, cada um no seu worktree, quando os passos não dividem arquivo. Um comando aterra os três; patch que colide não entra e o worktree fica guardado.</span><span class="en">builders side by side, each in its own worktree, when the steps share no file. One command lands all three; a patch that collides does not go in and its worktree is kept.</span></p></div>
+      <div><strong>brief</strong><p><span class="pt">Todo worker já nasce sabendo como reportar, qual comando confere o projeto e o que foi decidido no HANDOFF.md. O orquestrador escreve só o passo, os arquivos e o que é pronto.</span><span class="en">Every worker starts knowing how to report, which command checks the project and what HANDOFF.md already decided. The orchestrator writes only the step, the files and what done means.</span></p></div>
+      <div><strong>8k</strong><p><span class="pt">caracteres de relatório e ele volta uma vez: o texto inteiro vai pra um arquivo, o relatório cabe em 20 linhas. Quem chamou relê esse relatório em toda mensagem.</span><span class="en">characters of report and it goes back once: the full text goes in a file, the report fits in 20 lines. The caller re-reads that report on every message.</span></p></div>
+      <div><strong>20</strong><p><span class="pt">chamadas de ferramenta num pedido só, com 100k+ de contexto em Opus ou Fable: uma linha diz quanto cada chamada relê e aponta o builder. Uma vez por pedido.</span><span class="en">tool calls in one request, at 100k+ of context on Opus or Fable: one line says what each call re-reads and points at the builder. Once per request.</span></p></div>
+      <div><strong>opus</strong><p><span class="pt">Passo que falhou sobe um degrau por vez: builder novo (em Opus, se a sessão roda acima dele), depois a sessão principal. Nunca um terceiro worker pro mesmo passo.</span><span class="en">A failed step climbs one rung at a time: a new builder (on Opus, when the session runs above it), then the main session. Never a third worker for the same step.</span></p></div>
+      <div><strong><span class="pt">resumo</span><span class="en">summary</span></strong><p><span class="pt">Antes de compactar, ela diz ao resumo o que guardar: suas regras, decisões e o que foi rejeitado, arquivos com linha, o último teste. Conteúdo de arquivo fica de fora.</span><span class="en">Before a compaction she tells the summary what to keep: your rules, decisions and what was rejected, files with lines, the last test. File contents stay out.</span></p></div>
+    </div>
+    <p class="nota surge"><span class="pt">Nenhuma economia é anunciada pra orquestração: as medições publicadas de "modelo forte planeja, modelo barato escreve" vão pros dois lados. O <b>/helena:budget</b> mostra o que os seus workers custaram.</span><span class="en">No saving is announced for orchestration: published measurements of "strong model plans, cheap model writes" go both ways. <b>/helena:budget</b> shows what your workers cost.</span></p>
   </section>
 
   <section class="frase">
@@ -653,85 +713,102 @@ python project-helena/helena/connect.py</pre>
 </footer>
 
 <script type="text/plain" id="arte">
-                                                                                 ++++++++++
-                                                                         ====--::.      ::-=..:-
-                                                                     =:...    .:-==-:..   .     ....:-
-                                                           +++**+--..      .+@@@@*=.   :.       ...    ..-
-                                                         =#@@@#=:. :.:..::-@@@*=.       =--.  ...         .:
-                                                      -.#@@@*==.   -:     ++=.         :.  =-               :-
-                                                      ::*@#=*:    :.:.    .:        .::     :-            .  .+-
-                                                       .-+**  ..:...        ......::         .=            :::+%:
-                                                        .+....  :.                         .. .=      .    +:=+%@-
-                                                       -%=     : :.            . .           :..=      -:--%@-=++@==
-                                                      =@#==: :=:-:+::::. :..  : .@:  .        :: =     =--+@%#--: =-
-                                                     -@@=*: ----=##@*- :-:   : :@@%   ..: :::*:-- =  .  +:--  ...  =:
-                                                    -#*::: :.=..   -. .::   . =@@@@*   .:: -#+#--: =  :   -.        =:
-                                                   :*:- .   -         : :.  .#@@@@@@+..  :       .. -  -   :         -:
-                                                  :* =     :        . .+   +@@@@@@@@@*:=  :.         -  -             .=
-                                                 =+ -     .     .:. .*=  =@@@@@@@@@@@@#:+.  ::.       - .-.            .
-                                                 -. -          :. .** .+@@@@@@@@@@@@@@@@===   :-.      - -:         .   .
-                                                :. :         .. -#*:-#@@@@@@@@@@@@@@@@@@@%==:   :-:       -..        :  .
-                                               ::  :   .      =%*+*@@@@@@@@#+=-:..:-=+*#%@@%+:     ..     ..:        -   .
-                                              -:.:.    :     -=#@@@@@@@@%-. .-+#%@@@@@@@@@@@@@*  ..         .        .:  .=
-                                             +:. .:    . -%%#+=-=@@@@@@@@%%@@*##***#%%@@@@@@@@@@:   .   -**-         .=  :.
-                                             ..  ..   -  #@+===*%@%@@@@@@@@@=:. .     .-*@@@@@@@%.   :-@+++=*        :=...:
-                                            :.=  .. . -  . .=.. :%#%@@@@@@@@=#@+--:+-+-%@@@@@@@@@+  :==:+%@++.       :=.-.:
-                                            ..   .  ...   #+@+=--+@@@@@@@@@@@@@@*+++##@@@@@@@@@@@@::@-.::=@%%:       :-. .:
-                                           ..    . : =    *%####@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@=%@::-+ #@%        :.. .
-                                           .:    . - =    +@@@@@@@%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*.:  :##  :   .  ..-=
-                                          ..     . - -    -@@@@@@%#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@:..+@%=   :   :   .
-                                          ..     . ::.    .@@@@@@+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%- =@@+   .-   :. ..
-                                          .=    - ..=      %@@@@@+=%@%#@@@@@@@@@@@@@@@@@@@@@@@@@@+:.:-:    :.   ....-
-                                          .     : . =      -@@@@@@@%@@@@@@@@@@@@@@@@@@@@@@@@@@@+--.+   .   :   ..==
-                                          .     . . -       *@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*-=*=@%  :       .-
-                                          .     . . ::       #@@@@%%*#%###%%%#@@@@@@@@@@@@*+:=*@*@@- =     ..=
-                                                .  ..:.       +@@@%@@#%@@@@%@@@@@@@@@%*+--+*%@@@@@= :  ...-
-                                           :    .  . :-   .    -@@@@@#++*@@@@@@%+-.  -+*%@@#*%@@#. :...
-                                           =    .. . .-   -     .%@@@@@@@@@@@@@#..:=#@@@#=+#@@@%#@@@- .........::-=+++
-                                            =   .:    :.   +- .-+=+@@@@@@@@@@@@@@@@@@*--=@@@@@@@@@@@+      ..:::.    .==.=
-                                                .-  . ..   #%@@@@@#-@@@@@@@@@@@@%*=::-*@@@@@@@@@@@@@%          .::::-:   :
-                                                -=  ::  .*@@@@@@#+=. =%@@@@%*=::.-=+#@@@@@@@@@@@@@@@%  .:::::::.        .=
-                                                 =  :% +@@@@@+=:.            :=++*#@@@@@@@@@@@@%+=-:...    ..           .
-                                                 -. .@%@@@*=::.::..          .@@@@@@@@@@@%*=:.                          .
-                                                 .=  @@@@% *                  @@@@@#+==-:.                             -:
-                                                 ==  %@@@@  .:..........::::::::-.....            ..                  =.:
-                                                  .: *@@@@*     +    .......    =             .:-.                   -   .-
-                                                  =- :@@@@@-.   -               -           :-:.             .......       .
-                                                   :: @@@@@*-:   =             :.:        :-.           .::--..             .
-                                                    . =@@@@.-.-  -             ..+       .           ::-:..        .::-:::. .=
-                                                     ..#@@+-   .  -             -=                ::.         :-:::     ..   .
-                                                      :.-.  -     :.            -.-            ...      .:::=:             ... ..=
-                                                     =::.    :     =             -*..              ...:: ..                   .:. ..
-                                                  --:    ..   .    .-        .:::::.                   ::                           ..
-                                                :..           -  .. -      ..      =         ..     .::.                              .:
-                                               ..             -:    :. ..::....    =   .::::      :=-:.                             -  ..
-                                              . .             --   :.            ::=:::        :=--.                  :.             =  ..
-                                             . :.             ::   : .     ....::::         .::.                     =               .=  ..
-                                            .  :.             .:   .                      .                         = . .             ::  .:
-                                           .  .-   .           .  -                                                -    .              =.  .-
-                                          ..  --  .              -.           .:.                                 ..   :                +   .
-                                         ..   =.  :             -.         . .:.                                  :    :                 -   .
-                                        .     *  =             :.       .:.  -.                                  .    -      .           ..   .
-                                       .-     - +             :.     ..:.   -..                                       -     :                 ..
-                                      :.=    : +             -.    .:.     =..                                       =      -        ..:::..::-.=
-                                      . -    :+.            -.   .        =.:                           .            =      :.     ..::.        .
-                                     .   -   %:            -.            -.:                            .           -.     ::.     ::            :
-                                    ..   -  =-            -.            -.-                              :   :      *      -::   -:          .   .
-                                   -:     :-=            :.            : -                               -   -     :-      :-: -:             .   .
-                                   :      .+            .:              =                                :   :-    +       .:::               :   .
-                                  .=      #             =              :                                  :   *:   +     ..-:   ...            :   .
-                                 .#      +.            =               :                                  :   *=  .-   :.::     .=             :   .=
-                                -+=     .*             :             :.                                    :  :+  :  .::.      ..=              =   .
-                               =:+.     +:            -              .                                         =. : .-.        .-:              .-  .:
-                              =. +      %             =             :                                           : . :          :=                -.  .
-                              .  +      #             =             :.                                          -  .          .=.                 =   .
-                             .   +      *            .-             -:                             .            :             -=                   =  .=
-                           =.    =      +  .         ::             =:                              -           . .          .*                     -  .
-                          -.     -      +   .        :.             =:  :                            -            -          #                      .: .:
-                         -.      :      +   -        :.             +:  :.                            =           =         +                        .- .
-                        =.       .      +   -:       :              =:   -.                            =          +        =                           : .
-                        .      .:       =   :-       :              =:   :-                             =         +       -                              .
-                        .        :.     =   :-       :              -:    --                             =        =      :                                .
+
+                                                                        ________
+                                                                _,~~_%%%~++++#@@@%_=,_
+                                                           _,__@@@%~~.,      ~,_`*(`^(\,
+                                                        ,%%#^"`      ______    "+_ `  ` +~~~,__
+                                              __,.___,/^"       __@@@@%@*%"^+_          ~~~~._`^=_
+                                          __@@@@%@#*~          @@@@@@@"/`    ",        +~._      `^;
+                                        ,@@@@@@@#_=^ ^_=^""*% @@@@@@"<`       |@@,  `"+._  `        "\
+                                      _;@@@@@@#_@"    `      %%@@#`<          @   @      -           ^@;
+                                     @%@@@@@@`@%     ) `     %\*`"           @`   %@              ,    %%_
+                                     \ @@@@"@@`     @`"_~"    %           _,*      %,              >_   %@,
+                                      %%%@_@%     ,* ,^`       ^=_______=#"         %_               \ _ #@\
+                                      ^/%@%@___,+" ,^             ``````        ^.   %_             \ %_@%%@%
+                                       (_@ ```   _#` ,'                           >_  %       `,     %_%@@@%@%
+                                      ,@@"/     ," ,^               /              "(  %        % (_ @@,%@@@%@\
+                                     ,@@%@  /  @`_/`       - _^,   /  @   \          %  @      \ % %@@@@,%^@%@@,
+                                    ,@%@@_%/  @<_%,_@___/,` ,`,   )` @%_   (        ^,%_ @      %_@ @@@@@_%"  @@
+                                    @@@@%@@  @"@"@_@@%@%# _@`/   ;` @@@@    ,^_ \_  ; (%_^(  ^   @ @ @% `% ,   @%
+                                   %@@@`@@  @`@`/@#""@)^ ,*_^   /` @@@@@_    ,^, %@@@@_%% ^,  ^  "%^@     ('   ^@;
+                                  /@@@%",` ,`)`/     /` .`,` , /  @@@@@@@ ;   (^( *@*#@_%) ^_  \  ^ ^_          %@
+                                  @@(@  ^  `,^      /   _#  /    @@@@@@@@@ (   \       ^ \` %_  \    %           %%
+                                 %@ @`    / (        . ," _%   _@@@@@@@@@@@"@   %         \  %   (                %,
+                                ;@` %      /        < /`_@*   @@@@@@@@@@@@@@^@   "_           %  %                ^%
+                                @% @      ,       ,`,` _@^  _@@@@@@@@@@@@@@@@^@_   %_.         %  %'               \(
+                               %@  ^      `     _#," _@@` _@@@@@@@@@@@@@@@@@@@_@_   "(>,        \ ^_,           ,   ^
+                              ,@` )      .     ,`  _@@* _@@@@@@@@@@@@@@@@@@@@@@_%@    %,\_       , %)           ^    \
+                              @^  (          _/  _@@#`_@@@@@@@@@@@@@@@@@@@@@@@@@@/%_    ^(~_     '  ,,(          ,   ^
+                             %/        !    ,` _@@@`_@@@@@@@@@@@@@@@##***##@@@@@@@@".     "<^       (|^          )    \
+                            ;@ , )     `   < _@@@@@@@@@@@@@@@@*"`   ___@@@@@@@@@@@@@@_      `^.     ^             ,   /
+                            @` ` |    ,      `"%@@@@@@@@@@@@%< __@@@@@@@@@@@@@@@@@@@@@,  ^._                      %   ((
+                           /(;#; `    |  _@@@___`%@@@@@@@@@@@@@@@@@@@##@@@@@@@@@@@@@@@@@ _ `^+~   ____            |   ^|
+                          ,% " |      ` ~%@@@@@@@@@@@@@@@@@@@@@@"@@#**""***@@@@@@@@@@@@@%_>.   /_@@##@@          `)    %
+                          %`/  `)  : %   @@`#*##@@@@@@@@@@@@@@@@*`__ _    _  "*@@@@@@@@@@     @%%%@@@,@,         |^  , %
+                         ;//`  `|  ` |   ^  _,_  "@@@@@@@@@@@@@@`@@@ %__@`@^_@@@@@@@@@@@@@   ,@@^_@@@@@@         )   | @
+                         % "   ``    %    _%%@", _ @@@@@@@@@@@@@@@@@@*#@*@%@@@@@@@@@@@@@@@) @@@!,_%@@@@@         |)  | %
+                        .`/       )  `    @@@@@%@#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@_@@%,`_^%@@@@         |)  @ |
+                        | `       | )     @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  %%@ %%%%         `|  @;`
+                        `|        ` @     @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ ) ^^_@@@  |    .  `` )%"
+                       | /          %     @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@` ,  _@@@   `    `  .  @%
+                       (.`       _  `     %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ /`@@@@%   _         ,+"
+                       `(        ) %      %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@`<_@%%@`  . /    /    /
+                        (     )  | @       @@@@@@@@%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#, @@%@"    ` `   ,   ,/
+                      ) `     )  | @       @@@@@@@@_%@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%#`""*"       (    `, ,"
+                      ).      |  | %       %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@,* //        (/    '_%/`
+                      ))      |  / `        @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"@_%_@%  `/   )     ,~%`
+                       %      (  `^         ^@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#,"@@@%%~ ),    `    /"
+                       %      |  `%          %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#_#_@@@@%@ _)`       ,^
+                       %      |  `)           %@@@@@_@@@@_@@@@@@__@@@@@@@@@@@@@#_@*_@@@@@@@` @      _="`
+                       )      |   | ^          %@@@@@@@@@@@@@@@@@@@@@@@@@@@@",#"_@@@@@@@@@^ "    /,>`
+                        (     |   | ^     (     %@@@@@@@@@@@@@@@@@@@@*_>   *_@@@@@@%@@@@@`  ,  ;^"
+                        %     |   | ^     |      "@@@@@@@@@@@@@@@@@@ "   _@@@@@@@*_@@@@@_@@@@  ______~~=~~..___
+                         ,    |,  `   /   ^ (     "@@@@@@@@@@@@@@@@@@_@@@@@@@@#`@@@@@@@@@@@%@      ``````""^+%%%__+~_
+                         ^,   |`  `  /,    @^   __@_@@@@@@@@@@@@@@@@@@@@@@@#",@@@@@@@@@@@@@@%        ..`"*^+~.   `"%=",
+                          ",  |%     (|    @@@@@@@@@_@@@@@@@@@@@@@@@@@@@#"_;@@@@@@@@@@@@@@@@%,     ""^^-  ``  ___@#`  |
+                            - ||   ) !    _@@@@@@@@@@,%@@@@@@@@@@@@@@*`,,@#@@@@@@@@@@@@@@@@@%@        ___,=##*"`      `
+                              ||   %,   _@@@@@@@@@#",~ "@@@@@@@@#*`_.=@@@@@@@@@@@@@@@@@@@@@%%@   __=#*"``__.~         `
+                              )@   %@ _@@@@@@@@#_,^`      """`   --%@@@@@@@@@@@@@@@@@@@@@@#"_,=+"`  _.~^"`           )
+                               %,  %%_@@@@@@#`,#`_               >@@@@@@@@@@@@@@@@@%@@*",~^"`      `                 |
+                               %@  %@@@@@@#_@" >^>^-,            ^%@@@@@@@@@@@@@@#"`                                 (
+                               |@  %@@@@@@ @  ` `">"              %@@@@@@@@@*"_,~                                   %`
+                               )%   @@@@@@ "%,_                   %####"`_,=+"`             -                      /
+                                %,  @@@@@@    `"^^_,,_____,~~~==+#+#% ^"`                ->`                      @ ,\
+                                %%  @@@@@@@       `     ______,,.    `               ,'/`^                       /`  "%,
+                                '@, @@@@@@@_      ,                  |             _/,^/`                   _,~~^`     `\,
+                                 %\ ^@@@@@@@^_    @                  %            ,^/`'               _,=+"`             %
+                                  %  @@@@@@@ @    %                  %           /,"              _,#"_,~"`               ;
+                                  \) %@@@@@%) %    ,                (^,        ,^/             _=^_,+"`           _____   \
+                                   %, @@@@@ @  %   \                ) %       /             _=*`>^`         ___@#^"``  `
+                                    % %%@%@%`   ,   ,               ^ %      '            _+"           __@#^`      `>,    \_
+                                     % @#"` %   ^   %                ,%                _="`         _,#%%`             "+,  `^~_
+                                     __      \      ^,               | %  ,-"        _<`        _,#"`,<`                  "~_  "\,
+                                   ,%@^\      \      %                _@+`           `      _=+"`  ,"                        ^,  `^,
+                                 =%@"   ",     `     ^,            _=^|^               _.-^`     ,#                            ^    \_
+                               ;%^`       "~   , ^_   %         ,+"`  ^ (            ^`_.      ,^` -                                 ",
+                              /)`             .|   ^.  /     -^`        %    _     _,+`     _@" ,<`                               .   '\
+                             /                ^%       % .__           .%   `  _,+"`      _@%-,^                                   \    \
+                            / /                /(     @`   `""^^^^""`   | __@#"`        ,#)^,"                     _^               (   ',
+                           /                  .\^    )              __@@#*"`         _>*>">"                      ,"                ^,   ",
+                          /` |.                ^,`   ' -      __.=+^"% )           _+`/` `                       ,`                  %    %
+                         ,`  `(                \\    `  ^<_  `       ( `        _~" <`                          _^ .                  %    %
+                         "  _                    .                            >^`                               % /  `                ^,   ',
+                        /   |)                  '   @                                                          @ .                     %    \
+                       /    ||   ;                 @`              ;                                          ,`    |                   ;    %
+                      /`    %`  _`                _`            ,',`,                                         ^     `                   "     ;
+                     /`     @   /                _%           ,^ _^ `                                        )     )                     \    ^
+                    /`      %  @                 %          ,^>` / (                                         `     ^                      ,    %
+                   ,\      %` _`                @        _>">`  @ /                                         .     .       )               '     ;
+                   /%      @  @                @       _/`-`   ;`,`                                               |       |             _    ~, ^
+                  ;`       | @`               @`     ,^,^     _^_`                                                `       `          _+" _,=~~_` \
+                  /  `     `@`               @`   _>` `       %_(                                                |       \         ,^`,+"`     "~',
+                 /   @    )@%               ,`  .^`          @ /                                                 %       |.       ^ ,"`           %
+                .`   %    @@               _"               ;`@                                   ,             )`       /|.      _^
+                %     ,   @`              _%               _`)`                                   |             @        ``!    _#`           :    %
+               /)     \  @`               @                (_^                                    )     `       %          `  _@`                  '
+               %`       )%               @`               / /                                           (.     )`       ) ,^ ,"                ,    |
+              %/       `@               _`               ) ;                                       (    ||     @        || _#`                 '    ^
 </script>
 <script>
 addEventListener('DOMContentLoaded', () => {
@@ -825,15 +902,16 @@ addEventListener('DOMContentLoaded', () => {
       acorda();
     });
 
-    // ela pisca: o escuro dos olhos (linhas 21-22 da arte) vira pele em cima e cílio embaixo por ~130 ms
-    const OLHOS = [[57, 66], [76, 88]], aberto = [21, 22].map(y => grade[y].slice()), pele = c => '@%#'.includes(c);
+    // ela pisca: os olhos (linhas 32-34 da arte, gerada por extras/ascii.py) fecham por ~130 ms: pele em cima e embaixo, cílio no meio
+    const OLHOS = [[43, 50], [64, 78]], LIN = [32, 33, 34], aberto = LIN.map(y => grade[y].slice()), pele = c => '@%#'.includes(c);
     const pisca = () => {
       for (const [a, b] of OLHOS) for (let x = a; x <= b; x++) {
-        if (!pele(grade[21][x])) grade[21][x] = '@';
-        if (!pele(grade[22][x])) grade[22][x] = '-';
+        if (!pele(grade[32][x])) grade[32][x] = '@';
+        grade[33][x] = '-';
+        if (!pele(grade[34][x])) grade[34][x] = '@';
       }
       acorda();
-      setTimeout(() => { grade[21] = aberto[0].slice(); grade[22] = aberto[1].slice(); acorda(); }, 130);
+      setTimeout(() => { LIN.forEach((y, i) => { grade[y] = aberto[i].slice(); }); acorda(); }, 130);
     };
     (function proxima() {
       setTimeout(() => { if (!document.hidden) { pisca(); if (Math.random() < .25) setTimeout(pisca, 260); } proxima(); }, 2500 + Math.random() * 3500);
@@ -910,7 +988,13 @@ addEventListener('DOMContentLoaded', () => {
     router: ['cada pedido: kits, notas, avisos de limite, snapshot', 'every request: kits, notes, limit warnings, snapshot'],
     guard: ['commit e push: chave, .env, regras de git', 'commit and push: keys, .env, git rules'],
     gate: ['.env, pacotes, destrutivo, testes, política', '.env, packages, destructive, tests, policy'],
-    trim: ['barra lockfile, build e arquivo gigante', 'blocks lockfiles, builds and huge files'],
+    trim: ['barra lockfile, build e arquivo gigante (com o esboço dele)', 'blocks lockfiles, builds and huge files (with their outline)'],
+    squeeze: ['dobra e corta saída longa de comando; o inteiro fica em disco', 'folds and cuts long command output; the full text stays on disk'],
+    brief: ['todo worker nasce com relatório, comando de teste e decisões', 'every worker starts with report format, check command and decisions'],
+    compact: ['diz ao resumo da compactação o que guardar', 'tells the compaction summary what to keep'],
+    delegate: ['modelo, teto e relatório curto dos subagentes', 'model, caps and short reports for subagents'],
+    nudge: ['lembra do teste a cada 3 edições', 'reminds about the test every 3 edits'],
+    outside: ['texto de fora é dado, não ordem', 'outside text is data, not orders'],
     check: ['contraste do texto antes de entregar', 'text contrast before delivery'],
     done: ['testes antes do "pronto"', 'tests before "done"'],
     end: ['fim de sessão: destila a memória', 'session end: distills memory'],

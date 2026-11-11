@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-1.7.0-black">
+  <img alt="version" src="https://img.shields.io/badge/version-2.0.0-black">
 </p>
 
 ---
@@ -164,13 +164,18 @@ not read it.
 
 ## Commands
 
+Only `remember`, `forget`, `recall` and `orchestrate` are listed to the model; the other 13 are typed by you, so their
+descriptions are not paid on every call (425 tokens less per call, measured with no other plugin on). Asking in plain
+words still works for the reports ("quanto gastei essa semana?", "what does Helena know?"): `router.js` points the
+model at the command.
+
 | Command | What it does |
 |---|---|
 | `/helena:setup` | First day: point her at your vault and let her learn from your past sessions |
 | `/helena:remember <fact>` | Teach her something right now (a rule, a preference, a project fact) |
 | `/helena:forget <fact>` | Remove a memory that is wrong or outdated |
 | `/helena:status` | What she has learned: memories, kits, library, skill candidates |
-| `/helena:budget` | Where your tokens went this week (per day, per project, what filled the context), files read twice, every time the context was paid in full instead of read from the cache and why, what each subagent cost by model and effort, and what Helena costs |
+| `/helena:budget` | Where your tokens went this week (per day, per project, what filled the context), files read twice, every time the context was paid in full instead of read from the cache and why, what each subagent cost by model and effort, what Helena costs, and "Requests checked by tests" (requests that ended under the done check, green or blocked at least once, with their average tokens) |
 | `/helena:skills` | The skills she created on her own from your repeated requests, and how often each was used |
 | `/helena:undo <skill>` | Delete a skill she created (she will not create it again) |
 | `/helena:undo <skill> learned` | Remove the last lesson she added to a skill |
@@ -181,8 +186,9 @@ not read it.
 | `/helena:recall <words>` | Search your recorded sessions (no LLM, no index): date, project and the turn where it was said |
 | `/helena:app` | Open the Helena app: a chat over Claude Code, Codex and Gemini with live subagent cards, up to four panes, `/model`, and what she blocked, checked, remembered and spent |
 | `/helena:audit [days]` | What the hooks blocked or asked about, and where the AI reached outside this machine; `--json` for a team's own log tools |
-| `/helena:orchestrate <task>` | Plan in this session and hand the coding to one cheaper worker at a time; the tests run before the diff is read |
+| `/helena:orchestrate <task>` | Plan in this session and hand the coding to cheaper workers; steps with no shared file run side by side (up to 3 builders, each in its own worktree) and land with `helena/wave.js land`; the tests run before the diff is read; a large change (over 3 files or 150 lines) gets one review by a fresh worker, then a second fresh worker tries to refute each finding, and only those that stand are fixed or shown |
 | `/helena:race <task>` | Two workers try two approaches in separate worktrees; the one whose tests pass is applied here (tie: smaller diff). Only for a task with two real ways to do it; costs two workers |
+| `/helena:diet [--off <plugin>]` | What sits in the context before you type: each plugin, your own skills and agents, CLAUDE.md, with an estimate in tokens and how many times each was called in 30 days; `--off` turns one plugin off in this project only. Also lists lines of CLAUDE.md / AGENTS.md the repo already shows (an npm script restated, a directory tree, a long "do not" list) with line ranges and tokens; reported, never changed. No LLM |
 | `/helena:share <note>` | Copy one of your memory notes into the repo's `.helena/memory/`, reviewed like code |
 | `/painel` | A pane with context by category and Helena's own spending (Claude Code 2.1.287+) |
 
@@ -341,7 +347,25 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   the files, one `helena:builder` (Sonnet) at a time writes, and the diff is read only after the tests pass. No saving
   is claimed for it yet: published measurements of "strong model plans, cheap model codes" go both ways, and
   `/helena:budget` shows what your workers cost so you can compare. `/helena:race <task>` is the two-approach version: two builders in separate worktrees, the tests
-  pick the winner.
+  pick the winner, landed with the same script.
+
+  In waves: steps that share no file, do not need each other's result and whose files have no uncommitted changes run
+  side by side, up to 3 builders, each in its own git worktree; everything else one at a time. `helena/wave.js land
+  <worktree>...` lands them: each worktree becomes a patch, checked against the main tree and applied; nothing is staged
+  or committed; a patch that collides is NOT LANDED and its worktree is kept. Briefs are under 10 lines. A failed step
+  climbs one rung: a new builder (on `opus` when the session runs on a model above Opus), then the main session.
+- **Thin main session (2.0).** What a tool call costs is the context it re-reads times the model's price. 30 days of
+  the creator's sessions (8,483 model calls) showed the tokens go into calls x context, not into tool output, so 2.0
+  keeps the main session thin and moves work to workers. Past 20 tool calls in one request, on a model at Opus level or
+  above with 100k+ of context and no worker started, `gate.js` says once what each call re-reads and names the two
+  cheaper ways (a `helena:builder` with a short brief, or finish and /clear). `brief.js` starts every worker with the
+  report format, the check command, the `## Decisions` of `HANDOFF.md` and `tests: spec-only`. A worker whose last
+  message passes 8,000 characters is sent back once to put it in a file and report in 20 lines (`report: <characters>`
+  or `report: off` in `.helena/delegate`). `compact.js` tells the compaction summary what to keep and what to leave
+  out. `squeeze.js` shortens a Bash / PowerShell output over 4k characters (full text saved in `~/.helena/out/` for 3
+  days, `# helena:full` skips it); replayed over those 30 days (1,846 commands) it would have changed 0 outputs, because
+  the model already pipes long output through tail, so it is a net and no saving is announced. No token saving is
+  claimed for orchestration either.
 - **Where the AI reached out.** Every fetched host, web search, MCP server and URL in a `curl` / `wget` leaves one line
   in `~/.helena/egress.jsonl`; `/helena:audit` lists the most used.
 - **Attacked on purpose.** `eval/test_redteam.py` feeds 37 bypass attempts to the hooks (a delete hidden in a variable
@@ -436,6 +460,8 @@ never: *.mp4 renders/ .env.production
 
 `main: no` denies direct commits on `main`/`master` (merges and pushes stay free). `never:` takes globs like
 `.gitignore`. The guard hook also denies API keys and `.env` files in anything about to be committed or pushed.
+`pr: receipt` (opt-in) makes `gh pr create` be denied once per session and commit with the line to add to the PR body:
+`Checked by Helena: <test command> passed|FAILED after the last edit, at <sha>`, or that no test ran after the last edit.
 
 ### Team policy (`<repo>/.helena/policy`) and tests (`<repo>/.helena/test`)
 
@@ -490,15 +516,20 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 
 | Where | What |
 |---|---|
-| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo (past 4 KB, only its "Next" goes in), the instruction file the AI does not read (and the cost of a heavy one), the memory index (yours + the team's, STALE marks), what looks wrong in the repo's own AI config (`CLAUDE.md`, `.mcp.json`, `.claude/settings*.json`), news, runs the worker if overdue; after a compaction, the user's own rules from before it, word for word |
+| `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo (past 4 KB, only its "Next" goes in), the instruction file the AI does not read (and the cost of a heavy one), the memory index (a 1 KB budget: this project's and the team's notes first, then the ones handed over most, and how many are not listed; STALE marks; the whole start is 9.5 KB at most, since Claude Code shows only 2 KB of a hook output past 10,000 characters), what looks wrong in the repo's own AI config (`CLAUDE.md` / `AGENTS.md`, also the tracked nested ones and `.claude/rules/*.md`, 40 files at most; `.mcp.json`, `.claude/settings*.json`), news, runs the worker if overdue; after a compaction, the user's own rules from before it, word for word |
 | `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the redo note; the undo snapshot. Subagent reports and notifications are not treated as requests |
 | `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, and their `checks:` / `until:` |
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys (AWS and Slack included), `.env` files and anything that breaks `.helena/git`; adds `gitleaks` findings when it is installed |
-| `helena/hooks/gate.js` | PreToolUse: `.env` reads (also through quote tricks, globs, one-liners and copies), made-up or brand-new packages and releases under 72 hours old, destructive commands (also through a variable, an interpreter, base64 or `sh -c "…"`), the same call with the same result 4 times in a row, weakened or deleted tests (with `tests: spec-only`, new test files too), the hidden tests in `.helena/holdout`, erasing the audit trail, `.helena/policy`; logs the hosts a `curl` / `wget` names |
-| `helena/hooks/delegate.js` | PreToolUse (Agent) and SubagentStop: a model below the session's for workers started without one (always); with `.helena/delegate`, how many run at once, how many start per request, and their effort |
+| `helena/hooks/gate.js` | PreToolUse: `.env` reads (also through quote tricks, globs, one-liners and copies), made-up or brand-new packages and releases under 72 hours old, destructive commands (also through a variable, an interpreter, base64 or `sh -c "…"`), the same call with the same result 4 times in a row, the same test failure twice in a request with an edit between (one line asking which assumption was wrong; never blocks), the `pr: receipt` line on `gh pr create` (opt-in, `.helena/git`), the call-cost line (past 20 calls, 100k+ of context, Opus level or above), weakened or deleted tests (with `tests: spec-only`, new test files too), the hidden tests in `.helena/holdout`, erasing the audit trail, `.helena/policy`; asks before an edit or a shell write to Helena's own rule files (`.helena/git`, `policy`, `test`, `delegate`), which are what her checks read; logs the hosts a `curl` / `wget` names |
+| `helena/hooks/delegate.js` | PreToolUse (Agent) and SubagentStop: a model below the session's for workers started without one (always); with `.helena/delegate`, how many run at once, how many start per request, and their effort; a worker report past 8,000 characters goes back once to be put in a file (`report:`) |
+| `helena/hooks/brief.js` | SubagentStart: report format, check command, `## Decisions` of `HANDOFF.md` and `tests: spec-only` for every worker |
+| `helena/hooks/compact.js` | PreCompact: tells the summary what to keep and what to leave out |
+| `helena/hooks/squeeze.js` | PostToolUse (Bash, PowerShell): shortens an output over 4k characters, full text in `~/.helena/out/` |
+| `helena/wave.js` | `land <worktree>...`: patches, checks and applies the worktrees of a wave; nothing staged or committed |
+| `helena/diet.py` | `/helena:diet`, no LLM |
 | `helena/agents/scout.md` · `builder.md` | the two workers `/helena:orchestrate` uses: a read-only locator on Haiku, a writer on Sonnet |
 | `helena/hooks/outside.js` | PostToolUse (WebFetch, WebSearch, MCP, and the output of `gh issue` / `gh pr` / `gh api`): flags a line written for an AI in text that came from outside, also in invisible characters or an HTML comment; logs where each call went |
-| `helena/hooks/trim.js` | PreToolUse: adds the quiet flag to `git log`, `git status`, `pytest`, `pip install`, `npm install`, `cargo` and recursive `grep` and lets them run (`rtk rewrite` first when rtk is installed); blocks lockfiles, build output, files over 100 KB and what no flag makes lean |
+| `helena/hooks/trim.js` | PreToolUse: adds the quiet flag to `git log`, `git status`, `pytest`, `pip install`, `npm install`, `cargo` and recursive `grep` and lets them run (`rtk rewrite` first when rtk is installed); blocks lockfiles, build output, files over 100 KB (with their outline) and what no flag makes lean |
 | `helena/hooks/check.js` | Stop: if the session touched front-end files, checks contrast on the `.html` and on live localhost URLs |
 | `helena/hooks/done.js` | Stop and SubagentStop: if this turn (or this subagent) edited code, runs the tests (or `npx tsc --noEmit` in a TypeScript project with none) and sends a failure back; tests weakened against `HEAD`; receipts for "tests pass" when there is no test command |
 | `helena/hooks/nudge.js` | PostToolUse (Edit / Write): after every 3rd code edit with no test run, one line asks for the nearest test |
@@ -551,6 +582,7 @@ python eval/test_limits.py               # limit warning, ready command, weekly 
 python eval/test_scan.py                 # skill security scan on install, registry (no LLM)
 python eval/test_delegate.py             # subagent model pins (never upward), effort, caps, done check on a subagent (no LLM)
 python eval/test_budget.py               # one count per API call, subagents by model, cache breaks by cause, files read twice (no LLM)
+python eval/test_speed.py                # every hook runs 5 times with a fake event; median under 1500 ms (start.js 3000; HELENA_SPEED_MS) (no LLM)
 python eval/registry.py                  # site/registry.json: every piece, its context cost, scan and measured lift
 ```
 

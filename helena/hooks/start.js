@@ -5,7 +5,7 @@
 //  3. a project brief built from git (structure, scripts, README line), so Claude doesn't re-explore the repo every session
 //  4. the memory index (yours + the team's in .helena/memory), minus other projects' notes; notes whose checks fail come marked STALE
 //  5. news from the background worker (a skill Helena created, plugins she turned off), to tell the user
-//  6. what looks wrong in the repo's AI config (CLAUDE.md / AGENTS.md aimed at the AI, .mcp.json or settings that pipe a download
+//  6. what looks wrong in the repo's AI config (CLAUDE.md / AGENTS.md, nested ones and .claude/rules/*.md included, aimed at the AI, .mcp.json or settings that pipe a download
 //     into a shell, hooks, permissions switched off), once per content. Too late to stop the load, so it only tells.
 //  7. one fixed line asking for short replies
 //  8. after a compaction: the user's own how-to-work rules from before it, word for word (summaries drop those first)
@@ -17,6 +17,10 @@ const { field, notes, mark } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const HEAVY = 12e3;  // bytes of CLAUDE.md / AGENTS.md (~3k tokens) past which she mentions what it costs
 const HANDOFF_MAX = 4000;  // bytes (~1k tokens): a bigger handoff goes in as its "Next" section only, the rest is read on demand
+const MAX = 9500;    // bytes of this hook's whole output: past 10,000 the CLI keeps a 2 KB preview and files the rest
+// characters of memory index lines (~280 tokens, re-read on every call). Was 4500: on a short task that index alone cost
+// more than Helena saved (eval 2026-11-11, +5%). The notes left out still arrive whole from router.js when a request matches.
+const INDEX = 1000;
 const SECTION = /^##\s+(.+)$/gm;
 
 // a long handoff is re-read on every message of the session: hand over the part that is acted on, name the rest
@@ -114,7 +118,11 @@ try {
   const cut = s => { s = String(s).replace(/\s+/g, ' '); return s.length > 80 ? s.slice(0, 79) + '…' : s; };
   const DL = /\b(curl|wget|iwr|irm|Invoke-WebRequest|Invoke-RestMethod)\b[^|]*\|\s*(sudo\s+)?(sh|bash|zsh|iex|Invoke-Expression)\b|\b(ba|z)?sh\s+-c\s+\S*\$\(\s*(curl|wget)|\biex\s*\(?\s*(iwr|irm|Invoke-)/i;
   const TMP = /(^|[\s"'=])(\/tmp\/|\/var\/tmp\/|%TEMP%|\$TEMP\b|\$env:TEMP|[A-Za-z]:\\[^\s"']*\\Temp\\)/i;
-  for (const f of ['CLAUDE.md', 'AGENTS.md']) {
+  // root files first (tracked or not), then tracked nested CLAUDE.md / AGENTS.md and .claude/rules/*.md, shortest path first, 40 in all
+  const NESTED = /(^|\/)(CLAUDE|AGENTS)\.md$|(^|\/)\.claude\/rules\/.+\.md$/i;
+  const nested = git('ls-files --full-name').split('\n').filter(f => NESTED.test(f) && f !== 'CLAUDE.md' && f !== 'AGENTS.md')
+    .sort((a, b) => a.length - b.length);
+  for (const f of ['CLAUDE.md', 'AGENTS.md', ...nested].slice(0, 40)) {
     const text = read(f), hit = text && aimed(text);
     if (hit) found.push(`${f} has a line written for an AI${hit[1]} ("${cut(hit[0][0]).slice(0, 60)}")`);
   }
@@ -164,16 +172,28 @@ try {
   }
 } catch {}
 
-// ponytail: whole index every session; switch to retrieval only (router.js already injects matching notes) past ~150 notes
-const mem = notes(cwd);
-if (mem.length) out.push(
-  `Helena's memory (${MEMORY.split(path.sep).join('/')}` + (mem.some(n => n.team) ? ', and the team\'s in .helena/memory/' : '') +
-  '). Read the full note when it is relevant to the request:',
-  // descriptions capped: this index is re-read on every message of the session
-  ...mem.map(n => { const d = field(n.text, 'description'); return `- ${n.slug}: ${d.length > 90 ? d.slice(0, 89) + '…' : d}${mark(n)}`; }),
-  'A correction or lasting rule from the user becomes a note there: frontmatter `type`, `description` (+ `project: <folder>` ' +
-  'if only for here, `checks: <file>#<name>` if it depends on code), one fact, [[links]], in the user\'s language.');
-else {
+// The index is re-read on every message, and Claude Code shows only a 2 KB preview of a hook output past 10,000 characters
+// (the rest lands in a file nobody reads). So the index is a budget, not a dump: this project's and the team's notes
+// first, then the ones that were handed over most (stats.json, written by router.js), until INDEX characters are used.
+// A note that is not listed is not lost: router.js hands it over whole when a request matches it.
+const mem = notes(cwd), memAt = out.length;
+function index(room) {  // the index lines that fit in `room` characters
+  let hits = {};
+  try { hits = JSON.parse(fs.readFileSync(path.join(HOME, 'stats.json'), 'utf8')).notes || {}; } catch {}
+  const own = n => (n.team || /^project:/m.test(n.text) ? 1 : 0), used = n => (hits[n.slug] || {}).hits || 0;
+  const lines = mem.slice().sort((a, b) => own(b) - own(a) || used(b) - used(a) || a.slug.localeCompare(b.slug))
+    .map(n => { const d = field(n.text, 'description'); return `- ${n.slug}: ${d.length > 90 ? d.slice(0, 89) + '…' : d}${mark(n)}`; });
+  let shown = 0;
+  while (shown < lines.length && room >= lines[shown].length) room -= lines[shown++].length + 1;
+  return [
+    `Helena's memory (${MEMORY.split(path.sep).join('/')}` + (mem.some(n => n.team) ? ', and the team\'s in .helena/memory/' : '') +
+    '). Read the full note when it is relevant to the request:',
+    ...lines.slice(0, shown),
+    ...(shown < lines.length ? [`(+${lines.length - shown} more notes in that folder, not listed: each one is handed over whole when a request matches it)`] : []),
+    'A correction or lasting rule from the user becomes a note there: frontmatter `type`, `description` (+ `project: <folder>` ' +
+    'if only for here, `checks: <file>#<name>` if it depends on code), one fact, [[links]], in the user\'s language.'];
+}
+if (!mem.length) {
   try { fs.statSync(path.join(HOME, 'setup-hint')); } catch {  // once: a fresh Helena offers to learn from past sessions
     out.push('Helena has no memory yet. At the end of your first reply, tell the user in one line that /helena:setup lets her learn from their past sessions.');
     try { fs.mkdirSync(HOME, { recursive: true }); fs.writeFileSync(path.join(HOME, 'setup-hint'), ''); } catch {}
@@ -207,4 +227,11 @@ if (overdue && !process.env.HELENA_EVAL) {
 // output is paid once, then re-read on every later message: short answers cost less (JetBrains 2026: ~10%, no quality loss)
 out.push('Keep replies short: answer first, no recap of what you just did, no closing offer, unless the user asks for detail.');
 if (specOnly(cwd)) out.push('Tests are spec-only here: write a test only when the user asks for it, or as a repro of the bug being fixed.');
+// everything has to fit in MAX: the index gives way first (it is the part with a second way in), then the longest section
+const chars = a => a.reduce((s, x) => s + Buffer.byteLength(x) + 1, 0);
+if (mem.length) out.splice(memAt, 0, ...index(Math.min(INDEX, MAX - chars(out) - 600)));  // 600: the index's own first and last lines
+if (chars(out) > MAX) {
+  const i = out.reduce((b, x, j) => (x.length > out[b].length ? j : b), 0);
+  out[i] = out[i].slice(0, Math.max(200, out[i].length - (chars(out) - MAX) - 60)) + '\n…(cut to fit the session start; read the file for the rest)';
+}
 console.log(out.join('\n'));
