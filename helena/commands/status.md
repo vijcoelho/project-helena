@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: What Helena has learned: memories, kits, library, skill candidates
 ---
 

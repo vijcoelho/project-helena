@@ -62,17 +62,42 @@ def rereads(tools, sizes):
     return again
 
 
+def requests(s):
+    """[(start, next start, tokens)] per human prompt: the tokens of every message up to the next prompt (ts as UTC to the second)."""
+    starts = [p['ts'][:19] for p in s['prompts']] + ['9']
+    return [(a, b, sum(u['input'] + u['write'] + u['read'] + u['output'] for u in s['usage'] if a <= u['ts'][:19] < b))
+            for a, b in zip(starts, starts[1:])]
+
+
+def checked(s, done, blocks):
+    """(green tokens, blocked tokens) of the requests with a done line of this session inside them; a block wins over a later green."""
+    green, blocked = [], []
+    for a, b, t in requests(s):
+        inside = lambda rows: any(r.get('session') == s['id'] and a <= r.get('ts', '') < b for r in rows)
+        if inside(blocks):
+            blocked.append(t)
+        elif inside(done):
+            green.append(t)
+    return green, blocked
+
+
 def main():
     sys.stdout.reconfigure(encoding='utf-8')  # Windows console defaults to cp1252
     days = int(sys.argv[1]) if len(sys.argv) > 1 else 7
     per_day, per_project, tools_out = collections.Counter(), collections.Counter(), collections.Counter()
     biggest, first_ctx, per_msg, totals = [], [], [], collections.Counter()
     breaks, cold, again = collections.defaultdict(lambda: [0, 0]), [], collections.defaultdict(list)
-    n_sessions = 0
+    n_sessions, green, blocked = 0, [], []
+    jl = lambda f: [json.loads(l) for l in open(HOME / f, encoding='utf-8') if l.strip().startswith('{')] if (HOME / f).exists() else []
+    done = [r for r in jl('events.jsonl') if r.get('kind') == 'done']  # written by done.js only when the tests passed
+    blocks = [r for r in jl('audit.jsonl') if r.get('hook') == 'done' and r.get('decision') == 'block']
     for s in sessions(days):
         if not s['usage']:
             continue
         n_sessions += 1
+        g, b = checked(s, done, blocks)
+        green += g
+        blocked += b
         project = pathlib.Path(s['cwd'] or '?').name
         first_ctx.append(s['usage'][0]['input'] + s['usage'][0]['write'] + s['usage'][0]['read'])
         per_msg.append(len(s['usage']))
@@ -134,6 +159,11 @@ def main():
     if low:
         print(f'  Sessions under 85% read from the cache: {len(low)} of {len(cold)} '
               f"(lowest: {', '.join(f'{p} {r:.0%}' for r, p in low[:3])})")
+
+    if green or blocked:  # what one request that ended under the done check cost, in tokens
+        part = lambda n, v, w: f'{len(v)} {w}, average {k(round(statistics.mean(v)))} tokens' + (f' (median {k(round(statistics.median(v)))})' if n else '')
+        print('\nRequests checked by tests: ' + '; '.join(
+            x for x in (green and part(1, green, 'green'), blocked and part(0, blocked, 'blocked at least once')) if x))
 
     # subagents: their transcripts sit next to the parent session, outside the totals above
     groups, workers, starts = collections.defaultdict(collections.Counter), [], []

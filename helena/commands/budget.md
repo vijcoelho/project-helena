@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Where your tokens went this week, what subagents cost, and Helena's own cost
 argument-hint: [days]
 allowed-tools: Bash(python:*)

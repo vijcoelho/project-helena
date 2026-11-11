@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Undo: put this folder back as it was before the last request (or n back)
 argument-hint: [n]
 allowed-tools: Bash(node:*)

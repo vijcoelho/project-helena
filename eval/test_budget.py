@@ -54,4 +54,25 @@ with tempfile.TemporaryDirectory() as tmp:
                            {1: 900, 2: 900, 3: 400, 5: 950, 6: 950})
     assert dict(again) == {'a.js': [900, 950]}, again
 
+    # ---- a request = a human prompt up to the next one; a done line (events: green, audit: block) inside it joins it
+    line = lambda kind, ts, **x: json.dumps({'type': kind, 'timestamp': ts, 'cwd': 'C:/dev/shop', **x})
+    reply = lambda mid, ts, read: line('assistant', ts, message={'id': mid, 'model': 'claude-opus-5-5', 'content': [], 'usage': {
+        'input_tokens': 10, 'cache_read_input_tokens': read, 'output_tokens': 5}})
+    ask = lambda ts, text: line('user', ts, message={'content': text})
+    shop = history.PROJECTS / 'shop'
+    (shop / 'gA.jsonl').write_text('\n'.join([ask('2026-10-09T10:00:00Z', 'fix the cart'), reply('a1', '2026-10-09T10:01:00Z', 2985),
+                                              ask('2026-10-09T10:05:00Z', 'now the footer'), reply('a2', '2026-10-09T10:06:00Z', 985)]))
+    (shop / 'gB.jsonl').write_text('\n'.join([ask('2026-10-09T11:00:00Z', 'fix the cart'), reply('b1', '2026-10-09T11:01:00Z', 5985)]))
+    helena = tmp / '.helena'
+    helena.mkdir(exist_ok=True)
+    (helena / 'events.jsonl').write_text(json.dumps({'ts': '2026-10-09T10:01:05', 'session': 'gA', 'kind': 'done'}) + '\n')
+    (helena / 'audit.jsonl').write_text(json.dumps({'ts': '2026-10-09T11:01:30', 'session': 'gB', 'hook': 'done', 'decision': 'block'}) + '\n')
+    report = lambda: subprocess.run([sys.executable, str(ROOT / 'helena' / 'budget.py'), '9999'], capture_output=True, text=True, encoding='utf-8',
+                                    env=dict(os.environ, USERPROFILE=str(tmp), HOME=str(tmp))).stdout
+    out = report()
+    assert 'Requests checked by tests: 1 green, average 3k tokens (median 3k); 1 blocked at least once, average 6k tokens' in out, out
+    (helena / 'events.jsonl').unlink()
+    (helena / 'audit.jsonl').unlink()
+    assert 'Requests checked' not in report()
+
 print('PASS  test_budget')

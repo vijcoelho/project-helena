@@ -23,6 +23,17 @@ const STOP = new Set(('que para com uma por mais isso esse essa este esta aqui c
 const REDO = new RegExp('\\b(tenta|tente|faz|fa[cç]a|try|do (it|that|this))\\s+(de novo|novamente|outra vez|again)\\b|' +
   '\\b(desfaz|desfa[cç]a|reverte|undo|revert)\\b[^.\\n]{0,40}\\b(refaz|refa[cç]a|redo|de novo|again)\\b|' +
   '\\bn[aã]o (era|foi) isso\\b|\\bnot what i (asked|wanted|meant)\\b', 'i');
+const ROOT = path.join(__dirname, '..').split(path.sep).join('/');
+const COMMANDS = {  // commands with `disable-model-invocation: true`, and the plain words that ask for each
+  budget: /\b(quanto|onde)\b.{0,30}\b(gastei|gastou|gasto|tokens foram)\b|where did (my|the) tokens go|how much (did|have) i (spend|spent)/i,
+  limits: /\b(quanto (sobra|resta|falta)|como (est[aá]|anda))\b.{0,25}\b(limite|plano)\b|\blimite (semanal|da semana|de 5 ?h)|\b(plan|usage) limits? (left|status)|how much of my (plan|limit)/i,
+  app: /\b(abr[ea]|abrir|open)\b.{0,15}\b(app|janela|window)\b.{0,6}\bhelena\b|\bopen (the )?helena app\b/i,
+  audit: /o que a helena (bloqueou|barrou)|what (did|has) helena block/i,
+  diet: /o que (pesa|ocupa|tem|est[aá]) no (meu )?contexto|what('s| is| sits) in (my|the) context|what fills (my|the) context/i,
+  skills: /\bskills (que a|da) helena( criou)?\b|\bskills helena (created|made)\b/i,
+  status: /o que a helena (sabe|aprendeu)|what (does|has) helena (know|learned)/i,
+  rewind: /\b(desfaz|desfa[cç]a|undo)\b.{0,30}\b([uú]ltimo pedido|last request)\b|\bvolta a pasta\b/i,
+};
 const words = t => new Set((t.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').match(/[a-z][a-z0-9-]{2,}/g) || [])
   .filter(w => !STOP.has(w)));
 const load = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
@@ -133,9 +144,9 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
   //      `/model <name>` becomes the default for new sessions (code.claude.com/docs/en/prompt-caching#switching-models)
   // 40k floor: a fresh subagent starts at 34k tokens, all written to the cache (median of 42 workers, /helena:budget,
   // 2026-10-13); below it, inline is cheaper
-  if (/opus/i.test(model) && ctx >= 40e3 && prompt.length < 120 &&
+  if (/opus|fable|mythos/i.test(model) && ctx >= 40e3 && prompt.length < 120 &&
       /^\s*(roda|rodar|run|instala|install)\b/i.test(prompt) && once(session, 'model-hint'))
-    out.push(`Helena: routine command on Opus with ${Math.round(ctx / 1000)}k of context. If its output will be long (tests, install, build), ` +
+    out.push(`Helena: routine command on ${(model.match(/opus|fable|mythos/i) || ['this model'])[0]} with ${Math.round(ctx / 1000)}k of context. If its output will be long (tests, install, build), ` +
       'run it in a subagent with model "haiku" and keep only the result here.');
   if (/(onde (fica|est[aá]|tem)|where (is|are)|find (all|every)|acha (todos|todas|onde)|mapeia|map (the|out)|lista todos|list all)/i.test(prompt))
     out.push('Helena: broad search. Delegate it to the Explore subagent with model "haiku" and keep only its conclusion here.');
@@ -145,6 +156,14 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
     out.push('Helena: this is a redo. Before changing anything, say in one line what the last attempt got wrong and what ' +
       'you will do differently; if the request can still be read two ways, ask one question first instead of guessing ' +
       'again. `/helena:rewind` puts the folder back as it was before the last request.');
+
+  // ---- her report commands are not listed to the model (their descriptions were paid on every call): a request that
+  //      asks for one in plain words gets pointed at the command file instead, once per session
+  // ponytail: fixed phrases; a request worded another way still works as the typed /helena:<name>
+  for (const [name, re] of Object.entries(COMMANDS))
+    if (re.test(prompt) && once(session, 'cmd-' + name))
+      out.push(`Helena: this is what /helena:${name} does. Read ${ROOT}/commands/${name}.md and do what it says ` +
+        `(a line starting with ! is a command for you to run; \${CLAUDE_PLUGIN_ROOT} is ${ROOT}).`);
 
   // ---- a git rule said in chat is gone next session; in .helena/git the guard hook enforces it every time
   if (/(n[aã]o|nunca|never|don'?t|do not|stop)\b[^.\n]{0,40}\b(commit|comit|main|push)|\b(commit|comit)\w*\b[^.\n]{0,40}\b(n[aã]o|nunca|s[oó]|never|only)\b/i.test(prompt))

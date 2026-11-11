@@ -1,4 +1,5 @@
 ---
+disable-model-invocation: true
 description: Delete a skill Helena created; "learned" drops its last lesson, "fold" restores it
 argument-hint: <skill name> [learned|fold]
 allowed-tools: Bash(python:*)

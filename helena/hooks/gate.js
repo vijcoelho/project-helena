@@ -17,12 +17,15 @@
 //      deny: terraform apply        a regex per line; matching commands are denied
 //      ask: kubectl                 matching commands ask first
 //      mcp: github, helena          only these MCP servers may be used in this repo
+//  - own rules: Edit / Write / a write command on .helena/git, policy, test or delegate asks (reads and git add / diff / commit pass)
 //  - loops: the same call that came back with the same result 4 times in a row is denied (a poll whose output changes passes)
+//  - the same test failure twice in one request with an edit between: one line asks which assumption was wrong (never blocks)
+//  - `pr: receipt` in .helena/git: `gh pr create` is denied once with the line "Checked by Helena: ..." to add to the PR body
 //  - a curl / wget / Invoke-WebRequest leaves the hosts it names in ~/.helena/egress.jsonl (never blocks)
 // Every decision lands in ~/.helena/audit.jsonl. Local hooks can be turned off by whoever owns the machine: this is a
 // guardrail for the AI, not a sandbox.
 const fs = require('fs'), os = require('os'), path = require('path'), { execSync } = require('child_process');
-const { audit, egress, specOnly, turn, TEST, ASSERT, SKIP } = require('./paths');
+const { audit, egress, specOnly, turn, lastCall, HOME: HELENA, TEST, TESTISH, CODE, ASSERT, SKIP } = require('./paths');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 
 const ENV = /(^|[\\/])\.env(\.[\w-]+)?$/, ENV_OK = /\.env\.(example|sample|template)$/;
@@ -104,6 +107,10 @@ function risky(cmd, cwd) {
 const HOLD = /(^|\/)\.helena\/holdout(\/|$)/i, HOLD_WIDE = /(^|\/)\.helena(\/?$|\/\*)/i;
 const holdNorm = p => path.posix.normalize(unq(String(p)).replace(/\\/g, '/'));
 const holdPath = (p, wide) => !!p && (HOLD.test(holdNorm(p)) || !!wide && HOLD_WIDE.test(holdNorm(p)));
+// own rules: the files Helena's own checks read (git rules, team policy, test command, worker rules)
+const OWN = /(^|\/)\.helena\/(git|policy|test|delegate)$/i, ownPath = p => !!p && OWN.test(holdNorm(p));
+const OWN_WRITE = /\b(rm|del|mv|cp|tee|truncate|Set-Content|Add-Content|Out-File|Remove-Item|Move-Item|Copy-Item|New-Item)\b|\bsed\s+(-\w+\s+)*-\w*i|\b(python3?|py|node)\s+-[ce]\b|\bpowershell(\.exe)?\s+(-\w+\s+)*-Command/i;
+const ownWhy = p => `Helena / own rules: ${p} is read by Helena's own checks (git rules, team policy, test command, worker rules). A change here changes what the AI is checked against, so the user confirms it.`;
 let holdFound = '';
 const holdWhy = 'Helena / holdout: .helena/holdout holds the human\'s hidden acceptance tests; you cannot read, copy or edit them, and done runs them for you.';
 
@@ -220,6 +227,30 @@ function policy(cwd) {
 }
 const re = s => { try { return new RegExp(s, 'i'); } catch { return null; } };
 
+// opt-in (`pr: receipt` in .helena/git): `gh pr create` is denied once per session and HEAD with the line to add to the PR body.
+// The facts are done.js's receipt logic: the newest test-like run after the last code edit of this request, from the transcript.
+function prReceipt(ev, cwd) {
+  const g = a => execSync('git ' + a, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500 }).trim();
+  let root = cwd, sha = '', ran = null, t = { blocks: [], failed: {}, seen: {} };
+  try { root = g('rev-parse --show-toplevel'); } catch {}
+  try { if (!/^pr:\s*receipt\b/mi.test(fs.readFileSync(path.join(root, '.helena', 'git'), 'utf8'))) return null; } catch { return null; }
+  try { sha = g('rev-parse --short HEAD'); } catch {}
+  try {
+    fs.mkdirSync(path.join(HELENA, 'warnings'), { recursive: true });
+    fs.writeFileSync(path.join(HELENA, 'warnings', `${ev.session_id || 'x'}-pr-${sha}`), '', { flag: 'wx' });
+  } catch { return null; }
+  try { if (ev.transcript_path) t = turn(ev.transcript_path); } catch {}
+  for (const b of t.blocks) {
+    if (b.type !== 'tool_use' || !b.input) continue;
+    if (['Bash', 'PowerShell'].includes(b.name) && t.seen[b.id] !== undefined && TESTISH.test(b.input.command || '')) { ran = b; break; }
+    if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(b.name) && CODE.test(b.input.file_path || b.input.notebook_path || '')) break;
+  }
+  const at = sha ? `, at ${sha}` : '', c = ran && String(ran.input.command).trim().replace(/\s+/g, ' ').slice(0, 100);
+  const line = !ran ? `Checked by Helena: no test run after the last edit${at}`
+    : `Checked by Helena: \`${c}\` ${t.failed[ran.id] ? 'FAILED' : 'passed'} after the last edit${at}`;
+  return deny(ev, `Helena / receipt: this repo asks for a receipt on pull requests (.helena/git: pr: receipt). Add this line at the end of the PR body and run the command again: ${line}`);
+}
+
 async function decide(ev) {
   const t = ev.tool_input || {}, tool = ev.tool_name || '', cwd = ev.cwd || process.cwd();
 
@@ -235,6 +266,7 @@ async function decide(ev) {
   if (['Read', 'NotebookRead'].includes(tool) && [t.file_path, t.notebook_path].some(p => holdPath(p))) return deny(ev, holdWhy);
   if (['Grep', 'Glob'].includes(tool) && [t.path, t.glob, t.pattern].some((p, i) => holdPath(p, true) && (i < 2 || tool === 'Glob'))) return deny(ev, holdWhy);
   if (['Edit', 'Write', 'MultiEdit'].includes(tool) && holdPath(t.file_path)) return ask(ev, holdWhy.replace('you cannot read, copy or edit them', 'you must not rewrite them'));
+  if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(tool)) { const p = t.file_path || t.notebook_path; if (ownPath(p)) return ask(ev, ownWhy(p)); }
   if (tool === 'Read' && t.file_path && ENV.test(t.file_path) && !ENV_OK.test(t.file_path))
     return deny(ev, envWhy(t.file_path, envKeys(path.resolve(cwd, t.file_path))));
   if (tool === 'Grep' && [t.path, t.glob].some(p => p && ENV.test(p) && !ENV_OK.test(p)))
@@ -269,10 +301,17 @@ async function decide(ev) {
   const bare = cmd.replace(/<<-?\s*['"]?(\w+)['"]?[^\n]*\n[\s\S]*?\n\s*\1\b/g, '').replace(/\s-m\s*("[^"]*"|'[^']*')/g, '');
   if (/\.helena[\\/]+holdout/i.test(unq(bare))) return deny(ev, holdWhy);
   if (envf) return deny(ev, envWhy(envf, envKeys(path.resolve(cwd, envf))));
+  // own rules: a command naming them asks unless it only reads (no redirect, no write verb) or is git bookkeeping
+  for (const seg of unq(bare).split(SPLIT).filter(s => !/^\s*git\s+(add|diff|status|log|show|commit)\b/.test(s))) {
+    const hit = seg.split(/[\s<>()=]+/).find(ownPath);
+    if (hit && (/>/.test(seg.replace(/\d?>&\d|\d?>\s*\/dev\/null/g, '')) || OWN_WRITE.test(seg))) return ask(ev, ownWhy(hit));
+  }
 
   const rules = policy(cwd);
   for (const r of rules.deny) if (re(r) && re(r).test(cmd))
     return deny(ev, `Helena / team policy: this repo does not let AIs run commands matching "${r}" (.helena/policy). Ask the user to run it.`);
+
+  if (bare.split(SPLIT).some(s => /^\s*gh\s+pr\s+create\b/.test(s)) && !cmd.includes('Checked by Helena:')) { const r = prReceipt(ev, cwd); if (r) return r; }
 
   // a command that sends or fetches over the network: the hosts it names go in the egress log
   if (/\b(curl|wget|iwr|irm|Invoke-WebRequest|Invoke-RestMethod|https?)\s/i.test(cmd))
@@ -320,10 +359,56 @@ function looping(ev) {
     'Do not repeat it: read the result again, change the approach, or tell the user what is blocking you.') : null;
 }
 
+// What a tool call costs is the context it re-reads times the model's price, and 30 days of sessions say that is where
+// the tokens go (calls x context), not into tool output. So when one request passes MANY tool calls on a model at Opus
+// level or above with a THICK context, and no worker was started, one line says so, once per request, and names the two
+// cheaper ways. Inside a worker nothing is said: its context is its own, and small.
+const MANY = 20, THICK = 100e3;
+function heavy(ev) {
+  if (!ev.transcript_path || ev.agent_id) return null;
+  let t;
+  try { t = turn(ev.transcript_path); } catch { return null; }
+  const calls = t.blocks.filter(b => b.type === 'tool_use');
+  if (calls.filter(c => t.seen[c.id]).length < MANY || calls.some(c => c.name === 'Agent' || c.name === 'Task')) return null;
+  const { ctx, model } = lastCall(ev.transcript_path), tier = (model.match(/opus|fable|mythos/i) || [''])[0];
+  if (ctx < THICK || !tier) return null;
+  try {  // 'wx': calls that run side by side all get here, only the first one speaks
+    fs.mkdirSync(path.join(HELENA, 'warnings'), { recursive: true });
+    fs.writeFileSync(path.join(HELENA, 'warnings', `${ev.session_id || 'x'}-heavy-${ev.prompt_id || calls[calls.length - 1].id}`), '', { flag: 'wx' });
+  } catch { return null; }
+  return { additionalContext: `Helena: ${calls.length} tool calls into this request, each one re-reading ${Math.round(ctx / 1000)}k of context on ${tier}. ` +
+    'If more than a few are left, the rest costs less in a worker: one `helena:builder` (Sonnet, starts near 34k) given the step, its files ' +
+    'and what done means; Helena hands it the check command and the decisions. If you are almost done, finish, and tell the user in one ' +
+    'line that /clear after this request resets the cost (HANDOFF.md and memory carry over).' };
+}
+
+// The same test failure after a fix: an agent that patches and sees the same failure tends to patch the same way again.
+// The two newest test-like runs of this request both failed with one signature and an edit sits between them: one line, once.
+const SIG = /(FAIL|FAILED|AssertionError|Error:|not ok|✗)/;
+function sameFailure(ev) {
+  if (!ev.transcript_path || ev.agent_id) return null;
+  let t;
+  try { t = turn(ev.transcript_path); } catch { return null; }
+  const runs = [];  // newest first: [index in blocks, block]
+  t.blocks.forEach((b, i) => { if (b.type === 'tool_use' && ['Bash', 'PowerShell'].includes(b.name) && t.seen[b.id] !== undefined && TESTISH.test((b.input || {}).command || '')) runs.push([i, b]); });
+  if (runs.length < 2 || !t.failed[runs[0][1].id] || !t.failed[runs[1][1].id]) return null;
+  const sig = id => {
+    const lines = String(t.failed[id] === true ? '' : t.failed[id]).split('\n').map(l => l.trim()).filter(Boolean);
+    return (lines.find(l => SIG.test(l)) || lines[lines.length - 1] || '').replace(/\d+/g, 'N').slice(0, 120);
+  };
+  const s = sig(runs[0][1].id);
+  if (s !== sig(runs[1][1].id) || !t.blocks.slice(runs[0][0] + 1, runs[1][0]).some(b => b.type === 'tool_use' && ['Edit', 'Write', 'MultiEdit'].includes(b.name))) return null;
+  try {
+    fs.mkdirSync(path.join(HELENA, 'warnings'), { recursive: true });
+    fs.writeFileSync(path.join(HELENA, 'warnings', `${ev.session_id || 'x'}-same-${ev.prompt_id || runs[1][1].id}-${require('crypto').createHash('md5').update(s).digest('hex').slice(0, 8)}`), '', { flag: 'wx' });
+  } catch { return null; }
+  return { additionalContext: `Helena: the same test failure came back after your fix (${s}). Before another patch, say in one line which assumption was wrong; then change one thing and run only the failing test.` };
+}
+
 let input = '';
 process.stdin.on('data', d => (input += d)).on('end', async () => {
   let ev;
   try { ev = JSON.parse(input); } catch { return; }
-  const out = looping(ev) || await decide(ev);
+  const out = looping(ev) || await decide(ev) || sameFailure(ev) || heavy(ev);
   if (out) console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...out } }));
 });
