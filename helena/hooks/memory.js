@@ -1,9 +1,11 @@
-// Memory notes, read by start.js and router.js. Two places:
+// Memory notes, read by start.js, router.js, gate.js and lifecycle.js. Two places:
 //   <vault>/Memory/*.md         yours, written by distill.py and /helena:remember
 //   <repo>/.helena/memory/*.md  the team's: committed with the code, so a new note goes through code review
-// A note can check itself (optional frontmatter, no LLM):
+// A note can check itself and bind to file paths (optional frontmatter, no LLM):
 //   checks: src/cache.js, src/db.js#connectPostgres   files (or a name inside a file) the fact depends on
+//   paths: helena/app/*, site/*.html                  globs that trigger this note when Read/Edit touches a match
 //   until: 2026-12-31                                 the fact stops holding after this date
+//   error_pattern: EBUSY.*unlink                      regex matched on PostToolUseFailure to inject a known fix
 // A failing check does not hide the note: it comes marked STALE with the reason, so the AI verifies before trusting it.
 // supersedes: is handled when a note is written (distill.py moves the replaced note to <vault>/Archive).
 const fs = require('fs'), path = require('path');
@@ -41,6 +43,41 @@ function notes(cwd) {
   return out;
 }
 
+const normRel = p => String(p || '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
+
+// simple glob -> RegExp supporting **, *, ? (case-insensitive on Windows)
+function globMatch(pattern, rel) {
+  const p = normRel(pattern), r = normRel(rel);
+  if (!p || !r) return false;
+  if (p === r) return true;
+  if (!/[*?[]/.test(p)) return p.endsWith('/') ? r.startsWith(p) : r === p || r.startsWith(p + '/');
+  const rx = p.replace(/[.+^${}()|\\]/g, '\\$&').replace(/\*\*\//g, '(?:.+/)?').replace(/\*\*/g, '.*')
+    .replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]');
+  return new RegExp('^' + rx + '$', process.platform === 'win32' ? 'i' : '').test(r);
+}
+
+// file paths / globs a note binds to: explicit `paths:` plus the file portion of `checks:`
+function pathsOf(text) {
+  const fromPaths = field(text, 'paths').split(',').map(s => s.trim()).filter(Boolean);
+  const fromChecks = field(text, 'checks').split(',').map(s => s.split('#')[0].trim()).filter(Boolean);
+  return [...new Set([...fromPaths, ...fromChecks])];
+}
+
+// notes that apply to `filePath` when opened/edited inside `cwd`
+function forFile(cwd, filePath) {
+  if (!cwd || !filePath) return [];
+  const abs = path.resolve(cwd, filePath), rel = normRel(path.relative(cwd, abs));
+  if (!rel || rel.startsWith('..')) return [];
+  return notes(cwd).filter(n => pathsOf(n.text).some(pat => globMatch(pat, rel)));
+}
+
+// Obsidian [[slug]] / [[slug|alias]] links in the note body, normalized to lowercase slugs
+function linksOf(text) {
+  const body = String(text || '').replace(/^---[\s\S]*?---\n/, '');
+  return [...new Set([...body.matchAll(/\[\[([^\]|#]+?)(?:[|#][^\]]*)?\]\]/g)]
+    .map(m => m[1].trim().replace(/\.md$/i, '').toLowerCase()).filter(Boolean))];
+}
+
 const mark = n => (n.team ? ' (team)' : '') + (n.stale ? `  [STALE: ${n.stale}. Check the code before relying on it, then fix or /helena:forget the note]` : '');
 
-module.exports = { field, stale, notes, mark };
+module.exports = { field, stale, notes, mark, pathsOf, forFile, linksOf, globMatch };

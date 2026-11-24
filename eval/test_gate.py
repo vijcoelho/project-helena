@@ -220,13 +220,17 @@ global.fetch = async u => { u = String(u);
   if (u.includes('api.npmjs.org')) return J({ downloads: 1e6 });
   if (u.includes('/-/v1/search')) { const n = decodeURIComponent(u.match(/text=([^&]+)/)[1]);
     return J({ objects: [{ package: { name: n === 'lookalike' ? 'other' : n, version: '2.0.0', date: iso(n.includes('fresh') ? 5 * h : 900 * h) } }] }); }
-  if (u.startsWith('https://registry.npmjs.org/')) return J({ 'dist-tags': { latest: '2.0.0' }, versions: { '1.9.0': {}, '1.10.0': {}, '2.0.0': {}, '2.1.0-beta.1': {} } });
+  if (u.startsWith('https://registry.npmjs.org/')) {
+    const hasScript = u.includes('scriptpkg');
+    return J({ 'dist-tags': { latest: '2.0.0' }, versions: { '1.9.0': {}, '1.10.0': {}, '2.0.0': hasScript ? { hasInstallScript: true } : {}, '2.1.0-beta.1': {} } });
+  }
   const n = u.split('/pypi/')[1].split('/')[0], rel = (ago) => [{ upload_time_iso_8601: iso(ago) }];
   return J({ info: { version: '2.0' }, releases: { '0.9': rel(900 * 24 * h), '1.0': rel(400 * 24 * h), '2.0': rel(n.includes('fresh') ? 5 * h : 400 * 24 * h) } }); };
 """, encoding='utf-8')
     for cmd, want, hint in [('npm install freshpkg', 'ask', 'freshpkg@1.10.0'), ('npm i @scope/freshpkg', 'ask', '@1.10.0'), ('pip install freshpy', 'ask', 'freshpy==1.0'),
                             ('npm install freshpkg@2.0.0', 'allow', ''), ('npm install freshpkg@latest', 'ask', '1.10.0'), ('pip install freshpy==2.0', 'allow', ''),
-                            ('npm install oldpkg', 'allow', ''), ('pip install oldpy', 'allow', ''), ('npm install lookalike', 'allow', '')]:
+                            ('npm install oldpkg', 'allow', ''), ('pip install oldpy', 'allow', ''), ('npm install lookalike', 'allow', ''),
+                            ('npm install scriptpkg', 'ask', 'postinstall'), ('npm install --ignore-scripts scriptpkg', 'allow', '')]:
         got, why = decision('Bash', {'command': cmd}, ('-r', str(mock)))
         if got != want or hint not in why:
             errors.append(f'fresh release {cmd}: {got} (expected {want}) {why[:160]}')

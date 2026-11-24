@@ -1,7 +1,7 @@
 ---
 disable-model-invocation: true
-description: What sits in the context before you type (plugins, skills, agents, CLAUDE.md) and how often each was used
-argument-hint: [days | --off <plugin>]
+description: What sits in the context before you type (plugins, MCP servers, skills, agents, CLAUDE.md) and how often each was used
+argument-hint: [days | --probe-mcp | --off <plugin> | --off-mcp <server>]
 allowed-tools: Bash(python:*)
 ---
 

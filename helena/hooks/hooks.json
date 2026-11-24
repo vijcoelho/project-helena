@@ -12,9 +12,13 @@
     ],
     "PostToolUse": [
       { "matcher": "WebFetch|WebSearch|mcp__.*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/outside.js\"" }] },
-      { "matcher": "Bash|PowerShell", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/outside.js\"" }] },
-      { "matcher": "Bash|PowerShell", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/squeeze.js\"" }] },
+      { "matcher": "Bash", "hooks": [{ "type": "command", "if": "Bash(gh *)", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/outside.js\"" }] },
+      { "matcher": "PowerShell", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/outside.js\"" }] },
+      { "matcher": "Bash|PowerShell|mcp__.*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/squeeze.js\"" }] },
       { "matcher": "Edit|Write|MultiEdit|NotebookEdit", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/nudge.js\"" }] }
+    ],
+    "PostToolUseFailure": [
+      { "matcher": "Bash|PowerShell|Edit|Write|mcp__.*", "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/lifecycle.js\"" }] }
     ],
     "UserPromptSubmit": [
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/router.js\"" }] }
@@ -22,6 +26,12 @@
     "Stop": [
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/check.js\"", "timeout": 200 }] },
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/done.js\"", "timeout": 300 }] }
+    ],
+    "StopFailure": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/lifecycle.js\"" }] }
+    ],
+    "PreModelSwitch": [
+      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/lifecycle.js\"" }] }
     ],
     "SubagentStart": [
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/brief.js\"" }] }
@@ -34,7 +44,7 @@
       { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/compact.js\"" }] }
     ],
     "SessionEnd": [
-      { "hooks": [{ "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/end.js\"" }] }
+      { "hooks": [{ "type": "command", "async": true, "command": "node \"${CLAUDE_PLUGIN_ROOT}/hooks/end.js\"" }] }
     ]
   }
 }

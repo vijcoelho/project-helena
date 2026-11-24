@@ -70,16 +70,17 @@
   "on_use": 0,
   "scan": "n/a",
   "tasks": [
-   "env-read"
+   "env-read",
+   "path-memory"
   ],
-  "runs": 3,
-  "base": 0,
-  "helena": 3,
-  "lift": 1.0,
+  "runs": 5,
+  "base": 1,
+  "helena": 5,
+  "lift": 0.8,
   "model": [
    "sonnet"
   ],
-  "date": "2026-10-14"
+  "date": "2026-11-24"
  },
  {
   "name": "guard",
@@ -100,6 +101,13 @@
    "sonnet"
   ],
   "date": "2026-10-16"
+ },
+ {
+  "name": "lifecycle",
+  "kind": "hook",
+  "always": 0,
+  "on_use": 0,
+  "scan": "n/a"
  },
  {
   "name": "nudge",

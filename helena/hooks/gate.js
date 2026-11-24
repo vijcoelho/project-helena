@@ -25,7 +25,8 @@
 // Every decision lands in ~/.helena/audit.jsonl. Local hooks can be turned off by whoever owns the machine: this is a
 // guardrail for the AI, not a sandbox.
 const fs = require('fs'), os = require('os'), path = require('path'), { execSync } = require('child_process');
-const { audit, egress, specOnly, turn, lastCall, HOME: HELENA, TEST, TESTISH, CODE, ASSERT, SKIP } = require('./paths');
+const { audit, egress, event, specOnly, turn, lastCall, SECRET, HOME: HELENA, TEST, TESTISH, CODE, ASSERT, SKIP } = require('./paths');
+const { forFile, mark: staleMark } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 
 const ENV = /(^|[\\/])\.env(\.[\w-]+)?$/, ENV_OK = /\.env\.(example|sample|template)$/;
@@ -163,44 +164,56 @@ const envWhy = (file, keys) => `Helena / secrets: ${path.basename(file)} holds s
   'can end up in logs, transcripts or a commit. ' + (keys.length ? `Its keys are: ${keys.join(', ')}. ` : '') +
   'Work with the key names; if you need a value checked, ask the user to check it.';
 
-// packages a command installs: [{ eco: 'npm' | 'pypi', name }]
+// packages a command installs: [{ eco: 'npm' | 'pypi', name, pinned, version, ignoreScripts }]
 function installs(cmd) {
   const out = [];
   for (const seg of cmd.split(/&&|\|\||;|\|/)) {
     const npm = seg.match(/^\s*(?:npx\s+)?(npm|pnpm|yarn|bun)\s+(?:install|i|add)\b(.*)$/i);
     const pip = seg.match(/^\s*(?:pip3?|python3?\s+-m\s+pip|py\s+-m\s+pip|uv\s+pip)\s+install\b(.*)$/i) || seg.match(/^\s*(?:uv|poetry)\s+add\b(.*)$/i);
     const args = ((npm && npm[2]) || (pip && pip[1]) || '').trim().split(/\s+/).filter(Boolean);
+    const ignoreScripts = args.some(a => /^--ignore-scripts$/.test(a));
     for (let i = 0; i < args.length; i++) {
       const a = args[i].replace(/^["']|["']$/g, '');
       if (/^-(r|c|e|-requirement|-constraint|-editable|-index-url|-extra-index-url|i)$/.test(a)) { i++; continue; }
       if (/^(\d*|&)[<>]/.test(a)) { if (/[<>]$/.test(a)) i++; continue; }  // a redirect (2>&1, > out.txt) is not a package
       if (a.startsWith('-') || /[:\\]|^\.|^\/|^~/.test(a) || (a.includes('/') && !a.startsWith('@'))) continue;
-      if (npm) out.push({ eco: 'npm', name: a.startsWith('@') ? a.split('@').slice(0, 2).join('@') : a.split('@')[0], pinned: /^@?[^@]+@(?!latest$)./.test(a) });
-      else out.push({ eco: 'pypi', name: a.split(/[<>=!~\[;@ ]/)[0], pinned: /[<>=!~@]/.test(a) });
+      if (npm) {
+        const parts = a.startsWith('@') ? a.slice(1).split('@') : a.split('@');
+        const name = a.startsWith('@') ? '@' + parts[0] : parts[0];
+        const ver = parts[1] && parts[1] !== 'latest' ? parts[1] : '';
+        out.push({ eco: 'npm', name, pinned: !!ver, version: ver, ignoreScripts });
+      } else out.push({ eco: 'pypi', name: a.split(/[<>=!~\[;@ ]/)[0], pinned: /[<>=!~@]/.test(a), version: '', ignoreScripts });
     }
   }
   return out.filter(p => p.name).slice(0, 6);
 }
 
-// { missing } / { young: days } / { few: weekly downloads } / { fresh: { version, hours, prev } } / {} (fine or unknown); never throws
+// { missing } / { young: days } / { few: weekly downloads } / { fresh: { version, hours, prev } } / { installScript: version } / {} (fine or unknown); never throws
 // fresh = no version named and the newest release is under 72 h old: a hijacked maintainer account ships malware that way
-async function registry({ eco, name, pinned }) {
+async function registry({ eco, name, pinned, version, ignoreScripts }) {
   const get = async (url, accept) => { const r = await fetch(url, { signal: AbortSignal.timeout(3000), headers: accept ? { accept } : {} }); return { status: r.status, body: r.ok ? await r.json() : null }; };
   const hours = t => Math.round((Date.now() - t) / 36e5), num = (a, b) => a.localeCompare(b, undefined, { numeric: true });
   try {
     if (eco === 'npm') {
-      // the search result carries the date of the newest version (a few KB; the full packument is megabytes); its name must be exact
-      const [r, s] = await Promise.all([get(`https://api.npmjs.org/downloads/point/last-week/${name}`),
-        pinned ? null : get(`https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(name)}&size=1`).catch(() => null)]);
+      // downloads + abbreviated install metadata (a few KB: carries versions + hasInstallScript/scripts) + search date when unpinned
+      const [r, docRes, s] = await Promise.all([
+        get(`https://api.npmjs.org/downloads/point/last-week/${name}`),
+        get(`https://registry.npmjs.org/${name.replace('/', '%2f')}`, 'application/vnd.npm.install-v1+json').catch(() => null),
+        pinned ? null : get(`https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(name)}&size=1`).catch(() => null),
+      ]);
       if (r.status === 404) return { missing: true };
       if (r.body && r.body.downloads < 200) return { few: r.body.downloads };
+      const doc = docRes && docRes.body;
       const pk = s && s.body && s.body.objects && s.body.objects[0] && s.body.objects[0].package;
-      if (pk && pk.name === name && hours(Date.parse(pk.date)) < 72) {
-        const doc = (await get(`https://registry.npmjs.org/${name.replace('/', '%2f')}`, 'application/vnd.npm.install-v1+json')).body;  // names versions, no dates
-        if (doc && doc['dist-tags'].latest === pk.version) {
-          const prev = Object.keys(doc.versions).filter(v => /^\d+\.\d+\.\d+$/.test(v) && num(v, pk.version) < 0).sort(num).pop();
-          return { fresh: { version: pk.version, hours: hours(Date.parse(pk.date)), prev } };
-        }
+      if (pk && pk.name === name && hours(Date.parse(pk.date)) < 72 && doc && doc['dist-tags'] && doc['dist-tags'].latest === pk.version) {
+        const prev = Object.keys(doc.versions || {}).filter(v => /^\d+\.\d+\.\d+$/.test(v) && num(v, pk.version) < 0).sort(num).pop();
+        return { fresh: { version: pk.version, hours: hours(Date.parse(pk.date)), prev } };
+      }
+      if (!ignoreScripts && doc && doc.versions) {
+        const target = version || (doc['dist-tags'] && doc['dist-tags'].latest) || '';
+        const vobj = doc.versions[target];
+        const hasScript = vobj && (vobj.hasInstallScript || (vobj.scripts && (vobj.scripts.preinstall || vobj.scripts.install || vobj.scripts.postinstall)));
+        if (hasScript) return { installScript: target };
       }
       return {};
     }
@@ -256,10 +269,16 @@ async function decide(ev) {
 
   if (tool.startsWith('mcp__')) {
     const rules = policy(cwd), server = tool.split('__')[1];
-    if (!rules.mcp.length) return null;
-    if (!rules.mcp.some(a => server === a || server.endsWith('_' + a)))
+    if (rules.mcp.length && !rules.mcp.some(a => server === a || server.endsWith('_' + a)))
       return deny(ev, `Helena / team policy: MCP server "${server}" is not on this repo's list (.helena/policy: mcp: ${rules.mcp.join(', ')}). ` +
         'Do the task another way or ask the user to add it.');
+    // secrets must not leave the machine inside arguments to an external MCP server (Helena's own MCP masks on save)
+    if (!/^mcp__(?:plugin_[^_]+_)?helena__/i.test(tool)) {
+      SECRET.lastIndex = 0;
+      if (SECRET.test(JSON.stringify(t)))
+        return deny(ev, `Helena / secrets: this MCP call includes a key or token in its arguments, which would send a credential to "${server}". ` +
+          'Remove the secret value or let the server read its own environment.');
+    }
     return null;
   }
 
@@ -327,7 +346,8 @@ async function decide(ev) {
     const odd = pkgs.map((p, i) => found[i].young !== undefined ? `"${p.name}" was published ${found[i].young} day(s) ago`
       : found[i].few !== undefined ? `"${p.name}" had only ${found[i].few} downloads last week`
       : found[i].fresh ? `"${p.name}" ${found[i].fresh.version} came out ${found[i].fresh.hours} hour(s) ago` +
-        (found[i].fresh.prev ? ` (the previous version was ${found[i].fresh.prev}: pin it with ${p.name}${p.eco === 'npm' ? '@' : '=='}${found[i].fresh.prev})` : '') : '').filter(Boolean);
+        (found[i].fresh.prev ? ` (the previous version was ${found[i].fresh.prev}: pin it with ${p.name}${p.eco === 'npm' ? '@' : '=='}${found[i].fresh.prev})` : '')
+      : found[i].installScript ? `"${p.name}"@${found[i].installScript} runs an install/postinstall script during install (use --ignore-scripts or approve only if you trust it)` : '').filter(Boolean);
     if (odd.length) return ask(ev, `Helena / packages: ${odd.join(', ')}. Make sure it is the package you mean, not a look-alike.`);
   }
 
@@ -405,10 +425,67 @@ function sameFailure(ev) {
   return { additionalContext: `Helena: the same test failure came back after your fix (${s}). Before another patch, say in one line which assumption was wrong; then change one thing and run only the failing test.` };
 }
 
+// Code Mode nudge (r7 / Anthropic Code Mode): 6+ consecutive Read/Grep/Glob calls in one request with no edit or
+// worker means the model is filtering files one by one in context. One line once per request; never blocks, never in workers.
+const CHAIN = 6, READ_TOOLS = new Set(['Read', 'Grep', 'Glob']);
+function chaining(ev) {
+  if (!ev.transcript_path || ev.agent_id || !READ_TOOLS.has(ev.tool_name)) return null;
+  let t;
+  try { t = turn(ev.transcript_path); } catch { return null; }
+  const calls = t.blocks.filter(b => b.type === 'tool_use');
+  if (calls.some(c => c.name === 'Agent' || c.name === 'Task')) return null;
+  const reqId = ev.prompt_id || (calls.length && calls[calls.length - 1].id);
+  if (fs.existsSync(path.join(HELENA, 'warnings', `${ev.session_id || 'x'}-heavy-${reqId}`))) return null;
+  let n = 0;
+  for (const c of calls) {
+    if (!t.seen[c.id]) continue;  // in-flight current call
+    if (!READ_TOOLS.has(c.name)) break;
+    n++;
+  }
+  if (n < CHAIN) return null;
+  try {
+    fs.mkdirSync(path.join(HELENA, 'warnings'), { recursive: true });
+    fs.writeFileSync(path.join(HELENA, 'warnings', `${ev.session_id || 'x'}-chain-${reqId}`), '', { flag: 'wx' });
+  } catch { return null; }
+  return { additionalContext: `Helena / code mode: ${n} consecutive read/search calls in this request, each re-reading the session context. ` +
+    'Run one short script (python -c / node -e) to filter locally and print only what matters, or delegate exploration to `helena:scout` (Haiku).' };
+}
+
+// Path-scoped memory: when Read/Edit/Write touches a file bound by a note's `checks:` or `paths:`, hand the note over
+// right then (once per session, sharing router.js's flag so a note never arrives twice). Never blocks, 0 fixed tokens.
+const FILE_TOOLS = new Set(['Read', 'Edit', 'Write', 'MultiEdit']);
+function fileMemory(ev) {
+  if (!FILE_TOOLS.has(ev.tool_name) || !ev.tool_input || !ev.tool_input.file_path) return null;
+  const cwd = ev.cwd || process.cwd(), fp = ev.tool_input.file_path;
+  const hits = forFile(cwd, fp);
+  if (!hits.length) return null;
+  const scope = ev.agent_id ? `${ev.session_id || 'x'}-${ev.agent_id}` : (ev.session_id || 'x');
+  const picked = [], sent = [];
+  for (const n of hits) {
+    const flag = path.join(HELENA, 'warnings', `${scope}-note-${n.file}`);
+    if (fs.existsSync(flag)) continue;
+    try { fs.mkdirSync(path.dirname(flag), { recursive: true }); fs.writeFileSync(flag, ''); } catch {}
+    picked.push(`Helena memory (${n.file})${staleMark(n)}, linked to ${path.basename(fp)}:\n` +
+      n.text.replace(/^---[\s\S]*?---\n/, '').trim().slice(0, 900));
+    sent.push(n.file);
+    if (picked.length >= 2) break;
+  }
+  if (!picked.length) return null;
+  try {
+    const sf = path.join(HELENA, 'stats.json');
+    const st = (() => { try { return JSON.parse(fs.readFileSync(sf, 'utf8')); } catch { return { notes: {}, skills: {} }; } })();
+    const today = new Date().toISOString().slice(0, 10);
+    for (const f of sent) { const sl = f.slice(0, -3); st.notes[sl] = { last: today, hits: ((st.notes[sl] || {}).hits || 0) + 1 }; }
+    fs.writeFileSync(sf, JSON.stringify(st));
+  } catch {}
+  event(ev, 'file_memory', { file: path.basename(fp), notes: sent });
+  return { additionalContext: picked.join('\n\n') };
+}
+
 let input = '';
 process.stdin.on('data', d => (input += d)).on('end', async () => {
   let ev;
   try { ev = JSON.parse(input); } catch { return; }
-  const out = looping(ev) || await decide(ev) || sameFailure(ev) || heavy(ev);
+  const out = looping(ev) || await decide(ev) || sameFailure(ev) || heavy(ev) || chaining(ev) || fileMemory(ev);
   if (out) console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', ...out } }));
 });
