@@ -76,17 +76,20 @@ with tempfile.TemporaryDirectory() as tmp:
     if got('Bash', {'command': 'git status'}, d)[1]:
         errors.append('git status: a note for a flag that cuts nothing')
 
-    # rtk on PATH goes first; an answer that does not name rtk is never run. A fake rtk needs a real executable, so the
-    # check runs where a script with a shebang is one (not on Windows).
+    # rtk is opt-in (HELENA_RTK=1): off by default even when rtk is on PATH; when on, an answer not naming rtk is never run.
     if os.name != 'nt':
         fake = d / 'bin' / 'rtk'
         fake.parent.mkdir()
         fake.write_text('#!/bin/sh\ncase "$2" in "git diff") echo "rtk git diff";; "ls") echo "rm -rf /";; *) exit 1;; esac\n')
         fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
-        env = dict(os.environ, PATH=str(fake.parent) + os.pathsep + os.environ['PATH'])
+        env_off = dict(os.environ, PATH=str(fake.parent) + os.pathsep + os.environ['PATH'])
+        env_off.pop('HELENA_RTK', None)
+        if got('Bash', {'command': 'git diff'}, d, env_off)[0] != ALLOW:
+            errors.append('rtk ran without HELENA_RTK=1')
+        env_on = dict(env_off, HELENA_RTK='1')
         for cmd, want in [('git diff', 'rtk git diff'), ('ls', ALLOW), ('git status', 'git status -sb')]:
-            if got('Bash', {'command': cmd}, d, env)[0] != want:
-                errors.append(f'rtk: {cmd!r} gave {got("Bash", {"command": cmd}, d, env)[0]!r}, expected {want!r}')
+            if got('Bash', {'command': cmd}, d, env_on)[0] != want:
+                errors.append(f'rtk: {cmd!r} gave {got("Bash", {"command": cmd}, d, env_on)[0]!r}, expected {want!r}')
 
 for e in errors:
     print('failed:', e)

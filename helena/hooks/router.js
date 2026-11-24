@@ -9,10 +9,10 @@
 //  - hints a cheaper model for routine requests and a Haiku subagent for broad searches
 //  - on a redo ("try again", "that's not it"), has the AI say what went wrong before it spends another attempt
 //  - every 6 prompts, distills the new turns in the background, so ideas reach Obsidian mid-session
-// ponytail: word overlap for notes and kits; swap for embeddings if it starts missing obvious matches.
+// ponytail: lightweight BM25 + PT/EN suffix stemmer + 1-hop [[wikilink]]; zero deps, ~1 ms.
 const fs = require('fs'), path = require('path');
 const { bg, event, lastCall, HOME, LIBRARY, KITS } = require('./paths');
-const { field, notes, mark: stale } = require('./memory');
+const { field, notes, mark: stale, linksOf } = require('./memory');
 if (process.env.HELENA_DISTILLING) process.exit(0);
 const CHECKPOINT = 6; // prompts between mid-session distills
 const LONG = [120e3, 250e3, 500e3]; // context tokens at which the session-length warning fires (once each)
@@ -34,14 +34,17 @@ const COMMANDS = {  // commands with `disable-model-invocation: true`, and the p
   status: /o que a helena (sabe|aprendeu)|what (does|has) helena (know|learned)/i,
   rewind: /\b(desfaz|desfa[cç]a|undo)\b.{0,30}\b([uú]ltimo pedido|last request)\b|\bvolta a pasta\b/i,
 };
-const words = t => new Set((t.toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').match(/[a-z][a-z0-9-]{2,}/g) || [])
+const words = t => new Set((t.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').match(/[a-z][a-z0-9-]{2,}/g) || [])
   .filter(w => !STOP.has(w)));
+const STEM = /(?:ations|ation|acoes|acao|mentos|mento|mente|idades|idade|ando|endo|indo|ing|ied|ies|tion|sion|ment|ed|es|s)$/;
+const stem = w => { const s = w.replace(STEM, ''); return s.length >= 4 ? s : w; };
+const tokens = t => (t.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').match(/[a-z][a-z0-9-]{2,}/g) || [])
+  .filter(w => !STOP.has(w)).map(stem);
 const load = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return d; } };
 const once = (session, key) => {  // true the first time this session asks for `key`
   const flag = path.join(HOME, 'warnings', `${session}-${key}`);
   if (fs.existsSync(flag)) return false;
-  fs.mkdirSync(path.dirname(flag), { recursive: true });
-  fs.writeFileSync(flag, '');
+  try { fs.mkdirSync(path.dirname(flag), { recursive: true }); fs.writeFileSync(flag, ''); } catch {}
   return true;
 };
 
@@ -79,20 +82,45 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
       (k.note ? ' ' + k.note : ''));
   }
 
-  // ---- memory: the notes sharing the most words with the request, delivered whole (each only once per session)
+  // ---- memory: BM25 with PT/EN stemming + 1-hop [[wikilink]] expansion, delivered whole (each once per session)
   try {
-    const scored = notes(cwd).map(n => {
-      const head = words(n.slug.replace(/-/g, ' ') + ' ' + field(n.text, 'description'));
-      const body = words(n.text.slice(0, 1500));
-      let score = 0;
-      for (const w of asked) score += head.has(w) ? 2 : body.has(w) ? 1 : 0;
-      return { ...n, score };
-    }).filter(n => n.score >= 3).sort((a, b) => b.score - a.score).slice(0, 2);
-    for (const n of scored) {
-      if (!once(session, 'note-' + n.file)) continue;
-      out.push(`Helena memory (${n.file})${stale(n)}, relevant to this request:\n` + n.text.replace(/^---[\s\S]*?---\n/, '').trim().slice(0, 900));
-      sent.notes.push(n.file);
-      stats.notes[n.slug] = { last: today, hits: ((stats.notes[n.slug] || {}).hits || 0) + 1 };
+    const all = notes(cwd), qTerms = [...new Set(tokens(prompt))];
+    if (all.length && qTerms.length) {
+      const docs = all.map(n => {
+        const head = tokens(n.slug.replace(/-/g, ' ') + ' ' + field(n.text, 'description'));
+        const body = tokens(n.text.replace(/^---[\s\S]*?---\n/, '').slice(0, 1500));
+        const tf = {};
+        for (const w of head) tf[w] = (tf[w] || 0) + 2.5;
+        for (const w of body) tf[w] = (tf[w] || 0) + 1;
+        return { n, tf, dl: head.length * 2.5 + body.length || 1 };
+      });
+      const avgdl = docs.reduce((s, d) => s + d.dl, 0) / docs.length, df = {};
+      for (const d of docs) for (const w of Object.keys(d.tf)) df[w] = (df[w] || 0) + 1;
+      const k1 = 1.2, b = 0.75, N = docs.length;
+      const scored = docs.map(d => {
+        let score = 0, matched = 0;
+        for (const w of qTerms) {
+          const f = d.tf[w] || 0;
+          if (!f) continue;
+          matched++;
+          const idf = Math.max(0.8, Math.log(1 + (N - (df[w] || 0) + 0.5) / ((df[w] || 0) + 0.5)));
+          score += idf * ((f * (k1 + 1)) / (f + k1 * (1 - b + b * d.dl / avgdl)));
+        }
+        return { ...d.n, score, matched };
+      }).filter(n => n.matched >= 2 && n.score >= 1.8).sort((a, b) => b.score - a.score).slice(0, 2);
+      // 1-hop [[wikilink]]: if only 1 note matched and it links to another note here, pull the linked note into slot 2
+      if (scored.length === 1) {
+        const bySlug = Object.fromEntries(all.map(x => [x.slug.toLowerCase(), x]));
+        const hop = linksOf(scored[0].text).map(s => bySlug[s]).find(x => x && x.slug !== scored[0].slug);
+        if (hop) scored.push({ ...hop, linkedFrom: scored[0].slug });
+      }
+      for (const n of scored) {
+        if (!once(session, 'note-' + n.file)) continue;
+        const via = n.linkedFrom ? ` (linked from [[${n.linkedFrom}]])` : '';
+        out.push(`Helena memory (${n.file})${stale(n)}${via}, relevant to this request:\n` + n.text.replace(/^---[\s\S]*?---\n/, '').trim().slice(0, 900));
+        sent.notes.push(n.file);
+        stats.notes[n.slug] = { last: today, hits: ((stats.notes[n.slug] || {}).hits || 0) + 1 };
+      }
     }
   } catch {}
 

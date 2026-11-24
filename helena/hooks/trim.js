@@ -62,9 +62,11 @@ function lean(cmd, cwd) {
   return out === cmd ? null : { cmd: out, notes };
 }
 
-// `rtk rewrite <command>` prints the command with rtk in front of what it can shrink, and fails when it has nothing to do.
+// `rtk rewrite <command>` shrinks CLI output, but aggressive lossy rewrites can hide a line the agent still needs and
+// trigger an extra round trip (which costs more than the cut tokens). Opt-in only: set HELENA_RTK=1 to enable it.
 // No shell in between, and only a one-line answer that names rtk is taken: anything else is not run as a command.
 function rtk(cmd) {
+  if (!process.env.HELENA_RTK) return null;
   const exe = (process.env.PATH || '').split(path.delimiter).filter(Boolean)
     .map(d => path.join(d, process.platform === 'win32' ? 'rtk.exe' : 'rtk')).find(f => fs.existsSync(f));
   if (!exe) return null;

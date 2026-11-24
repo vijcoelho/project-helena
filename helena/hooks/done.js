@@ -83,6 +83,21 @@ function weakened(ev, root) {
     'Passing tests mean little after that. Restore them and fix the code instead; if the user asked for this change, say so in one line and stop again.');
 }
 
+// debug leftovers added in non-test code lines (`debugger`, `breakpoint()`, `pdb.set_trace()`): blocks once per diff
+const DEBUG_TRAP = /\bdebugger\s*;?|\bbreakpoint\s*\(\s*\)|\bpdb\.set_trace\s*\(/;
+function leftovers(ev, root) {
+  const hits = [];
+  for (const part of (git(root, ['diff', 'HEAD', '-U0']).stdout || '').split(/^diff --git /m).slice(1)) {
+    const file = (part.match(/ b\/(.+)\n/) || [])[1];
+    if (!file || !CODE.test(file) || TEST.test(file)) continue;
+    const added = part.split('\n').filter(l => /^\+(?!\+\+)/.test(l) && DEBUG_TRAP.test(l));
+    if (added.length) hits.push(`${file} (${added[0].slice(1).trim().slice(0, 40)})`);
+  }
+  if (!hits.length) return false;
+  return blockOnce(ev, root, 'helena-leftovers', hits.join('|'),
+    `Helena / debug leftover: added debug breakpoint in ${hits.slice(0, 4).join(', ')}. Remove it before finishing, or say in one line why it stays and stop again.`);
+}
+
 // receipts: with no test command to run here, a reply that says the tests pass must match what ran after the last edit
 const CLAIM = /\b(tests?|testes|specs?|suite|build)\b([^.\n]{0,40}?)\b(pass(es|ed|ing)?|green|passam|passou|passando|verdes?)\b/i;
 function receipt(ev, root, transcript) {
@@ -139,6 +154,7 @@ process.stdin.on('data', d => (input += d)).on('end', () => {
       }
     }
     if (weakened(ev, root)) return;
+    if (leftovers(ev, root)) return;
     if (cmd && differential(ev, root, cmd, run)) return;
     if (!cmd && receipt(ev, root, transcript)) return;
     event(ev, 'done', { cmd, holdout: !!hc, edited: edited.map(f => path.basename(f)).slice(0, 5) });  // cmd '' = nothing to run

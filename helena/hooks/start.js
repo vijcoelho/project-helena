@@ -131,6 +131,14 @@ try {
     if (text === undefined) continue;
     let j;
     try { j = JSON.parse(text); } catch { found.push(`${f} is not valid JSON`); continue; }
+    if (f === '.mcp.json') {
+      const pinFile = path.join(HOME, 'warnings', 'mcp-pin-' + crypto.createHash('sha1').update(root.toLowerCase()).digest('hex').slice(0, 12));
+      const curHash = crypto.createHash('sha256').update(text).digest('hex').slice(0, 16);
+      let prevHash = '';
+      try { prevHash = fs.readFileSync(pinFile, 'utf8').trim(); } catch {}
+      if (prevHash && prevHash !== curHash) found.push('.mcp.json changed since the last session (possible MCP rug-pull — review its diff before approving MCP tools)');
+      try { fs.mkdirSync(path.dirname(pinFile), { recursive: true }); fs.writeFileSync(pinFile, curHash); } catch {}
+    }
     for (const [name, s] of Object.entries((j && j.mcpServers) || {})) {
       const cmd = [s && s.command, ...((s && s.args) || [])].join(' ');
       if (DL.test(cmd)) found.push(`${f}: MCP server "${name}" pipes a download into a shell (${cut(cmd)})`);

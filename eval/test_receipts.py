@@ -70,7 +70,26 @@ with tempfile.TemporaryDirectory() as tmp:
     run = ('tool', 'r1', 'Bash', {'command': 'python -m pytest -q'}, 'ok', False)
     out = node('nudge.js', repo, env, {**ev, 'transcript_path': transcript(T, [('user', 'x'), ed(1), ed(2), run, ed(3)])})
     check(out.strip() == '', f'nudge: a test run did not reset the count: {out!r}')
+    # instant syntax check on edited JS/Python files (catches broken syntax before stacking edits; silent when valid)
+    (repo / 'bad_syn.py').write_text('def broken(:\n    pass\n', encoding='utf-8')
+    out_py = node('nudge.js', repo, env, {'tool_name': 'Edit', 'tool_input': {'file_path': str(repo / 'bad_syn.py')}, 'cwd': str(repo)})
+    check('syntax error' in out_py and 'bad_syn.py' in out_py, f'nudge: Python syntax error not caught: {out_py!r}')
+    check(not (repo / '__pycache__').exists(), 'nudge: Python syntax check created __pycache__ clutter')
+    (repo / 'bad_syn.py').unlink()
+    (repo / 'bad_syn.js').write_text('function oops( { return 1 }\n', encoding='utf-8')
+    out_js = node('nudge.js', repo, env, {'tool_name': 'Write', 'tool_input': {'file_path': str(repo / 'bad_syn.js')}, 'cwd': str(repo)})
+    check('syntax error' in out_js and 'bad_syn.js' in out_js, f'nudge: JS syntax error not caught: {out_js!r}')
+    (repo / 'bad_syn.js').unlink()
     (repo / '.helena' / 'test').unlink()
+
+    # debug leftovers: breakpoint() / debugger added in non-test code blocks once per diff
+    (repo / 'calc.py').write_text('def add(a, b):\n    breakpoint()\n    return a + b\n', encoding='utf-8')
+    edit_dbg = ('tool', 'edbg', 'Edit', {'file_path': str(repo / 'calc.py')}, 'ok', False)
+    stop_dbg = {'cwd': str(repo), 'session_id': 'sdbg', 'transcript_path': transcript(T, [('user', 'fix'), edit_dbg, ('say', 'done')])}
+    out_dbg = node('done.js', repo, env, stop_dbg)
+    check('debug leftover' in out_dbg and 'calc.py' in out_dbg, f'done: breakpoint() not caught: {out_dbg!r}')
+    check('debug leftover' not in node('done.js', repo, env, stop_dbg), 'done: same debug leftover blocked twice')
+    git('checkout', '--', '.')
 
     # weakened: an assertion removed outside the gate (a sed) blocks once at Stop, even with the tests green
     (repo / 'calc.py').write_text('def add(a, b):\n    return b + a\n')

@@ -22,13 +22,18 @@ def plugin_of(tool):
 
 
 def sessions(days=30, since=0, pattern='*/*.jsonl'):
-    """Yields one dict per transcript modified in the last `days` days (and after `since`, a unix time)."""
+    """Yields one dict per transcript modified in the last `days` days (and after `since`, a unix time).
+
+    Deduplicates API calls across files too: --resume and --fork-session copy earlier turns (same message id) into a
+    new transcript, which otherwise double-counts those calls in /helena:budget.
+    """
     limit = max(time.time() - days * 86400, since)
-    for f in glob.glob(str(PROJECTS / pattern)):
-        if os.path.getmtime(f) < limit:
-            continue
+    files = [f for f in glob.glob(str(PROJECTS / pattern)) if os.path.getmtime(f) >= limit]
+    files.sort(key=lambda f: (os.path.getmtime(f), f))
+    seen_calls = set()
+    for f in files:
         s = {'file': f, 'id': pathlib.Path(f).stem, 'cwd': None, 'prompts': [], 'tools': [], 'usage': [], 'outputs': []}
-        last_prompt, calls = None, set()
+        last_prompt = None
         for line in open(f, encoding='utf-8', errors='ignore'):
             try:
                 d = json.loads(line)
@@ -53,9 +58,11 @@ def sessions(days=30, since=0, pattern='*/*.jsonl'):
                             s['outputs'].append((b.get('tool_use_id'), size))
             elif d.get('type') == 'assistant':
                 u = m.get('usage')
-                # one API call is written as one line per content block, each repeating the same usage: count it once
-                if u and m.get('id') not in calls:
-                    calls.add(m.get('id') or len(s['usage']))  # no id: every line counts
+                # one API call is written as one line per content block (and copied into resumed/forked transcripts): count once
+                cid = m.get('id') or d.get('requestId')
+                if u and (not cid or cid not in seen_calls):
+                    if cid:
+                        seen_calls.add(cid)
                     made = u.get('cache_creation') or {}  # how long what this call wrote to the cache lives, in seconds
                     s['usage'].append({'ts': d.get('timestamp', ''), 'model': m.get('model', ''),
                                        'ttl': 3600 if made.get('ephemeral_1h_input_tokens') else 300 if made.get('ephemeral_5m_input_tokens') else 0,

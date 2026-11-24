@@ -66,6 +66,23 @@ with tempfile.TemporaryDirectory() as tmp:
     got = bash('\x1b[32mPASS\x1b[0m\n' + 'a\rb\rdone 100%\n' + 'x' * 60 + '\n' + ''.join(f'chunk {i} built in {i}ms\n' for i in range(400)))
     check(got and '\x1b' not in got['stdout'] and 'done 100%' in got['stdout'] and 'a\r' not in got['stdout'], 'squeeze: colour codes or \\r progress survived')
 
+    # ---- squeeze MCP (updatedMCPToolOutput): huge noisy MCP payload cut, Helena MCP untouched, secrets scrubbed
+    def mcp_out(tool_name, resp):
+        out = hook('squeeze.js', {'tool_name': tool_name, 'tool_input': {}, 'tool_response': resp})
+        return (out.get('hookSpecificOutput') or {}).get('updatedMCPToolOutput')
+
+    big_mcp = ''.join(f'row {i} status=ok latency={i}ms\n' for i in range(900)) + 'summary: done\n'
+    check(mcp_out('mcp__helena__helena_start', [{'type': 'text', 'text': big_mcp}]) is None, 'squeeze mcp: touched Helena own MCP')
+    check(mcp_out('mcp__playwright__snapshot', [{'type': 'text', 'text': 'short ok'}]) is None, 'squeeze mcp: touched short MCP response')
+    check(mcp_out('mcp__playwright__shot', [{'type': 'image', 'data': 'abc'}]) is None, 'squeeze mcp: touched image MCP response')
+    mgot = mcp_out('mcp__playwright__snapshot', [{'type': 'text', 'text': big_mcp}])
+    check(mgot and len(mgot[0]['text']) < 1200 and 'similar lines' in mgot[0]['text'] and 'full output:' in mgot[0]['text'],
+          f'squeeze mcp: huge repetitive MCP payload not squeezed: {mgot!r}')
+    fake_tok = 'sk_' + 'live_' + 'FAKE' * 6
+    m_sec = mcp_out('mcp__github__get_issue', [{'type': 'text', 'text': f'Issue body with leaked {fake_tok} inside'}])
+    check(m_sec and fake_tok not in m_sec[0]['text'] and '***' in m_sec[0]['text'] and 'secret value masked' in m_sec[0]['text'],
+          f'squeeze mcp: secret in MCP output not masked: {m_sec!r}')
+
     # ---- start.js: 200 notes and a long handoff still fit under the CLI cap, and the project's notes come first
     mem = home / 'vault' / 'Memory'
     mem.mkdir(parents=True)
@@ -134,11 +151,11 @@ with tempfile.TemporaryDirectory() as tmp:
     tr = d / 'heavy.jsonl'
     rows = [{'type': 'user', 'message': {'content': 'do the big thing'}}]
     for i in range(21):
-        rows.append({'type': 'assistant', 'timestamp': '2026-11-11T10:00:00Z', 'message': {'model': 'claude-opus-5-5', 'content': [{'type': 'tool_use', 'id': f'u{i}', 'name': 'Grep', 'input': {'pattern': f'p{i}'}}],
+        rows.append({'type': 'assistant', 'timestamp': '2026-11-11T10:00:00Z', 'message': {'model': 'claude-opus-5-5', 'content': [{'type': 'tool_use', 'id': f'u{i}', 'name': 'Bash', 'input': {'command': f'echo step {i}'}}],
                      'usage': {'input_tokens': 10, 'cache_read_input_tokens': 150000, 'cache_creation_input_tokens': 0}}})
         rows.append({'type': 'user', 'message': {'content': [{'type': 'tool_result', 'tool_use_id': f'u{i}', 'content': f'result {i}'}]}})
     tr.write_text(''.join(json.dumps(r) + chr(10) for r in rows))
-    gate = lambda **more: (hook('gate.js', {'hook_event_name': 'PreToolUse', 'tool_name': 'Grep', 'tool_input': {'pattern': 'next'},
+    gate = lambda **more: (hook('gate.js', {'hook_event_name': 'PreToolUse', 'tool_name': 'Bash', 'tool_input': {'command': 'echo next'},
                                             'transcript_path': str(tr), 'prompt_id': 'p1', **more}).get('hookSpecificOutput') or {})
     check(gate(agent_id='w1') == {}, 'heavy: a worker was told its calls are expensive')
     first = gate()

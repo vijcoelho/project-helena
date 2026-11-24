@@ -75,4 +75,23 @@ with tempfile.TemporaryDirectory() as tmp:
     (helena / 'audit.jsonl').unlink()
     assert 'Requests checked' not in report()
 
+    # ---- forked / resumed transcripts copy earlier message ids: must be counted once across files
+    before_count = sum(len(s['usage']) for s in history.sessions(9999))
+    (history.PROJECTS / 'shop' / 's1_fork.jsonl').write_text('\n'.join([
+        call('m1', 'claude-opus-5-5', 1000),
+        call('m2', 'claude-opus-5-5', 2000),
+        call('m3', 'claude-opus-5-5', 4000),
+    ]))
+    all_s = list(history.sessions(9999))
+    assert sum(len(s['usage']) for s in all_s) == before_count + 1, [s['usage'] for s in all_s]
+    fork_s = next(s for s in all_s if s['id'] == 's1_fork')
+    assert [u['read'] for u in fork_s['usage']] == [4000], fork_s['usage']
+    (history.PROJECTS / 'shop' / 's1_fork.jsonl').unlink()
+
+    # ---- cache-weighted effective input (1x fresh, 1.25x 5m write, 2x 1h write, 0.1x read)
+    assert budget.equiv_input({'input': 100, 'write': 1000, 'read': 10000, 'ttl': 300}) == 2350.0
+    assert budget.equiv_input({'input': 100, 'write': 1000, 'read': 10000, 'ttl': 3600}) == 3100.0
+    assert 'Cache & effective cost:' in out and 'full-input-equiv tokens' in out, out
+    assert out.index('Cache & effective cost:') < out.index('Per day:'), 'cache headline must appear at the top'
+
 print('PASS  test_budget')

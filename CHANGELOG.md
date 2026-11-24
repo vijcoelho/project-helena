@@ -1,5 +1,58 @@
 # Changelog
 
+## 2.1.0 (2026-11-24)
+
+Built from [extras/pesquisa-ecossistema/r7-economia-tokens-2026-11.md](extras/pesquisa-ecossistema/r7-economia-tokens-2026-11.md)
+and the November 2026 ecosystem/paper review: measure cost by cache-weighted dollars (not raw tokens), expose idle MCP
+schemas, deliver memory when the matching file is touched, and harden hooks without adding a single token of fixed
+weight.
+
+- **Fixed weight (`--probe`, Sonnet):** `46,307 -> 46,995` (**+688 tokens per call**, vs 706 in 2.0.0 — zero fixed
+  weight added).
+- `/helena:diet` (`helena/diet.py`): now lists configured **MCP servers** (`~/.claude.json`, `.mcp.json`, plugin MCPs)
+  with 30-day call counts, median schema estimate (~3.0k tokens, `testedmcp`) or exact measured `tools/list` size via
+  `--probe-mcp` (cached in `~/.helena/mcp-schemas.json` by config hash), and `--off-mcp <server>` to disable idle
+  project MCPs in `.claude/settings.local.json` (global servers print `claude mcp remove <name>`). On the creator's
+  machine: **21.9k tokens** listed (up from 6.6k), exposing **5 MCP servers with 0 calls in 30 days (~15k tokens per
+  message)**. Also adds a report-only `lint()` check counting total `ALWAYS/NEVER/MUST` directives in `CLAUDE.md` /
+  `AGENTS.md` and warning past 25.
+- `/helena:budget` (`helena/history.py`, `helena/budget.py`): fixes cross-file double counting of `message.id` /
+  `requestId` across resumed and `--fork-session` transcripts; promotes **Cache & effective cost** (weighted 1× fresh,
+  1.25× 5m write, 2× 1h write, 0.1× cache read + breaks by cause) to the headline of the report.
+- **Path-scoped memory + BM25 + `[[wikilinks]]`** (`memory.js`, `gate.js`, `router.js`): notes declaring `checks:` or
+  new optional `paths:` globs are injected once per session via `gate.js` when `Read`/`Edit`/`Write`/`MultiEdit` touches
+  a matching file (0 fixed tokens in `start.js`, shares `router.js`'s dedup flag; workers get their own scope).
+  `router.js` upgrades raw word overlap to lightweight pure-JS BM25 with PT/EN suffix stemming and 1-hop `[[wikilink]]`
+  expansion into slot 2. Measured on new task `eval/tasks/path-memory` (Sonnet, 2 rounds): Helena **2/2** (4.0 turns,
+  $0.144/solved, -19.3k tok/run) vs base **1/2** (6.0 turns, $0.291/solved); 2 rounds is directional only (`p = 1.00`,
+  needs more rounds for significance).
+- **Code Mode nudge (`gate.js`)**: 6+ consecutive `Read`/`Grep`/`Glob` calls in one request with no edit, worker or
+  prior heavy-call warning gets one line suggesting a local filter script (`python -c` / `node -e`) or `helena:scout`.
+- **`trim.js`**: `rtk rewrite` is now opt-in (`HELENA_RTK=1`) after the Anyray finding that aggressive lossy rewrites
+  can force extra round trips.
+- **`hooks.json` & `lifecycle.js` (new)**: uses handler-level `"if": "Bash(gh *)"` on `outside.js` (cuts ~98% of Bash
+  spawns) and `"async": true` on `SessionEnd` (`end.js`). Adds `lifecycle.js` (median 60–62 ms) for `PreModelSwitch`
+  (warns before dropping ≥40k of warm prompt cache), `StopFailure` (rate/plan limit handoff hint), and
+  `PostToolUseFailure` (injects a matching known-fix note via `error_pattern:` or error signature).
+- **MCP output squeezing (`squeeze.js`)**: handles `PostToolUse` `mcp__.*` via `updatedMCPToolOutput` (skips Helena's
+  own MCP and images; conservative threshold >12k chars and ≥30% cut, full text in `~/.helena/out/`, always scrubs
+  `SECRET` values).
+- **Hardening (`gate.js`, `start.js`, `nudge.js`, `done.js`)**:
+  - `gate.js` denies `SECRET` credentials inside arguments sent to external `mcp__.*` servers, and asks before npm
+    packages carrying `preinstall`/`install`/`postinstall` scripts (`--ignore-scripts` passes).
+  - `start.js` SHA-256 hash-pins `.mcp.json` per repo and warns once if it changes silently between sessions (0 bytes
+    when unchanged).
+  - `nudge.js` runs an instant syntax check (`node --check` on JS/MJS/CJS, in-memory `ast.parse` on Python with zero
+    `__pycache__` files) right after `Edit`/`Write`, surfacing broken syntax before the AI stacks more edits.
+  - `done.js` blocks once per diff when `debugger`, `breakpoint()` or `pdb.set_trace()` is added in non-test code.
+- **Portable multi-AI hooks (`connect.py`)**: writes clean 5-event `~/.codex/hooks.json` (`SessionStart`,
+  `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, no Claude-only `modules` — fixes the Codex parse error on
+  every run) and adds Cursor support (`~/.cursor/hooks.json` + `~/.cursor/mcp.json`, auto when `~/.cursor` exists or
+  with `--cursor`).
+- **Tests**: 27/27 `eval/test_*.py` suites pass (new: `test_diet.py`, `test_lifecycle.py`, `test_memory_routing.py`,
+  `test_connect.py`); `test_redteam.py` now **38 of 39 attacks caught, 0 false positives**; `eval/replay.py --last 300`
+  against `main`: 300 allow, 0 ask, 0 deny, 0 crash, 0 changed decisions; `test_speed.py` green.
+
 ## 2.0.0 (2026-11-11)
 
 What a tool call costs is the context it re-reads times the model's price. 30 days of the creator's sessions (8,483

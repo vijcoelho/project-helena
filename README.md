@@ -13,7 +13,7 @@
 <p align="center">
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-black"></a>
   <img alt="Claude Code plugin" src="https://img.shields.io/badge/Claude%20Code-plugin-black">
-  <img alt="version" src="https://img.shields.io/badge/version-2.0.0-black">
+  <img alt="version" src="https://img.shields.io/badge/version-2.1.0-black">
 </p>
 
 ---
@@ -123,18 +123,21 @@ One memory, every model. Helena is not tied to Claude: the same vault and librar
 Qwen Code, Kimi, Grok CLI and opencode (which runs any provider: Llama, DeepSeek, Grok, Kimi, Qwen...).
 
 ```bash
-python project-helena/helena/connect.py            # connects every CLI it finds
+python project-helena/helena/connect.py            # connects every CLI it finds (+ native hooks for Codex & Cursor)
+python project-helena/helena/connect.py --cursor   # also write ~/.cursor/hooks.json and ~/.cursor/mcp.json
 python project-helena/helena/connect.py --remove   # undoes it
 ```
 
-- **Codex** reads Claude Code plugins, so it gets the whole plugin (brief, kits, memory notes, guard) plus the MCP server.
-  Its sessions are distilled into the same vault.
+- **Codex** gets native `~/.codex/hooks.json` (only the 5 events Codex supports, with no Claude-only `modules`), the MCP
+  server, and `~/.codex/AGENTS.md`. Its sessions are distilled into the same vault.
+- **Cursor** (when `~/.cursor` exists or `--cursor` is passed) gets both portable verification hooks
+  (`~/.cursor/hooks.json`) and the MCP server (`~/.cursor/mcp.json`).
 - **The others** get `helena/mcp.js`, a dependency-free MCP server with seven tools: `helena_start` (session brief),
   `helena_context` (notes and kits for a request), `helena_skill` (a library skill), `helena_remember` (save a fact),
   `helena_limits` (every plan's usage and weekly pace), `helena_rewind` (undo the last request) and `helena_recall`
   (search your recorded sessions).
   The "how to use Helena" block goes into their global instruction file (`GEMINI.md`, `QWEN.md`, opencode `AGENTS.md`).
-- **Any other MCP client** (Cursor, Claude Desktop, Windsurf, LM Studio): paste the JSON `connect.py` prints.
+- **Any other MCP client** (Claude Desktop, Windsurf, LM Studio): paste the JSON `connect.py` prints.
 
 Something you teach her in Codex shows up in Claude the next session, and the other way around.
 
@@ -175,7 +178,7 @@ model at the command.
 | `/helena:remember <fact>` | Teach her something right now (a rule, a preference, a project fact) |
 | `/helena:forget <fact>` | Remove a memory that is wrong or outdated |
 | `/helena:status` | What she has learned: memories, kits, library, skill candidates |
-| `/helena:budget` | Where your tokens went this week (per day, per project, what filled the context), files read twice, every time the context was paid in full instead of read from the cache and why, what each subagent cost by model and effort, what Helena costs, and "Requests checked by tests" (requests that ended under the done check, green or blocked at least once, with their average tokens) |
+| `/helena:budget` | Where your tokens went this week with **cache & effective full-input-equivalent cost** as the headline (1× fresh, 1.25×/2× cache write, 0.1× cache read, deduplicated across forked/resumed transcripts), cache breaks by cause, per day, per project, files read twice, subagent cost by model and effort, Helena's own cost, and "Requests checked by tests" |
 | `/helena:skills` | The skills she created on her own from your repeated requests, and how often each was used |
 | `/helena:undo <skill>` | Delete a skill she created (she will not create it again) |
 | `/helena:undo <skill> learned` | Remove the last lesson she added to a skill |
@@ -188,7 +191,7 @@ model at the command.
 | `/helena:audit [days]` | What the hooks blocked or asked about, and where the AI reached outside this machine; `--json` for a team's own log tools |
 | `/helena:orchestrate <task>` | Plan in this session and hand the coding to cheaper workers; steps with no shared file run side by side (up to 3 builders, each in its own worktree) and land with `helena/wave.js land`; the tests run before the diff is read; a large change (over 3 files or 150 lines) gets one review by a fresh worker, then a second fresh worker tries to refute each finding, and only those that stand are fixed or shown |
 | `/helena:race <task>` | Two workers try two approaches in separate worktrees; the one whose tests pass is applied here (tie: smaller diff). Only for a task with two real ways to do it; costs two workers |
-| `/helena:diet [--off <plugin>]` | What sits in the context before you type: each plugin, your own skills and agents, CLAUDE.md, with an estimate in tokens and how many times each was called in 30 days; `--off` turns one plugin off in this project only. Also lists lines of CLAUDE.md / AGENTS.md the repo already shows (an npm script restated, a directory tree, a long "do not" list) with line ranges and tokens; reported, never changed. No LLM |
+| `/helena:diet [--probe-mcp \| --off <plugin> \| --off-mcp <server>]` | What sits in the context before you type: **MCP servers** (median estimate or exact `tools/list` schema cached via `--probe-mcp`), plugins, your own skills and agents, and `CLAUDE.md`, with uses in 30 days; `--off` / `--off-mcp` disables an idle plugin or project MCP here. Also lints `CLAUDE.md` / `AGENTS.md` (restated npm scripts, directory trees, long prohibition lists, and 25+ `ALWAYS`/`NEVER` directives). No LLM |
 | `/helena:share <note>` | Copy one of your memory notes into the repo's `.helena/memory/`, reviewed like code |
 | `/painel` | A pane with context by category and Helena's own spending (Claude Code 2.1.287+) |
 
@@ -368,11 +371,11 @@ see it after it lands; these hooks stop it inside the agent's own loop, with no 
   claimed for orchestration either.
 - **Where the AI reached out.** Every fetched host, web search, MCP server and URL in a `curl` / `wget` leaves one line
   in `~/.helena/egress.jsonl`; `/helena:audit` lists the most used.
-- **Attacked on purpose.** `eval/test_redteam.py` feeds 37 bypass attempts to the hooks (a delete hidden in a variable
-  or in `python -c`, a payload in base64 piped to a shell, `.env` read through quote tricks, erasing the audit log,
-  an instruction in invisible characters) plus 6 ordinary commands that must not be stopped. Before 1.4.0 the hooks
-  caught 8 of 37; now **36 of 37, with 0 false positives**. The one left is a key split in two strings and joined at
-  run time, which no pattern can see.
+- **Attacked on purpose.** `eval/test_redteam.py` feeds 39 bypass attempts to the hooks (a delete hidden in a variable
+  or in `python -c`, a payload in base64 piped to a shell, `.env` read through quote tricks, secrets leaked into
+  external MCP tool arguments, erasing the audit log, an instruction in invisible characters) plus 8 ordinary commands
+  that must not be stopped. Before 1.4.0 the hooks caught 8 of 37; now **38 of 39, with 0 false positives**. The one
+  left is a key split in two strings and joined at run time, which no pattern can see.
 - **Ordinary work is not stopped.** A guard that blocks normal work teaches the AI to route around it.
   `eval/test_falseblock.py` runs 29 ordinary coding calls (read code, run tests, `git commit`, write a file, edit a
   test without weakening it) that must all pass, and `eval/replay.py` feeds your real past tool calls to the new gate
@@ -482,6 +485,7 @@ These are guardrails for the AI, not a sandbox: whoever owns the machine can tur
 |---|---|
 | `HELENA_VAULT` | Overrides the vault path from `~/.helena/vault` |
 | `HELENA_EVAL` | Set by the benchmark: the session never distills into your vault |
+| `HELENA_RTK` | Set to `1` to opt into `rtk rewrite` in `trim.js` (off by default: aggressive rewrites can force extra round trips) |
 
 ## Where your Helena lives
 
@@ -517,22 +521,23 @@ is a hook and runs without asking. Skills are for knowledge: the recipe, the for
 | Where | What |
 |---|---|
 | `helena/hooks/start.js` | SessionStart: git brief of the project, the folder's `HANDOFF.md` checked against the repo (past 4 KB, only its "Next" goes in), the instruction file the AI does not read (and the cost of a heavy one), the memory index (a 1 KB budget: this project's and the team's notes first, then the ones handed over most, and how many are not listed; STALE marks; the whole start is 9.5 KB at most, since Claude Code shows only 2 KB of a hook output past 10,000 characters), what looks wrong in the repo's own AI config (`CLAUDE.md` / `AGENTS.md`, also the tracked nested ones and `.claude/rules/*.md`, 40 files at most; `.mcp.json`, `.claude/settings*.json`), news, runs the worker if overdue; after a compaction, the user's own rules from before it, word for word |
-| `helena/hooks/router.js` | UserPromptSubmit: matches the request against your kits and loads only those; injects matching memory notes; turns a git rule said in chat into `.helena/git`; re-enables a plugin a request needs; context, limit and weekly pace warnings; the redo note; the undo snapshot. Subagent reports and notifications are not treated as requests |
-| `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, and their `checks:` / `until:` |
+| `helena/hooks/router.js` | UserPromptSubmit: matches kits; retrieves memory notes with lightweight **BM25 + PT/EN stemming + 1-hop `[[wikilink]]`** expansion; turns a git rule said in chat into `.helena/git`; re-enables needed plugins; context, limit and weekly pace warnings; redo note; undo snapshot |
+| `helena/hooks/memory.js` | memory notes from the vault and `.helena/memory/`, their `checks:` / `until:` / `paths:` / `error_pattern:` fields, and `[[wikilink]]` parsing |
 | `helena/hooks/guard.js` | PreToolUse: before `git commit`/`push`, denies API keys (AWS and Slack included), `.env` files and anything that breaks `.helena/git`; adds `gitleaks` findings when it is installed |
-| `helena/hooks/gate.js` | PreToolUse: `.env` reads (also through quote tricks, globs, one-liners and copies), made-up or brand-new packages and releases under 72 hours old, destructive commands (also through a variable, an interpreter, base64 or `sh -c "…"`), the same call with the same result 4 times in a row, the same test failure twice in a request with an edit between (one line asking which assumption was wrong; never blocks), the `pr: receipt` line on `gh pr create` (opt-in, `.helena/git`), the call-cost line (past 20 calls, 100k+ of context, Opus level or above), weakened or deleted tests (with `tests: spec-only`, new test files too), the hidden tests in `.helena/holdout`, erasing the audit trail, `.helena/policy`; asks before an edit or a shell write to Helena's own rule files (`.helena/git`, `policy`, `test`, `delegate`), which are what her checks read; logs the hosts a `curl` / `wget` names |
+| `helena/hooks/gate.js` | PreToolUse: `.env` reads (quote tricks, globs, one-liners, copies), secrets in external MCP arguments (denied), made-up / brand-new / <72h packages and npm `postinstall` scripts (`--ignore-scripts` passes), destructive commands, loop cut (4×), same test failure twice, `pr: receipt`, heavy-call and **Code Mode** (6+ consecutive read/search calls) nudges, **path-scoped memory** on `Read`/`Edit` via `checks:`/`paths:`, weakened/deleted tests, `.helena/holdout`, audit trail, `.helena/policy`, own rules guard, egress logging |
+| `helena/hooks/lifecycle.js` | `PreModelSwitch` (warns before dropping ≥40k of warm cache), `StopFailure` (rate/plan limit handoff hint), `PostToolUseFailure` (injects a known fix from memory matching `error_pattern:` or error signature) |
 | `helena/hooks/delegate.js` | PreToolUse (Agent) and SubagentStop: a model below the session's for workers started without one (always); with `.helena/delegate`, how many run at once, how many start per request, and their effort; a worker report past 8,000 characters goes back once to be put in a file (`report:`) |
 | `helena/hooks/brief.js` | SubagentStart: report format, check command, `## Decisions` of `HANDOFF.md` and `tests: spec-only` for every worker |
 | `helena/hooks/compact.js` | PreCompact: tells the summary what to keep and what to leave out |
-| `helena/hooks/squeeze.js` | PostToolUse (Bash, PowerShell): shortens an output over 4k characters, full text in `~/.helena/out/` |
+| `helena/hooks/squeeze.js` | PostToolUse (Bash, PowerShell, MCP): shortens Bash outputs over 4k chars (`updatedToolOutput`) and noisy external MCP payloads over 12k chars (`updatedMCPToolOutput`, ≥30% cut, secrets scrubbed), full text in `~/.helena/out/` |
 | `helena/wave.js` | `land <worktree>...`: patches, checks and applies the worktrees of a wave; nothing staged or committed |
-| `helena/diet.py` | `/helena:diet`, no LLM |
+| `helena/diet.py` | `/helena:diet`: plugins, MCP servers (`--probe-mcp`, `--off-mcp`), skills, agents, `CLAUDE.md` lint including 25+ `ALWAYS`/`NEVER` directives; no LLM |
 | `helena/agents/scout.md` · `builder.md` | the two workers `/helena:orchestrate` uses: a read-only locator on Haiku, a writer on Sonnet |
-| `helena/hooks/outside.js` | PostToolUse (WebFetch, WebSearch, MCP, and the output of `gh issue` / `gh pr` / `gh api`): flags a line written for an AI in text that came from outside, also in invisible characters or an HTML comment; logs where each call went |
-| `helena/hooks/trim.js` | PreToolUse: adds the quiet flag to `git log`, `git status`, `pytest`, `pip install`, `npm install`, `cargo` and recursive `grep` and lets them run (`rtk rewrite` first when rtk is installed); blocks lockfiles, build output, files over 100 KB (with their outline) and what no flag makes lean |
+| `helena/hooks/outside.js` | PostToolUse (WebFetch, WebSearch, MCP, and `gh` via `if: "Bash(gh *)"`): flags lines aimed at an AI in outside text, invisible characters or HTML comments; logs egress |
+| `helena/hooks/trim.js` | PreToolUse: adds quiet flags to `git log`, `git status`, `pytest`, `pip install`, `npm install`, `cargo` and recursive `grep` (`rtk rewrite` opt-in via `HELENA_RTK=1`); blocks lockfiles, build output, files over 100 KB (with outline) and unbounded dumps |
 | `helena/hooks/check.js` | Stop: if the session touched front-end files, checks contrast on the `.html` and on live localhost URLs |
-| `helena/hooks/done.js` | Stop and SubagentStop: if this turn (or this subagent) edited code, runs the tests (or `npx tsc --noEmit` in a TypeScript project with none) and sends a failure back; tests weakened against `HEAD`; receipts for "tests pass" when there is no test command |
-| `helena/hooks/nudge.js` | PostToolUse (Edit / Write): after every 3rd code edit with no test run, one line asks for the nearest test |
+| `helena/hooks/done.js` | Stop and SubagentStop: runs project tests (or `npx tsc --noEmit`), `.helena/holdout`, weakened tests against `HEAD`, **debug leftovers** (`debugger`, `breakpoint()`, `pdb.set_trace()`), differential check and receipts |
+| `helena/hooks/nudge.js` | PostToolUse (Edit / Write): instant syntax check (`node --check` / Python `ast.parse`) on edited files, plus after every 3rd code edit asks for the nearest test |
 | `helena/hooks/limits.js` · `rewind.js` | plan usage and weekly pace (`/helena:limits`) · undo snapshots (`/helena:rewind`) |
 | `helena/scan.py` · `helena/audit.py` | skill security scan · hook decision report |
 | `helena/hooks/end.js` → `helena/distill.py` | SessionEnd (and every 6 prompts, from router.js): Haiku reads the new turns in the background and writes memory, skill candidates and "## Learned" lessons |
@@ -572,9 +577,13 @@ python eval/test_tidy.py                 # memory merge, folding lessons, weekly
 python eval/test_verify.py               # STALE notes, supersedes, handoff check, instruction file, redo (no LLM)
 python eval/test_outside.py              # lines aimed at an AI in fetched pages and tool results (no LLM)
 python eval/test_gate.py                 # .env, packages, destructive commands, tests, team policy, audit (no LLM)
-python eval/test_redteam.py              # 37 bypass attempts against the hooks, and 6 commands that must pass (no LLM)
-python eval/test_falseblock.py           # 29 ordinary coding calls must all be allowed, spec-only on and off (no LLM)
-python eval/test_receipts.py             # loop cut, post-edit reminder, weakened tests, receipts, rules after compaction (no LLM)
+python eval/test_redteam.py              # 39 bypass attempts against the hooks, and 8 commands that must pass (no LLM)
+python eval/test_falseblock.py           # 34 ordinary coding calls must all be allowed, spec-only on and off (no LLM)
+python eval/test_receipts.py             # loop cut, post-edit syntax + reminder, weakened tests, debug leftovers, receipts, compaction rules (no LLM)
+python eval/test_diet.py                 # MCP server accounting (--probe-mcp, --off-mcp) and 25+ ALWAYS/NEVER lint (no LLM)
+python eval/test_lifecycle.py            # PreModelSwitch warm-cache guard, StopFailure limit handoff, PostToolUseFailure known-fix, Code Mode nudge (no LLM)
+python eval/test_memory_routing.py       # path-scoped memory (checks:/paths:), BM25 + PT/EN stemming, 1-hop [[wikilinks]] (no LLM)
+python eval/test_connect.py              # portable 5-event hooks for Codex (~/.codex/hooks.json) and Cursor (no LLM)
 python eval/replay.py --last 300         # replay real transcript calls through gate.js here and on main, show changed decisions (runs nothing)
 python eval/test_recall.py               # search over recorded sessions: words, accents, days, project, masked keys (no LLM)
 python eval/test_rewind.py               # undo snapshots and the done check (no LLM)

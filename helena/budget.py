@@ -30,6 +30,12 @@ def when(ts):
         return 0
 
 
+def equiv_input(u):
+    """Cache-weighted input tokens (1x fresh input, 1.25x 5m cache write, 2x 1h cache write, 0.1x cache read)."""
+    wmult = 2.0 if u.get('ttl') == 3600 else 1.25
+    return u['input'] + u['write'] * wmult + u['read'] * 0.1
+
+
 def cache_breaks(usage):
     """Calls that did not find the previous call's context in the cache: [(cause, tokens paid in full)]."""
     out, ttl, prev = [], 300, None
@@ -87,7 +93,7 @@ def main():
     per_day, per_project, tools_out = collections.Counter(), collections.Counter(), collections.Counter()
     biggest, first_ctx, per_msg, totals = [], [], [], collections.Counter()
     breaks, cold, again = collections.defaultdict(lambda: [0, 0]), [], collections.defaultdict(list)
-    n_sessions, green, blocked = 0, [], []
+    n_sessions, green, blocked, equiv_ctx = 0, [], [], 0.0
     jl = lambda f: [json.loads(l) for l in open(HOME / f, encoding='utf-8') if l.strip().startswith('{')] if (HOME / f).exists() else []
     done = [r for r in jl('events.jsonl') if r.get('kind') == 'done']  # written by done.js only when the tests passed
     blocks = [r for r in jl('audit.jsonl') if r.get('hook') == 'done' and r.get('decision') == 'block']
@@ -105,6 +111,7 @@ def main():
             total = u['input'] + u['write'] + u['read'] + u['output']
             per_day[u['ts'][:10]] += total
             per_project[project] += total
+            equiv_ctx += equiv_input(u)
             for key in ('input', 'write', 'read', 'output'):
                 totals[key] += u[key]
         names = {i: (n, inp) for i, n, inp in s['tools']}
@@ -125,10 +132,18 @@ def main():
         print(f'No sessions in the last {days} days.')
         return
     context = totals['input'] + totals['write'] + totals['read']
+    n_breaks, paid_breaks = sum(n for n, _ in breaks.values()), sum(t for _, t in breaks.values())
     print(f'Last {days} days: {n_sessions} sessions, {k(context + totals["output"])} tokens '
           f'({k(context)} context read in, {k(totals["output"])} written out)')
-    print(f'Re-read from cache: {totals["read"] / max(context, 1):.0%} of the context '
-          f'(cheaper than fresh input, but it still counts toward the plan limit)')
+    print(f'Cache & effective cost: {totals["read"] / max(context, 1):.0%} read from cache '
+          f'(~{k(round(equiv_ctx))} full-input-equiv tokens vs {k(context)} raw; '
+          f'{n_breaks} cache break(s) re-paid {k(paid_breaks)} tokens in full)')
+    for cause, (n, paid) in sorted(breaks.items(), key=lambda x: -x[1][1]):
+        print(f'  {CAUSES[cause][0]:28} {n:>4} {k(paid):>7}  {CAUSES[cause][1]}')
+    low = sorted(c for c in cold if c[0] < 0.85)
+    if low:
+        print(f'  Sessions under 85% read from the cache: {len(low)} of {len(cold)} '
+              f"(lowest: {', '.join(f'{p} {r:.0%}' for r, p in low[:3])})")
     print(f'Fixed context at session start (median): {k(statistics.median(first_ctx))} tokens, re-read on every message')
     msgs = sum(per_msg)
     print(f'Average context per message: {k(context // max(msgs, 1))} over {msgs} messages. '
@@ -150,15 +165,6 @@ def main():
               f'{k(sum(map(sum, again.values())))} characters that were already in the context')
         for f, chars in sorted(again.items(), key=lambda x: -sum(x[1]))[:3]:
             print(f'  {k(sum(chars)):>6}  {len(chars)}x  {f[-70:]}')
-
-    print(f'\nCache: the context was paid in full again {sum(n for n, _ in breaks.values())} times, '
-          f'{k(sum(t for _, t in breaks.values()))} tokens (a call that reads it from the cache pays a fraction)')
-    for cause, (n, paid) in sorted(breaks.items(), key=lambda x: -x[1][1]):
-        print(f'  {CAUSES[cause][0]:28} {n:>4} {k(paid):>7}  {CAUSES[cause][1]}')
-    low = sorted(c for c in cold if c[0] < 0.85)
-    if low:
-        print(f'  Sessions under 85% read from the cache: {len(low)} of {len(cold)} '
-              f"(lowest: {', '.join(f'{p} {r:.0%}' for r, p in low[:3])})")
 
     if green or blocked:  # what one request that ended under the done check cost, in tokens
         part = lambda n, v, w: f'{len(v)} {w}, average {k(round(statistics.mean(v)))} tokens' + (f' (median {k(round(statistics.median(v)))})' if n else '')
