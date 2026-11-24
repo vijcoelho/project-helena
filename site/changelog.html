@@ -1,0 +1,922 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Helena · patch notes</title>
+<meta name="description" content="Histórico de versões da Helena: quando cada recurso, hook, checagem e melhoria entrou, da v0.7.0 até a v2.1.0. / Helena patch notes: full release timeline from v0.7.0 to v2.1.0 with dates, categories and measured numbers.">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<script>
+  // mesmo critério da home e de docs: ?lang=en|pt > escolha salva > idioma do navegador
+  (() => {
+    let l = new URLSearchParams(location.search).get('lang');
+    try { l = l || localStorage.getItem('helena-lang'); } catch {}
+    l = l === 'en' || l === 'pt' ? l : (navigator.language || '').toLowerCase().startsWith('pt') ? 'pt' : 'en';
+    document.documentElement.classList.add(l);
+    document.documentElement.lang = l === 'pt' ? 'pt-BR' : 'en';
+  })();
+</script>
+<style>
+  :root {
+    --bg: #000;
+    --surface: #0b0b0b;
+    --surface2: #111;
+    --fg: #f2f2f2;
+    --dim: #9a9a9a;
+    --line: #262626;
+    --line-hi: #424242;
+    --mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+  html.pt .en, html.en .pt { display: none !important; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--mono); font-size: 14.5px; line-height: 1.6; overflow-x: clip; }
+  ::selection { background: var(--fg); color: var(--bg); }
+  a { color: inherit; }
+
+  nav {
+    position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; gap: 16px; z-index: 20;
+    padding: 14px clamp(16px, 4vw, 48px); background: #000; border-bottom: 1px solid var(--line);
+  }
+  nav .marca { font-weight: 800; letter-spacing: .08em; text-decoration: none; white-space: nowrap; }
+  nav ul { display: flex; gap: clamp(12px, 2.4vw, 28px); list-style: none; font-size: 13px; align-items: center; }
+  nav ul a { color: var(--dim); text-decoration: none; }
+  nav ul a:hover, nav ul a.ativo { color: var(--fg); }
+  .troca { background: none; border: 1px solid var(--line); color: var(--dim); font: inherit; font-size: 12px; padding: 4px 8px; cursor: pointer; white-space: nowrap; }
+  .troca b { color: var(--fg); font-weight: 500; }
+  .troca:hover { border-color: var(--fg); }
+
+  .pagina {
+    display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: clamp(24px, 5vw, 72px);
+    padding: clamp(36px, 6vh, 72px) clamp(16px, 6vw, 96px) 96px;
+  }
+
+  /* timeline sticky na lateral esquerda */
+  .lateral { position: sticky; top: 84px; align-self: start; max-height: calc(100vh - 108px); overflow-y: auto; padding-right: 8px; }
+  .lateral-titulo { color: var(--dim); font-size: 12px; letter-spacing: .12em; margin-bottom: 14px; }
+  .lateral-titulo::before { content: '// '; }
+  .indice { list-style: none; border-left: 1px solid var(--line); }
+  .indice li { position: relative; }
+  .indice a {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+    padding: 6px 0 6px 16px; margin-left: -1px; border-left: 2px solid transparent;
+    color: var(--dim); text-decoration: none; font-size: 12.5px; transition: color .15s, border-color .15s;
+  }
+  .indice a:hover { color: var(--fg); }
+  .indice a.ativo { color: var(--fg); border-left-color: var(--fg); font-weight: 700; }
+  .indice a .dt { font-size: 11px; color: var(--dim); font-weight: 400; }
+  .indice li.vazio a { color: #9a9a9a; text-decoration: line-through; }
+
+  main { min-width: 0; max-width: 920px; }
+  .topo { padding-bottom: 32px; border-bottom: 1px solid var(--line); }
+  .rotulo { color: var(--dim); font-size: 13px; letter-spacing: .12em; margin-bottom: 18px; }
+  .rotulo::before { content: '// '; }
+  h1 { font-size: clamp(34px, 6vw, 72px); font-weight: 800; letter-spacing: -.03em; line-height: 1.04; margin-bottom: 18px; }
+  .sub { color: var(--dim); max-width: 70ch; }
+  .sub b { color: var(--fg); font-weight: 500; }
+
+  .resumo {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px;
+    background: var(--line); border: 1px solid var(--line); margin-top: 28px;
+  }
+  .resumo > div { background: var(--surface); padding: 14px 16px; }
+  .resumo strong { display: block; font-size: 22px; font-weight: 800; color: var(--fg); letter-spacing: -.02em; }
+  .resumo span { display: block; font-size: 11.5px; color: var(--dim); margin-top: 4px; }
+
+  /* barra de busca e filtros */
+  .controles { padding: 24px 0; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 14px; }
+  .busca-linha { display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; }
+  .busca-wrap { position: relative; flex: 1 1 280px; min-width: 0; }
+  .busca {
+    width: 100%; background: var(--surface); border: 1px solid var(--line-hi); color: var(--fg);
+    font: inherit; font-size: 13.5px; padding: 10px 38px 10px 14px; outline: none;
+  }
+  .busca::placeholder { color: var(--dim); }
+  .busca:focus { border-color: var(--fg); }
+  .limpar-busca {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: none; border: 0; color: var(--dim); font: inherit; font-size: 16px;
+    padding: 4px 8px; cursor: pointer; display: none;
+  }
+  .limpar-busca.on { display: block; }
+  .limpar-busca:hover { color: var(--fg); }
+  .salto-mobile {
+    display: none; background: var(--surface); border: 1px solid var(--line-hi); color: var(--fg);
+    font: inherit; font-size: 13px; padding: 10px 12px; cursor: pointer;
+  }
+
+  .filtros { display: flex; flex-wrap: wrap; gap: 8px; }
+  .filtro {
+    background: var(--surface); border: 1px solid var(--line-hi); color: var(--dim);
+    font: inherit; font-size: 12px; padding: 5px 10px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px; transition: border-color .15s, color .15s, background .15s;
+  }
+  .filtro:hover { border-color: var(--fg); color: var(--fg); }
+  .filtro.ativo { background: var(--fg); color: #000; border-color: var(--fg); font-weight: 700; }
+  .filtro .qtd { font-size: 11px; color: inherit; }
+
+  .status-filtro { font-size: 12.5px; color: var(--dim); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .status-filtro b { color: var(--fg); font-weight: 500; }
+  .reset-link { background: none; border: 0; color: var(--fg); font: inherit; font-size: 12.5px; text-decoration: underline; cursor: pointer; padding: 0; }
+
+  /* timeline de releases */
+  .releases { display: flex; flex-direction: column; }
+  .release { padding: 44px 0; border-bottom: 1px solid var(--line); scroll-margin-top: 76px; }
+  .release:last-child { border-bottom: 0; }
+  .release-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 12px; }
+  .release-id { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .release h2 { font-size: clamp(24px, 3vw, 32px); font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+  .ancora { text-decoration: none; }
+  .ancora:hover::after { content: ' #'; color: var(--dim); font-weight: 400; }
+  .badge-atual { background: var(--fg); color: #000; font-size: 11px; font-weight: 700; letter-spacing: .06em; padding: 2px 7px; text-transform: uppercase; }
+  .release-meta { display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--dim); flex-wrap: wrap; }
+  .release-meta time { color: var(--fg); font-weight: 500; }
+  .commit-link { color: var(--dim); text-decoration: none; border-bottom: 1px dotted var(--line-hi); }
+  .commit-link:hover { color: var(--fg); border-bottom-color: var(--fg); }
+
+  .release-titulo { font-size: 16px; font-weight: 700; color: var(--fg); margin-bottom: 8px; }
+  .release-resumo { color: var(--dim); max-width: 74ch; font-size: 13.5px; margin-bottom: 18px; }
+
+  .metricas { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .metrica {
+    background: var(--surface); border: 1px solid var(--line); padding: 6px 10px;
+    font-size: 12px; color: var(--dim);
+  }
+  .metrica b { color: var(--fg); font-weight: 700; }
+
+  .itens { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .item {
+    display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 14px; align-items: baseline;
+    padding: 10px 12px; background: var(--surface); border: 1px solid var(--line);
+  }
+  .item-txt { color: var(--dim); font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; }
+  .item-txt b { color: var(--fg); font-weight: 700; }
+  .item-txt code { color: var(--fg); font-size: .92em; background: #161616; padding: 1px 5px; overflow-wrap: anywhere; }
+
+  /* tags de categoria — todas validadas >7:1 sobre #111111 */
+  .tag {
+    display: inline-block; text-align: center; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    padding: 2px 7px; background: var(--surface2); border: 1px solid var(--line-hi); white-space: nowrap;
+  }
+  .tag-economia { color: #f2b632; }
+  .tag-seguranca { color: #ff8585; }
+  .tag-memoria { color: #6ee7b7; }
+  .tag-verificacao { color: #93c5fd; }
+  .tag-orquestracao { color: #d8b4fe; }
+  .tag-multiia { color: #fdba74; }
+  .tag-app { color: #67e8f9; }
+  .tag-benchmark { color: #e5e5e5; }
+  .tag-fix { color: #b5b5b5; }
+
+  .nota-honesta {
+    margin-top: 16px; padding: 10px 14px; border-left: 2px solid var(--line-hi); background: var(--surface);
+    font-size: 12.5px; color: var(--dim);
+  }
+  .nota-honesta b { color: var(--fg); font-weight: 500; }
+
+  .sem-resultado {
+    padding: 48px 20px; text-align: center; border: 1px solid var(--line); background: var(--surface);
+    margin-top: 24px; color: var(--dim);
+  }
+  .sem-resultado p { margin-bottom: 14px; }
+
+  footer {
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    padding: 28px clamp(16px, 6vw, 96px); border-top: 1px solid var(--line); color: var(--dim); font-size: 13px;
+  }
+  footer a { text-decoration: none; border-bottom: 1px dotted var(--line-hi); }
+  footer a:hover { color: var(--fg); border-bottom-color: var(--fg); }
+
+  @media (max-width: 860px) {
+    .pagina { grid-template-columns: 1fr; padding-top: 28px; }
+    .lateral { display: none; }
+    nav ul .l { display: none; }
+    .salto-mobile { display: block; width: 100%; }
+    .resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .item { grid-template-columns: 1fr; gap: 6px; }
+    .tag { justify-self: start; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<nav>
+  <a href="index.html" class="marca">HELENA_</a>
+  <ul>
+    <li class="l"><a href="index.html"><span class="pt">início</span><span class="en">home</span></a></li>
+    <li class="l"><a href="docs.html">docs</a></li>
+    <li><a href="changelog.html" class="ativo"><span class="pt">versões</span><span class="en">changelog</span></a></li>
+    <li><a href="https://github.com/vijcoelho/project-helena" target="_blank" rel="noopener">github ↗</a></li>
+    <li><button type="button" class="troca" aria-label="Trocar idioma / Switch language"><span class="pt"><b>PT</b> / EN</span><span class="en">PT / <b>EN</b></span></button></li>
+  </ul>
+</nav>
+
+<div class="pagina">
+  <aside class="lateral" aria-label="Linha do tempo / Release timeline">
+    <p class="lateral-titulo"><span class="pt">versões</span><span class="en">releases</span></p>
+    <ul class="indice" id="indice"></ul>
+  </aside>
+
+  <main>
+    <header class="topo">
+      <p class="rotulo">patch notes</p>
+      <h1><span class="pt">Histórico de versões</span><span class="en">Patch Notes</span></h1>
+      <p class="sub">
+        <span class="pt">Tudo o que entrou na Helena, <b>quando entrou</b> e o que o benchmark mediu em cada marco — do primeiro lançamento (<code>0.7.0</code>) até a <code>2.1.0</code>. Filtre por tema ou busque um hook, comando ou recurso.</span>
+        <span class="en">Everything shipped in Helena, <b>when it landed</b> and what the benchmark measured at each milestone — from the first public release (<code>0.7.0</code>) to <code>2.1.0</code>. Filter by area or search any hook, command or feature.</span>
+      </p>
+      <div class="resumo" id="resumo"></div>
+    </header>
+
+    <section class="controles" aria-label="Filtros / Filters">
+      <div class="busca-linha">
+        <div class="busca-wrap">
+          <input id="busca" class="busca" type="search" autocomplete="off"
+                 aria-label="Buscar nos patch notes / Search patch notes">
+          <button id="limpar-busca" class="limpar-busca" type="button" aria-label="Limpar busca / Clear search">×</button>
+        </div>
+        <select id="salto-mobile" class="salto-mobile" aria-label="Ir para versão / Jump to version"></select>
+      </div>
+      <div class="filtros" id="filtros" role="group" aria-label="Filtrar por categoria / Filter by category"></div>
+      <div class="status-filtro" id="status-filtro"></div>
+    </section>
+
+    <div class="releases" id="releases"></div>
+
+    <noscript>
+      <div class="sem-resultado">
+        <p>JavaScript is disabled. Read the full history in <a href="https://github.com/vijcoelho/project-helena/blob/main/CHANGELOG.md">CHANGELOG.md on GitHub</a>.</p>
+      </div>
+    </noscript>
+  </main>
+</div>
+
+<footer>
+  <span>HELENA_ · <span class="pt">feita por Vitor Coelho em cima do Claude Code</span><span class="en">built by Vitor Coelho on top of Claude Code</span> · MIT · <a href="docs.html"><span class="pt">documentação</span><span class="en">docs</span></a> · <a href="https://github.com/vijcoelho/project-helena/blob/main/CHANGELOG.md" target="_blank" rel="noopener">CHANGELOG.md ↗</a></span>
+  <span><a href="index.html"><span class="pt">voltar ao início</span><span class="en">back to home</span></a></span>
+</footer>
+
+<script>
+(() => {
+  const REPO = 'https://github.com/vijcoelho/project-helena/commit/';
+  const CATS = [
+    { id: 'all',          pt: 'tudo',         en: 'all' },
+    { id: 'economia',     pt: 'economia',     en: 'tokens' },
+    { id: 'seguranca',    pt: 'segurança',    en: 'security' },
+    { id: 'memoria',      pt: 'memória',      en: 'memory' },
+    { id: 'verificacao',  pt: 'verificação',  en: 'checks' },
+    { id: 'orquestracao', pt: 'orquestração', en: 'workers' },
+    { id: 'multiia',      pt: 'multi-ia',     en: 'multi-ai' },
+    { id: 'app',          pt: 'app',          en: 'app' },
+    { id: 'benchmark',    pt: 'benchmark',    en: 'benchmark' },
+    { id: 'fix',          pt: 'fix',          en: 'fix' },
+  ];
+  const CAT_MAP = Object.fromEntries(CATS.map(c => [c.id, c]));
+
+  // Cada versão reflete fielmente CHANGELOG.md e os commits reais da main.
+  const RELEASES = [
+    {
+      v: '2.1.0', date: '2026-11-24', commit: 'e8841d8', latest: true,
+      title: {
+        pt: 'Dieta de MCP, orçamento ponderado por cache, memória por arquivo e endurecimento sem peso fixo',
+        en: 'Idle MCP diet, cache-weighted budgets, path-scoped memory and hardening with zero fixed tax',
+      },
+      summary: {
+        pt: 'Medir custo real ponderado pelo cache, expor schemas de MCP parados, entregar memória no instante em que o arquivo abre e endurecer os hooks mantendo o peso fixo abaixo da 2.0.',
+        en: 'Measure real cache-weighted cost, expose idle MCP schemas, inject memory the moment a matching file opens, and harden hooks while keeping fixed prompt weight below 2.0.',
+      },
+      metrics: [
+        { k: { pt: 'Peso fixo (--probe)', en: 'Fixed weight (--probe)' }, v: '+688 tok/call' },
+        { k: { pt: 'Red-team', en: 'Red-team' }, v: '38/39 (0 FP)' },
+        { k: { pt: 'Replay real', en: 'Real replay' }, v: '300/300 allow' },
+        { k: { pt: 'Suítes de teste', en: 'Test suites' }, v: '27/27' },
+      ],
+      items: [
+        { c: 'economia',
+          pt: '<b>Auditoria de servidores MCP no /helena:diet:</b> descobre MCPs em <code>~/.claude.json</code>, <code>.mcp.json</code> e plugins com usos em 30 dias, estimativa mediana (~3,0k) ou medição exata via <code>--probe-mcp</code> (cache em <code>~/.helena/mcp-schemas.json</code>), <code>--off-mcp</code> e alerta de lint acima de 25 diretivas <code>ALWAYS/NEVER</code>.',
+          en: '<b>MCP server accounting in /helena:diet:</b> discovers MCPs in <code>~/.claude.json</code>, <code>.mcp.json</code> and plugins with 30-day call counts, median estimate (~3.0k) or exact <code>tools/list</code> measurement via <code>--probe-mcp</code> (cached in <code>~/.helena/mcp-schemas.json</code>), <code>--off-mcp</code> and a lint warning past 25 <code>ALWAYS/NEVER</code> directives.' },
+        { c: 'economia',
+          pt: '<b>/helena:budget honesto e ponderado por cache:</b> deduplica <code>message.id</code>/<code>requestId</code> entre transcrições resumidas ou forkadas e coloca <b>Cache e custo efetivo</b> (1× cheio, 1,25×/2× escrita, 0,1× leitura) na manchete.',
+          en: '<b>Cache-weighted /helena:budget:</b> deduplicates <code>message.id</code>/<code>requestId</code> across resumed and forked JSONLs and promotes <b>Cache &amp; effective cost</b> (1× fresh, 1.25×/2× write, 0.1× read) to the headline.' },
+        { c: 'memoria',
+          pt: '<b>Memória por caminho + BM25 + [[wikilinks]]:</b> notas com <code>checks:</code> ou globs <code>paths:</code> entram uma vez por sessão no <code>Read</code>/<code>Edit</code> via <code>gate.js</code> (0 tokens fixos no <code>start.js</code>). <code>router.js</code> ganha BM25 puro em JS com stemming PT/EN e expansão de 1 salto em <code>[[wikilinks]]</code>.',
+          en: '<b>Path-scoped memory + BM25 + [[wikilinks]]:</b> notes with <code>checks:</code> or <code>paths:</code> globs arrive once per session on <code>Read</code>/<code>Edit</code> via <code>gate.js</code> (0 fixed tokens in <code>start.js</code>). <code>router.js</code> upgrades to pure-JS BM25 with PT/EN stemming and 1-hop <code>[[wikilinks]]</code>.' },
+        { c: 'economia',
+          pt: '<b>Code Mode nudge e squeeze de MCP:</b> <code>gate.js</code> sugere script local ou <code>helena:scout</code> após 6+ leituras/buscas seguidas; <code>squeeze.js</code> comprime respostas de MCP externo &gt;12k (<code>updatedMCPToolOutput</code>, corte ≥30%, mascara segredos, salva íntegra em disco); <code>rtk rewrite</code> vira opt-in (<code>HELENA_RTK=1</code>).',
+          en: '<b>Code Mode nudge &amp; MCP squeezing:</b> <code>gate.js</code> nudges toward a local filter script or <code>helena:scout</code> after 6+ consecutive read/search calls; <code>squeeze.js</code> compresses external MCP dumps &gt;12k via <code>updatedMCPToolOutput</code> (≥30% cut, scrubs secrets, full text on disk); <code>rtk rewrite</code> becomes opt-in (<code>HELENA_RTK=1</code>).' },
+        { c: 'verificacao',
+          pt: '<b>Novo lifecycle.js + filtros de spawn:</b> <code>PreModelSwitch</code> avisa antes de derrubar ≥40k de cache quente, <code>StopFailure</code> orienta handoff em rate limit e <code>PostToolUseFailure</code> busca fix conhecido por <code>error_pattern:</code>. <code>hooks.json</code> aplica <code>if: "Bash(gh *)"</code> no <code>outside.js</code> e <code>async: true</code> no <code>end.js</code>.',
+          en: '<b>New lifecycle.js &amp; spawn filters:</b> <code>PreModelSwitch</code> warns before dropping ≥40k warm cache, <code>StopFailure</code> hints at handoff on rate/plan limits, and <code>PostToolUseFailure</code> looks up known fixes by <code>error_pattern:</code>. <code>hooks.json</code> adds <code>if: "Bash(gh *)"</code> on <code>outside.js</code> and <code>async: true</code> on <code>end.js</code>.' },
+        { c: 'seguranca',
+          pt: '<b>Endurecimento de MCP, npm e código:</b> <code>gate.js</code> nega credenciais em argumentos de MCP externo e pergunta em pacotes npm com <code>postinstall</code>; <code>start.js</code> fixa hash SHA-256 de <code>.mcp.json</code>; <code>nudge.js</code> checa sintaxe JS/Python logo após <code>Edit</code>; <code>done.js</code> trava uma vez em <code>debugger</code>/<code>breakpoint()</code> adicionados.',
+          en: '<b>MCP, npm &amp; code hardening:</b> <code>gate.js</code> denies credentials in external MCP args and asks on npm <code>postinstall</code> scripts; <code>start.js</code> SHA-256 pins <code>.mcp.json</code>; <code>nudge.js</code> runs instant JS/Python syntax checks after <code>Edit</code>; <code>done.js</code> blocks once on added <code>debugger</code>/<code>breakpoint()</code>.' },
+        { c: 'multiia',
+          pt: '<b>Hooks portáteis no Codex e Cursor:</b> <code>connect.py</code> gera <code>~/.codex/hooks.json</code> limpo com os 5 eventos suportados (corrige o erro de parse no Codex) e configura Cursor (<code>~/.cursor/hooks.json</code> + MCP, automático ou via <code>--cursor</code>).',
+          en: '<b>Portable Codex &amp; Cursor hooks:</b> <code>connect.py</code> writes a clean 5-event <code>~/.codex/hooks.json</code> (fixing the Codex parse error on every run) and adds Cursor hooks + MCP (auto or via <code>--cursor</code>).' },
+        { c: 'benchmark',
+          pt: '<b>Nova tarefa path-memory + 4 novas suítes:</b> <code>eval/tasks/path-memory</code> (Sonnet, 2 rodadas: Helena 2/2 em 4 turnos, $0.144/resolvida vs base 1/2 em 6 turnos, $0.291) e novas suítes <code>test_diet</code>, <code>test_lifecycle</code>, <code>test_memory_routing</code> e <code>test_connect</code>.',
+          en: '<b>New path-memory eval &amp; 4 test suites:</b> <code>eval/tasks/path-memory</code> (Sonnet, 2 rounds: Helena 2/2 in 4 turns, $0.144/solved vs base 1/2 in 6 turns, $0.291) plus <code>test_diet</code>, <code>test_lifecycle</code>, <code>test_memory_routing</code> and <code>test_connect</code>.' },
+      ],
+      honest: {
+        pt: 'Medição honesta: na máquina do criador, <code>diet.py</code> saltou de 6,6k para 21,9k tokens listados revelando 5 MCPs com 0 chamadas em 30 dias (~15k/msg). O eval <code>path-memory</code> com n=2 é apenas direcional (McNemar p=1.00).',
+        en: 'Honest note: on the creator\'s PC, <code>diet.py</code> jumped from 6.6k to 21.9k tokens listed, exposing 5 MCPs with 0 calls in 30 days (~15k/msg). The <code>path-memory</code> eval at n=2 is directional only (McNemar p=1.00).',
+      },
+    },
+    {
+      v: '2.0.0', date: '2026-11-11', commit: 'd947d91',
+      title: {
+        pt: 'Sessão principal magra, ondas de workers e corte de peso fixo',
+        en: 'Thin main session, parallel worker waves and fixed-weight diet',
+      },
+      summary: {
+        pt: '30 dias de sessões (8.483 chamadas) provaram que o gasto real está em chamadas × contexto × preço do modelo. A 2.0 encolheu o início, moveu trabalho para workers e trouxe revisão adversarial.',
+        en: '30 days of sessions (8,483 calls) showed spend comes from calls × context × model price. 2.0 shrank session start, offloaded work to workers and added adversarial review.',
+      },
+      metrics: [
+        { k: { pt: 'Peso fixo', en: 'Fixed weight' }, v: '+1.925 → +706 tok' },
+        { k: { pt: 'Texto de início', en: 'Start text' }, v: '14,3 → 6,7 KB' },
+        { k: { pt: 'Comandos ocultos', en: 'Hidden commands' }, v: '13 de 17' },
+        { k: { pt: 'Latência', en: 'Latency' }, v: 'test_speed.py (<220ms)' },
+      ],
+      items: [
+        { c: 'economia',
+          pt: '<b>Início que sempre cabe + comandos ocultos:</b> <code>start.js</code> limitado a 9,5 KB (índice de memória reduzido para 1 KB) para não ser truncado pelo preview de 2 KB do Claude Code; 13 comandos de relatório ganham <code>disable-model-invocation: true</code> com ponteiro por frase no <code>router.js</code>.',
+          en: '<b>Start that always fits &amp; hidden commands:</b> <code>start.js</code> capped at 9.5 KB (1 KB memory index budget) so Claude Code never truncates it to a 2 KB preview; 13 report commands gain <code>disable-model-invocation: true</code> with plain-word pointers in <code>router.js</code>.' },
+        { c: 'orquestracao',
+          pt: '<b>/helena:orchestrate em ondas + revisão adversarial:</b> até 3 builders em paralelo via git worktrees, aplicados por <code>helena/wave.js land</code> sem colidir patches. Mudanças &gt;3 arquivos ou &gt;150 linhas passam por um revisor novo e um refutador.',
+          en: '<b>Wave orchestration &amp; adversarial review:</b> up to 3 builders in parallel git worktrees landed safely via <code>helena/wave.js land</code>. Changes over 3 files or 150 lines get one fresh-context reviewer + refuter pass.' },
+        { c: 'orquestracao',
+          pt: '<b>brief.js (SubagentStart) e teto de relatório:</b> todo worker já nasce com formato de resposta (≤20 linhas), comando de teste e decisões do <code>HANDOFF.md</code>; <code>delegate.js</code> devolve uma vez relatório acima de 8.000 caracteres.',
+          en: '<b>brief.js (SubagentStart) &amp; report cap:</b> every worker starts with the ≤20-line format, test command and <code>HANDOFF.md</code> decisions; <code>delegate.js</code> sends back reports over 8,000 chars once.' },
+        { c: 'economia',
+          pt: '<b>/helena:diet, compact.js, squeeze.js e esboço no trim.js:</b> <code>diet.py</code> audita plugins/skills/CLAUDE.md (+ lint de linhas redundantes); <code>compact.js</code> guia o resumo antes de compactar; <code>squeeze.js</code> dobra saídas longas de Bash; <code>trim.js</code> devolve esboço de até 40 símbolos ao barrar arquivo &gt;100 KB.',
+          en: '<b>/helena:diet, compact.js, squeeze.js &amp; trim outline:</b> <code>diet.py</code> audits plugins/skills/CLAUDE.md (+ redundant-lines lint); <code>compact.js</code> guides compaction summaries; <code>squeeze.js</code> folds long Bash dumps; <code>trim.js</code> returns a 40-symbol outline when refusing files &gt;100 KB.' },
+        { c: 'seguranca',
+          pt: '<b>Guarda das próprias regras + varredura de configs aninhados:</b> <code>gate.js</code> pergunta antes de editar <code>.helena/git|policy|test|delegate</code>; <code>start.js</code> passa a varrer <code>CLAUDE.md</code>/<code>AGENTS.md</code> em subpastas e <code>.claude/rules/*.md</code>.',
+          en: '<b>Own-rules guard &amp; nested config scan:</b> <code>gate.js</code> asks before editing <code>.helena/git|policy|test|delegate</code>; <code>start.js</code> now also scans tracked nested <code>CLAUDE.md</code>/<code>AGENTS.md</code> and <code>.claude/rules/*.md</code>.' },
+        { c: 'verificacao',
+          pt: '<b>Mesma falha 2×, recibo de PR e aviso de 20 chamadas:</b> <code>gate.js</code> alerta após 20 chamadas pesadas em ≥100k, questiona premissa quando o mesmo erro repete após edição, e aplica <code>pr: receipt</code> no <code>gh pr create</code>.',
+          en: '<b>Same failure twice, PR receipt &amp; 20-call warning:</b> <code>gate.js</code> warns past 20 heavy calls at ≥100k, asks which assumption failed on repeated test errors, and enforces opt-in <code>pr: receipt</code> on <code>gh pr create</code>.' },
+        { c: 'benchmark',
+          pt: '<b>test_speed.py, test_squeeze.py e pedidos conferidos no budget:</b> novo teste de orçamento de latência para cada hook; <code>/helena:budget</code> passa a contar "Requests checked by tests". Retrato ASCII do site redesenhado.',
+          en: '<b>test_speed.py, test_squeeze.py &amp; checked requests in budget:</b> new latency budget test across all hooks; <code>/helena:budget</code> tracks "Requests checked by tests". Site ASCII portrait redrawn.' },
+      ],
+      honest: {
+        pt: 'Medição honesta: nas 2 tarefas curtas de custo (Sonnet, 3 rodadas), Helena 2.0 custou ~5% a mais no início e ~2% após encolher o índice para 1 KB. Nenhuma economia de orquestração foi reivindicada sem tarefa multi-passo no benchmark.',
+        en: 'Honest note: on the 2 short cost tasks (Sonnet, 3 rounds), Helena 2.0 cost ~5% more initially and ~2% after cutting the index to 1 KB. No orchestration saving was claimed without a multi-step eval task.',
+      },
+    },
+    {
+      v: '1.7.0', date: '2026-11-02', commit: '5454f41',
+      title: {
+        pt: 'Recibos de teste, nudge a cada 3 edições, corte de loop e regras pós-compactação',
+        en: 'Test receipts, 3-edit test nudge, loop cut and post-compaction rule recall',
+      },
+      summary: {
+        pt: 'Checagens contra a IA declarar vitória sem evidência, entrar em loop repetindo a mesma ferramenta ou esquecer regras literais depois de compactar o contexto.',
+        en: 'Checks stopping the AI from claiming tests pass without a green run, looping on the same failing call, or forgetting literal user rules after compaction.',
+      },
+      items: [
+        { c: 'verificacao',
+          pt: '<b>Recibos no done.js:</b> em projeto sem comando de teste configurado, dizer "os testes passaram" só passa se houver uma execução verde parecida com teste após a última edição.',
+          en: '<b>Receipts in done.js:</b> in projects with no test command, claiming tests pass must match a green test-like run after the last code edit; otherwise blocks once.' },
+        { c: 'verificacao',
+          pt: '<b>Testes enfraquecidos no Stop:</b> <code>done.js</code> compara o diff contra <code>HEAD</code> e bloqueia uma vez se um arquivo de teste perdeu assertions, ganhou skips ou foi deletado (pega alterações feitas via Bash/script).',
+          en: '<b>Weakened tests at Stop:</b> <code>done.js</code> diffs against <code>HEAD</code> and blocks once if a test file lost assertions, added skips or was deleted (catches Bash/script edits).' },
+        { c: 'verificacao',
+          pt: '<b>Novo nudge.js (PostToolUse Edit/Write):</b> a cada 3 edições de código sem rodar teste no meio, injeta uma linha pedindo o teste mais próximo. Silencioso quando não há comando de teste.',
+          en: '<b>New nudge.js (PostToolUse Edit/Write):</b> after every 3 code edits with no test run in between, asks in one line for the nearest test. Silent without a test command.' },
+        { c: 'seguranca',
+          pt: '<b>Corte de loop e inspeção de sh -c / bash -c:</b> <code>gate.js</code> nega a mesma chamada com o mesmo resultado 4 vezes seguidas no turno (polling cujo resultado muda passa) e agora checa scripts dentro de <code>bash -c</code>.',
+          en: '<b>Loop cut &amp; sh -c / bash -c check:</b> <code>gate.js</code> denies the exact same call returning the same result 4 times in a row (changing polls pass) and inspects quoted scripts inside <code>bash -c</code>.' },
+        { c: 'memoria',
+          pt: '<b>Regras do usuário preservadas pós-compactação:</b> <code>start.js</code> (<code>source: compact</code>) traz de volta palavra por palavra as frases de regra que o usuário escreveu na transcrição antes da compactação.',
+          en: '<b>User rules restored after compaction:</b> <code>start.js</code> (<code>source: compact</code>) brings back the user\'s own rule-like sentences verbatim from the transcript.' },
+        { c: 'benchmark',
+          pt: '<b>Rigor estatístico no eval/run.py:</b> piso de ruído (inversões na mesma coluna), teste de McNemar exato, registro da versão da CLI por tarefa e nova suíte <code>eval/test_receipts.py</code>.',
+          en: '<b>Statistical rigor in eval/run.py:</b> noise floor (same-column flips), exact McNemar p-value, CLI version per task and new <code>eval/test_receipts.py</code>.' },
+      ],
+    },
+    {
+      v: '1.6.0', date: '2026-10-16', commit: '753f453',
+      title: {
+        pt: 'O app desktop da Helena: chat multi-IA com subagentes ao vivo',
+        en: 'The Helena desktop app: multi-AI chat with live subagent cards',
+      },
+      summary: {
+        pt: 'Uma janela própria sobre Claude Code, Codex e Gemini (Antigravity) sem API key: até 4 painéis lado a lado, subagentes ao vivo, /model no meio da conversa e tudo que a Helena conferiu e gastou.',
+        en: 'A dedicated window over Claude Code, Codex and Gemini (Antigravity) with zero API keys: up to 4 panes side by side, live subagents, mid-chat /model switches and full hook visibility.',
+      },
+      items: [
+        { c: 'app',
+          pt: '<b>/helena:app — janela nativa no Windows + servidor local zero dependências:</b> casca WebView2 sem borda (<code>Helena.cs</code>, entra no Menu Iniciar), servidor Node em <code>127.0.0.1</code> com token por execução, fecha sozinho 90 s após fechar a janela e zero flashes de console.',
+          en: '<b>/helena:app — native Windows window &amp; zero-dep local server:</b> frameless WebView2 shell (<code>Helena.cs</code>, Start Menu entry), Node server on <code>127.0.0.1</code> with per-launch token, auto-exits 90 s after closing and zero console flashes.' },
+        { c: 'app',
+          pt: '<b>Chat com até 4 painéis e 3 CLIs:</b> roda Claude Code, Codex e Antigravity (Gemini) lado a lado (<code>Ctrl+\\</code>), continua sessões via <code>--fork-session</code> sem tocar no terminal e permite trocar de IA/modelo com <code>/model</code> levando as últimas mensagens.',
+          en: '<b>4-pane chat across 3 CLIs:</b> runs Claude Code, Codex and Antigravity (Gemini) side by side (<code>Ctrl+\\</code>), forks sessions without touching the terminal and switches AI/model mid-chat via <code>/model</code>.' },
+        { c: 'app',
+          pt: '<b>Subagentes ao vivo de todas as IAs + PT/EN:</b> acompanha subagentes do Claude, Codex e Antigravity em cartões ao vivo com bandeja "Agentes agora", catálogo real de modelos/esforços por CLI, seletor nativo de pasta e troca PT/EN no topo.',
+          en: '<b>Live subagents across all AIs &amp; PT/EN switch:</b> tails Claude, Codex and Antigravity subagents as live cards with a live tray, real model/effort catalog per CLI, native folder picker and top-bar PT/EN toggle.' },
+        { c: 'memoria',
+          pt: '<b>events.jsonl e decisões substituídas:</b> <code>done.js</code> e <code>router.js</code> gravam acertos em <code>~/.helena/events.jsonl</code>; decisões revistas em <code>HANDOFF.md</code> ficam marcadas com <code>superseded by:</code> em vez de sumir.',
+          en: '<b>events.jsonl &amp; superseded decisions:</b> <code>done.js</code> and <code>router.js</code> log passing checks and delivered notes to <code>~/.helena/events.jsonl</code>; revised <code>HANDOFF.md</code> decisions keep a <code>superseded by:</code> trail.' },
+      ],
+    },
+    {
+      v: '1.5.0', date: '2026-10-16', commit: 'dcf33ec',
+      title: {
+        pt: 'Testes ocultos (holdout), differential check, /helena:race e replay real',
+        en: 'Hidden holdout tests, differential check, /helena:race and real-session replay',
+      },
+      summary: {
+        pt: 'Verificação que a IA não consegue burlar (holdout e differential check no stash) mais ferramentas sem LLM para testar cada mudança de hook contra sessões reais.',
+        en: 'Verification the AI cannot game (hidden holdout and two-tree differential check) plus LLM-free tools to replay hooks against real past sessions.',
+      },
+      items: [
+        { c: 'verificacao',
+          pt: '<b>Testes ocultos em .helena/holdout/:</b> <code>gate.js</code> bloqueia leitura/busca na pasta; depois que os testes normais passam, <code>done.js</code> roda o holdout e devolve só os nomes dos testes que falharam.',
+          en: '<b>Hidden acceptance tests in .helena/holdout/:</b> <code>gate.js</code> blocks Read/Grep/Bash access to the folder; after normal tests pass, <code>done.js</code> runs it and returns only failing test names.' },
+        { c: 'verificacao',
+          pt: '<b>Differential check no done.js:</b> quando o diff mexe em código e testes, guarda só o código no stash (<code>helena-differential</code>) e re-roda os testes — se continuarem verdes sem o código, os testes não estão testando a mudança.',
+          en: '<b>Differential check in done.js:</b> when a diff touches both code and tests, stashes code (<code>helena-differential</code>) and reruns tests — if they still pass without the patch, blocks once.' },
+        { c: 'verificacao',
+          pt: '<b>tests: spec-only (opt-in):</b> linha em <code>.helena/delegate</code> faz o gate perguntar antes de a IA criar um arquivo de teste novo (editar testes existentes segue livre).',
+          en: '<b>tests: spec-only (opt-in):</b> a line in <code>.helena/delegate</code> asks before creating new test files while keeping edits to existing tests free.' },
+        { c: 'orquestracao',
+          pt: '<b>/helena:race &lt;tarefa&gt;:</b> dois workers tentam abordagens diferentes em worktrees separados; os testes escolhem o vencedor (empate: menor diff) e os worktrees são limpos.',
+          en: '<b>/helena:race &lt;task&gt;:</b> two workers try competing approaches in separate worktrees; tests pick the winner (tie: smaller diff) and both worktrees are removed.' },
+        { c: 'benchmark',
+          pt: '<b>eval/replay.py e eval/test_falseblock.py:</b> repete chamadas reais de transcrições no <code>gate.js</code> atual vs <code>main</code> sem executar nada, e valida 29 chamadas comuns que nunca podem ser bloqueadas.',
+          en: '<b>eval/replay.py &amp; eval/test_falseblock.py:</b> replays tool calls from real transcripts through current vs <code>main</code> <code>gate.js</code> without executing anything, plus 29 clean calls that must always pass.' },
+      ],
+    },
+    {
+      v: '1.4.5', date: '2026-10-15', commit: '259d026',
+      title: {
+        pt: 'Início de sessão 3,7× menor e custo detalhado por parte no benchmark',
+        en: '3.7× smaller session start and four-part cost breakdown in eval',
+      },
+      summary: {
+        pt: 'Corte direto no tamanho do texto injetado ao abrir a sessão e instrumento --probe para medir o peso fixo exato da Helena em tokens.',
+        en: 'Cut the session-start payload directly and added --probe to measure Helena\'s exact fixed context weight in tokens.',
+      },
+      metrics: [
+        { k: { pt: 'Texto de início', en: 'Start text' }, v: '34 → 9 KB' },
+        { k: { pt: 'Peso fixo (--probe)', en: 'Fixed weight (--probe)' }, v: '+993 tok' },
+        { k: { pt: 'Readability eval', en: 'Readability eval' }, v: '3/3 vs 0/3' },
+      ],
+      items: [
+        { c: 'economia',
+          pt: '<b>Corte de HANDOFF.md e handover de regras:</b> <code>start.js</code> injeta só <code>## Next</code> quando <code>HANDOFF.md</code> passa de 4 KB, corta <code>AGENTS.md</code>/<code>CLAUDE.md</code> em 4 KB com aviso e encurta descrições de comandos/skills/agentes.',
+          en: '<b>Capped HANDOFF.md &amp; rules handover:</b> <code>start.js</code> injects only <code>## Next</code> past 4 KB, cuts <code>AGENTS.md</code>/<code>CLAUDE.md</code> at 4 KB with a notice and shortens command/skill/agent descriptions.' },
+        { c: 'benchmark',
+          pt: '<b>eval/run.py --probe e 4 partes de token:</b> mede peso fixo com "Reply OK", registra turnos, custo por tarefa resolvida e tokens em 4 fatias (sem cache, escrita, leitura, saída), alternando ordem entre rodadas.',
+          en: '<b>eval/run.py --probe &amp; 4-part tokens:</b> measures fixed weight via "Reply OK", records turns, cost per solved task and 4 token buckets (uncached, cache write, cache read, output), alternating column order.' },
+        { c: 'fix',
+          pt: '<b>Tarefa readability corrigida:</b> passou a manter a transcrição para <code>check.js</code> enxergar os arquivos mexidos (Helena 3/3 contra base 0/3).',
+          en: '<b>Fixed readability eval task:</b> kept the transcript so <code>check.js</code> sees edited pages (Helena 3/3 vs base 0/3).' },
+      ],
+    },
+    {
+      v: '1.4.0', date: '2026-10-13', commit: 'c200a4b',
+      title: {
+        pt: 'Suíte red-team (8/37 → 36/37), reescrita enxuta de comandos e /helena:recall',
+        en: 'Red-team hardening (8/37 → 36/37), lean command rewrites and /helena:recall',
+      },
+      summary: {
+        pt: 'Duas frentes grandes: endurecer os hooks contra 37 tentativas reais de bypass (com 0 falsos positivos) e reduzir recusas desnecessárias com visibilidade de cache.',
+        en: 'Two major fronts: harden hooks against 37 real bypass attempts (0 false positives) and cut unnecessary refusals with live cache visibility.',
+      },
+      metrics: [
+        { k: { pt: 'Red-team', en: 'Red-team' }, v: '8/37 → 36/37 (0 FP)' },
+        { k: { pt: 'Controles limpos', en: 'Clean controls' }, v: '6/6 allow' },
+        { k: { pt: 'Docs do site', en: 'Site docs' }, v: 'docs.html PT/EN' },
+      ],
+      items: [
+        { c: 'seguranca',
+          pt: '<b>Suíte red-team e gate.js endurecido:</b> pega <code>rm -rf</code> em variável vazia/root/home, <code>rmtree</code>/<code>rmSync</code>/<code>rimraf</code>, <code>base64 | bash</code>, tentativa de apagar logs de auditoria ou testes, pacote publicado há &lt;72h e truques de leitura de <code>.env</code>.',
+          en: '<b>Red-team suite &amp; hardened gate.js:</b> catches unset/root/home deletes, <code>rmtree</code>/<code>rmSync</code>/<code>rimraf</code>, <code>base64 | bash</code>, erasing audit logs or test files, packages &lt;72h old and <code>.env</code> bypass tricks.' },
+        { c: 'seguranca',
+          pt: '<b>guard.js, outside.js, scan.py e start.js:</b> padrões AWS/Slack + <code>gitleaks</code> opcional no commit; detecção de zero-width/Unicode tags, comentários HTML e saída de <code>gh issue/pr/api</code>; varredura de <code>CLAUDE.md</code>/<code>.mcp.json</code>/settings do repo ao abrir a sessão.',
+          en: '<b>guard.js, outside.js, scan.py &amp; start.js:</b> AWS/Slack secret patterns + optional <code>gitleaks</code>; zero-width/Unicode tags, HTML comments and <code>gh issue/pr/api</code> checks; repo AI config scan on session start.' },
+        { c: 'verificacao',
+          pt: '<b>Typecheck automático no done.js:</b> em projeto TypeScript sem comando de teste, <code>done.js</code> roda <code>npx tsc --noEmit</code> antes de aceitar "pronto".',
+          en: '<b>Automatic typecheck in done.js:</b> in TypeScript projects with no test command, <code>done.js</code> runs <code>npx tsc --noEmit</code> before accepting "done".' },
+        { c: 'memoria',
+          pt: '<b>/helena:recall &lt;palavras&gt;:</b> busca instantânea nas sessões gravadas sem LLM e sem índice, trazendo data, projeto e o turno exato (também exposto como <code>helena_recall</code> no MCP).',
+          en: '<b>/helena:recall &lt;words&gt;:</b> searches recorded sessions with no LLM and no index, returning date, project and exact turn (also as <code>helena_recall</code> MCP tool).' },
+        { c: 'economia',
+          pt: '<b>trim.js reescreve em vez de recusar + cache na barra:</b> adiciona flags enxutas (<code>git status -sb</code>, <code>git log --oneline -n 20</code>, <code>pytest -q --tb=short</code>, etc.); <code>statusline.js</code> mostra <code>cache until</code> e <code>model changed</code>; <code>delegate.js</code> ativa pins de modelo por padrão; <code>/helena:budget</code> detalha quebras de cache e arquivos relidos.',
+          en: '<b>trim.js rewrites instead of refusing &amp; cache status line:</b> injects quiet flags (<code>git status -sb</code>, <code>git log --oneline -n 20</code>, <code>pytest -q --tb=short</code>, etc.); <code>statusline.js</code> shows <code>cache until</code> and <code>model changed</code>; <code>delegate.js</code> turns model pins on by default; <code>/helena:budget</code> breaks down cache misses and re-read files.' },
+        { c: 'fix',
+          pt: '<b>Site docs.html + shot.mjs + fix de redirect:</b> nasce a documentação completa bilíngue e o verificador de overflow <code>shot.mjs</code>; corrige falso bloqueio em redirecionamentos (<code>2&gt;&amp;1</code>) após <code>npm i</code>/<code>pip install</code>.',
+          en: '<b>Site docs.html, shot.mjs &amp; redirect fix:</b> launched full bilingual docs page and <code>shot.mjs</code> overflow checker; fixed redirects (<code>2&gt;&amp;1</code>) after <code>npm i</code>/<code>pip install</code> being misread as package names.' },
+      ],
+      honest: {
+        pt: 'Medição honesta: nenhuma economia foi reivindicada para a reescrita de comandos — nas tarefas curtas <code>noisy-tests</code> e <code>release-notes</code> o Sonnet já limitou a saída sozinho.',
+        en: 'Honest note: no saving was claimed for command rewrites — on <code>noisy-tests</code> and <code>release-notes</code> Sonnet already bounded its own output.',
+      },
+    },
+    {
+      v: '1.3.0', date: '2026-10-12', commit: 'a20a5cb',
+      title: {
+        pt: 'Subagentes testados e na rédea, orquestração e log de saída',
+        en: 'Tested & capped subagents, orchestration and egress log',
+      },
+      summary: {
+        pt: 'O que subagentes escrevem passou a rodar pelos testes antes de voltar para a sessão principal, com teto de paralelismo e agentes dedicados scout e builder.',
+        en: 'Subagent edits now pass through tests before reporting back, with concurrency caps and dedicated scout and builder agents.',
+      },
+      items: [
+        { c: 'verificacao',
+          pt: '<b>done.js em SubagentStop:</b> edições feitas dentro de um subagente agora rodam pelos testes do projeto antes do worker reportar sucesso.',
+          en: '<b>done.js on SubagentStop:</b> code edited by a subagent now goes through the project\'s tests before the worker reports back.' },
+        { c: 'orquestracao',
+          pt: '<b>delegate.js, scout, builder e /helena:orchestrate:</b> pin de modelo para workers (Sonnet/Haiku), limites <code>parallel: 3</code> e <code>workers: 8</code> via <code>.helena/delegate</code>, agentes <code>helena:scout</code> e <code>helena:builder</code> e fluxo <code>/helena:orchestrate</code>.',
+          en: '<b>delegate.js, scout, builder &amp; /helena:orchestrate:</b> model pins (Sonnet/Haiku), <code>parallel: 3</code> and <code>workers: 8</code> caps via <code>.helena/delegate</code>, <code>helena:scout</code> and <code>helena:builder</code> agents and <code>/helena:orchestrate</code>.' },
+        { c: 'seguranca',
+          pt: '<b>Log de egress (~/.helena/egress.jsonl) e rotinas ci/deps:</b> registra cada host, busca web, MCP e URL de <code>curl</code>/<code>wget</code> (listado em <code>/helena:audit</code>); rotinas prontas de CI e dependências só chamam modelo quando algo muda.',
+          en: '<b>Egress log (~/.helena/egress.jsonl) &amp; ci/deps routines:</b> logs every fetched host, search, MCP and <code>curl</code>/<code>wget</code> URL (shown in <code>/helena:audit</code>); ready-made CI and dependency routines only call the model on changes.' },
+        { c: 'fix',
+          pt: '<b>Benchmark com persist + recontagem corrigida:</b> tarefas podem manter transcrição (<code>persist</code>) com nova tarefa <code>tests-gate</code>; recontagem dos 7 dias após fix da 1.2.1 (1.882 chamadas) e isolamento do <code>test_guard.py</code>.',
+          en: '<b>Benchmark persist flag &amp; recounted stats:</b> tasks can keep transcripts (<code>persist</code>) with new <code>tests-gate</code> task; 7-day numbers recounted after 1.2.1 fix (1,882 calls) and <code>test_guard.py</code> isolated from real audit logs.' },
+      ],
+    },
+    {
+      v: '1.2.1', date: '2026-10-09', commit: 'e881f0c',
+      title: {
+        pt: 'Defesa contra texto externo, medidor de subagentes e correção de 2,5× no budget',
+        en: 'Outside-text flagging, subagent meter and 2.5× budget overcount fix',
+      },
+      summary: {
+        pt: 'Três checagens práticas de proteção contra prompt injection, aviso de arquivo de regras grande e contagem honesta de chamadas e subagentes.',
+        en: 'Prompt-injection flagging for outside text, heavy-rules warnings, subagent spend breakdown and exact per-call token accounting.',
+      },
+      items: [
+        { c: 'seguranca',
+          pt: '<b>Novo outside.js (PostToolUse Web/MCP):</b> marca como dado qualquer instrução dirigida à IA vinda de páginas, buscas ou MCPs (PT e EN) e registra <code>flag</code> no <code>/helena:audit</code> sem bloquear.',
+          en: '<b>New outside.js (PostToolUse Web/MCP):</b> flags AI-targeted instructions inside web pages, search results or MCP outputs (EN/PT) and logs <code>flag</code> in <code>/helena:audit</code> without blocking.' },
+        { c: 'economia',
+          pt: '<b>Medidor de subagentes no /helena:budget + alerta de CLAUDE.md pesado:</b> lista custo de subagentes por modelo e esforço (lendo os JSONLs paralelos), avisa semanalmente se <code>CLAUDE.md</code>/<code>AGENTS.md</code> passa de ~3k tokens e remove a dica de <code>/model sonnet</code> que quebrava o cache.',
+          en: '<b>Subagent meter in /helena:budget &amp; heavy-rules alert:</b> breaks down subagent spend by model and effort, warns weekly past ~3k tokens in <code>CLAUDE.md</code>/<code>AGENTS.md</code> and removes the cache-breaking <code>/model sonnet</code> hint.' },
+        { c: 'memoria',
+          pt: '<b>Nota de "tenta de novo" e abordagens rejeitadas:</b> em correções de retrabalho, o <code>router.js</code> pede diagnóstico antes de gastar outra tentativa; <code>handoff</code> registra o que foi rejeitado.',
+          en: '<b>Redo prompt &amp; rejected approaches:</b> on "try again", <code>router.js</code> asks the AI to state what went wrong first; <code>handoff</code> now records rejected options.' },
+        { c: 'fix',
+          pt: '<b>Fix de sobrecontagem de ~2,5× no history.py:</b> cada chamada de API agora conta uma única vez por <code>message.id</code> em vez de uma vez por bloco de conteúdo.',
+          en: '<b>Fixed ~2.5× overcount in history.py:</b> each API call is now counted once per <code>message.id</code> instead of once per content block.' },
+      ],
+    },
+    {
+      v: '1.2.0', date: '2026-10-08', commit: '9cc0508',
+      title: {
+        pt: 'A camada que confere: memória autoverificável, gate, done, rewind e registro',
+        en: 'The layer that checks: self-checking memory, gate, done, rewind and registry',
+      },
+      summary: {
+        pt: 'A grande virada da Helena: deixou de ser só memória + kits para virar verificação determinística em código, desfazer em qualquer CLI e benchmark com registro público.',
+        en: 'Helena\'s turning point: from memory + kits into deterministic verification hooks, cross-CLI undo and a public benchmark registry.',
+      },
+      metrics: [
+        { k: { pt: 'Benchmark Sonnet', en: 'Sonnet benchmark' }, v: '7/7 vs 2/7' },
+        { k: { pt: 'Skills escaneadas', en: 'Scanned skills' }, v: 'scan.py' },
+        { k: { pt: 'Registro público', en: 'Public registry' }, v: 'registry.json' },
+      ],
+      items: [
+        { c: 'memoria',
+          pt: '<b>Memória que se confere + memória do time:</b> campos <code>checks:</code>, <code>until:</code> e <code>supersedes:</code> marcam notas vencidas como <code>STALE</code>; notas em <code>.helena/memory/</code> + <code>/helena:share</code> funcionam em time; <code>HANDOFF.md</code> passa a ser checado contra o git e <code>AGENTS.md</code>↔<code>CLAUDE.md</code> são cruzados entre IAs.',
+          en: '<b>Self-checking &amp; team memory:</b> <code>checks:</code>, <code>until:</code> and <code>supersedes:</code> mark stale notes automatically; repo team notes in <code>.helena/memory/</code> + <code>/helena:share</code>; git-verified <code>HANDOFF.md</code> and cross-AI <code>AGENTS.md</code>↔<code>CLAUDE.md</code> handover.' },
+        { c: 'seguranca',
+          pt: '<b>Novo gate.js e scan.py:</b> bloqueia leitura de <code>.env</code> (só nomes das chaves), nega pacotes inventados no npm/PyPI, pergunta em comandos destrutivos e testes enfraquecidos, aplica <code>.helena/policy</code> e escaneia skills antes de instalar.',
+          en: '<b>New gate.js &amp; scan.py:</b> denies <code>.env</code> reads (key names only), blocks made-up npm/PyPI packages, asks on destructive commands and weakened tests, enforces <code>.helena/policy</code> and security-scans skills on install.' },
+        { c: 'verificacao',
+          pt: '<b>Novo done.js, /helena:rewind, /helena:audit e /helena:limits:</b> testes rodam antes do "pronto"; snapshots por turno em <code>refs/helena/turns</code> permitem desfazer em qualquer CLI; log completo em <code>audit.jsonl</code> e previsão de ritmo semanal dos planos.',
+          en: '<b>New done.js, /helena:rewind, /helena:audit &amp; /helena:limits:</b> tests run before "done"; per-turn snapshots in <code>refs/helena/turns</code> bring undo to any CLI; full <code>audit.jsonl</code> log and weekly plan pace forecast.' },
+        { c: 'benchmark',
+          pt: '<b>Registro público e hooks mais rápidos:</b> <code>eval/run.py</code> registra custo/tokens em <code>results.json</code> e <code>eval/registry.py</code> gera <code>site/registry.json</code>; kit injetado 1× por sessão, descrições limitadas a 90 chars e Stop hooks lendo só o último turno.',
+          en: '<b>Public registry &amp; faster hooks:</b> <code>eval/run.py</code> writes cost/tokens to <code>results.json</code> and <code>eval/registry.py</code> builds <code>site/registry.json</code>; kits inject once per session, descriptions capped at 90 chars and Stop hooks read only the last turn.' },
+      ],
+    },
+    {
+      v: '1.1.0', date: '2026-10-06', commit: 'e42212f',
+      title: {
+        pt: 'Helena em qualquer IA via MCP e gestão de limites de plano',
+        en: 'Helena in any AI over MCP and plan-limit handoffs',
+      },
+      summary: {
+        pt: 'A mesma memória e as mesmas regras saem do Claude Code e chegam ao Codex, Antigravity, Gemini, Qwen, Kimi, Grok e opencode — com troca assistida perto do limite do plano.',
+        en: 'One shared memory leaves Claude Code and reaches Codex, Antigravity, Gemini, Qwen, Kimi, Grok and opencode — with assisted handoffs near plan limits.',
+      },
+      items: [
+        { c: 'multiia',
+          pt: '<b>Servidor MCP (helena/mcp.js) e connect.py:</b> servidor MCP sem dependências registrado automaticamente em cada CLI instalada; <code>distill.py</code> passa a ler sessões do Codex (<code>~/.codex/sessions</code>) para o mesmo vault.',
+          en: '<b>Zero-dep MCP server (helena/mcp.js) &amp; connect.py:</b> registers Helena across every detected CLI; <code>distill.py</code> reads Codex sessions (<code>~/.codex/sessions</code>) into the same vault.' },
+        { c: 'economia',
+          pt: '<b>Limites de plano (limits.js):</b> acompanha uso do Claude e do Codex; em 80% pede <code>HANDOFF.md</code> + <code>/clear</code>, em 95% salva e entrega o comando pronto para continuar na IA que tem folga.',
+          en: '<b>Plan limits (limits.js):</b> tracks Claude and Codex windows; at 80% asks for <code>HANDOFF.md</code> + <code>/clear</code>, at 95% saves and names the installed AI with room.' },
+        { c: 'memoria',
+          pt: '<b>Helena primeiro + distill.py --remember:</b> instruções MCP e bloco <code>AGENTS.md</code> colocam a Helena antes de outras ferramentas de memória; suporte a gravação imediata via <code>helena_remember</code>.',
+          en: '<b>Helena first &amp; distill.py --remember:</b> MCP instructions and Codex <code>AGENTS.md</code> prioritize Helena over other memory tools; instant note creation via <code>helena_remember</code>.' },
+      ],
+    },
+    {
+      v: '1.0.0', date: '2026-10-06', commit: 'c356888',
+      title: {
+        pt: 'Primeiro dia com valor (/helena:setup), higiene de memória e Haiku isolado',
+        en: 'Day-one value (/helena:setup), memory hygiene and isolated Haiku runs',
+      },
+      summary: {
+        pt: 'A primeira versão redonda: aprende com sessões antigas logo ao instalar, limpa contradições automaticamente e isola o próprio custo interno.',
+        en: 'The first 1.0 milestone: learns from past sessions on day one, merges contradictions automatically and isolates Helena\'s own background spend.',
+      },
+      items: [
+        { c: 'memoria',
+          pt: '<b>/helena:setup e tidy.py:</b> configura o vault e destila as sessões recentes (<code>--backfill</code>) para não começar vazia; <code>tidy.py</code> funde notas duplicadas ou contraditórias arquivando as antigas em <code>Archive/</code>, mais revisão semanal em <code>Weekly/</code> sem LLM.',
+          en: '<b>/helena:setup &amp; tidy.py:</b> points at your vault and distills recent sessions (<code>--backfill</code>); <code>tidy.py</code> merges duplicate/contradicting notes into <code>Archive/</code>, plus LLM-free weekly reviews in <code>Weekly/</code>.' },
+        { c: 'memoria',
+          pt: '<b>Skills que se consolidam sozinhas:</b> a partir de 5 lições em <code>## Learned</code>, a skill dobra as correções de volta na receita (reversível com <code>/helena:undo &lt;skill&gt; fold</code>).',
+          en: '<b>Self-tidying skills:</b> 5+ lessons under <code>## Learned</code> fold back into the main recipe (reversible via <code>/helena:undo &lt;skill&gt; fold</code>).' },
+        { c: 'economia',
+          pt: '<b>Chamadas internas da Helena ~4× mais baratas:</b> execuções em segundo plano no Haiku rodam sem carregar plugins, skills ou MCPs externos.',
+          en: '<b>~4× cheaper background runs:</b> Helena\'s own Haiku calls load no external plugins, skills or MCP servers.' },
+      ],
+    },
+    {
+      v: '0.9.0', date: '2026-10-06', commit: 'c356888',
+      title: {
+        pt: 'Rotinas agendadas só leitura (/helena:routines)',
+        en: 'Scheduled read-only routines (/helena:routines)',
+      },
+      summary: {
+        pt: 'Tarefas recorrentes que rodam no fim da sessão no Haiku, com teto de gasto, gerando decisões pendentes em vez de agir sem permissão.',
+        en: 'Recurring Haiku prompts with a spending cap that run read-only at session end and surface decisions in the Inbox without taking unilateral actions.',
+      },
+      items: [
+        { c: 'orquestracao',
+          pt: '<b>/helena:routines:</b> agenda prompts só leitura com teto de gasto; o que precisa de decisão cai em <code>Inbox/needs-you.md</code> e entra no resumo da próxima sessão, registrando progresso na nota do projeto.',
+          en: '<b>/helena:routines:</b> schedules read-only prompts with a spend cap; decisions land in <code>Inbox/needs-you.md</code> and the next session brief, logging goal progress in the project hub note.' },
+      ],
+    },
+    {
+      v: '0.8.0', date: '2026-10-06', commit: 'a26045a',
+      title: {
+        pt: 'Destilação durante a sessão e skills que aprendem com correções',
+        en: 'Mid-session distillation and self-improving skills',
+      },
+      summary: {
+        pt: 'A memória deixou de esperar o fim da sessão para ser atualizada e as skills da biblioteca passaram a guardar lições aprendidas.',
+        en: 'Memory stopped waiting for session end to update and library skills began recording lessons from your corrections.',
+      },
+      items: [
+        { c: 'memoria',
+          pt: '<b>Destilação a cada 6 prompts + ## Learned:</b> lê apenas os turnos novos no meio da sessão; skills da biblioteca registram lições em <code>## Learned</code> (removível com <code>/helena:undo &lt;skill&gt; learned</code>).',
+          en: '<b>Distillation every 6 prompts &amp; ## Learned:</b> reads only new turns mid-session; library skills store correction lessons under <code>## Learned</code> (reversible via <code>/helena:undo &lt;skill&gt; learned</code>).' },
+        { c: 'fix',
+          pt: '<b>Zero janelas piscando no Windows:</b> execuções em segundo plano deixam de abrir console visível.',
+          en: '<b>Silent Windows background runs:</b> background jobs never flash a visible console window.' },
+      ],
+    },
+    {
+      v: '0.7.0', date: '2026-10-06', commit: 'bed26c2',
+      title: {
+        pt: 'Primeiro lançamento público',
+        en: 'First public release',
+      },
+      summary: {
+        pt: 'A fundação da Helena: memória em Markdown puro, kits sob demanda para cortar peso fixo de skills, primeiros hooks determinísticos e relatório de tokens.',
+        en: 'Helena\'s foundation: plain-Markdown memory, on-demand skill kits, the first deterministic hooks and token reporting.',
+      },
+      items: [
+        { c: 'memoria',
+          pt: '<b>Memória em Markdown/Obsidian + kits e biblioteca:</b> notas em pasta local e skills fora do contexto fixo até um gatilho pedir.',
+          en: '<b>Markdown/Obsidian memory, kits &amp; library:</b> local notes plus skills kept out of the fixed prompt until a kit triggers.' },
+        { c: 'seguranca',
+          pt: '<b>Primeiros hooks (guard, trim, check):</b> bloqueio de segredos e regras de git no commit, corte de arquivos gigantes e checagem de legibilidade/contraste.',
+          en: '<b>First hooks (guard, trim, check):</b> secret and git-rule blocking on commit, large-file trimming and readability/contrast checks.' },
+        { c: 'economia',
+          pt: '<b>/helena:budget, worker e /painel:</b> relatório inicial de gasto de tokens, worker em segundo plano e painel de contexto no Claude Code.',
+          en: '<b>/helena:budget, worker &amp; /painel:</b> initial token report, background worker and Claude Code context pane.' },
+      ],
+    },
+  ];
+
+  const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const raiz = document.documentElement;
+  const lang = () => (raiz.classList.contains('en') ? 'en' : 'pt');
+  const slug = v => 'v' + v.replace(/\./g, '-');
+  const stripHtml = s => s.replace(/<[^>]+>/g, '');
+  const shortDate = (iso, l) => {
+    const [, m, d] = iso.split('-').map(Number);
+    return l === 'en' ? `${MONTHS_EN[m - 1]} ${String(d).padStart(2, '0')}` : `${String(d).padStart(2, '0')} ${MONTHS_PT[m - 1]}`;
+  };
+
+  let activeCat = 'all';
+  let query = '';
+
+  const elResumo = document.getElementById('resumo');
+  const elIndice = document.getElementById('indice');
+  const elSalto = document.getElementById('salto-mobile');
+  const elFiltros = document.getElementById('filtros');
+  const elStatus = document.getElementById('status-filtro');
+  const elReleases = document.getElementById('releases');
+  const elBusca = document.getElementById('busca');
+  const elLimpar = document.getElementById('limpar-busca');
+
+  const totalItems = RELEASES.reduce((n, r) => n + r.items.length, 0);
+
+  function matches(r, item, q) {
+    if (activeCat !== 'all' && item.c !== activeCat) return false;
+    if (!q) return true;
+    const hay = `${r.v} ${r.date} ${r.title.pt} ${r.title.en} ${stripHtml(item.pt)} ${stripHtml(item.en)} ${CAT_MAP[item.c].pt} ${CAT_MAP[item.c].en}`.toLowerCase();
+    return q.split(/\s+/).every(tok => hay.includes(tok));
+  }
+
+  function renderSummary(l) {
+    const first = RELEASES[RELEASES.length - 1];
+    const last = RELEASES[0];
+    const days = Math.round((new Date(last.date) - new Date(first.date)) / 86400000);
+    const cards = [
+      { v: String(RELEASES.length), k: l === 'en' ? `releases (${first.v} → ${last.v})` : `versões (${first.v} → ${last.v})` },
+      { v: String(totalItems),      k: l === 'en' ? 'documented milestones' : 'marcos documentados' },
+      { v: `${days}d`,              k: `${first.date} → ${last.date}` },
+      { v: '+688 tok',              k: l === 'en' ? 'fixed weight in 2.1.0' : 'peso fixo na 2.1.0' },
+    ];
+    elResumo.innerHTML = cards.map(c => `<div><strong>${c.v}</strong><span>${c.k}</span></div>`).join('');
+  }
+
+  function renderFilters(l) {
+    const q = query.trim().toLowerCase();
+    const counts = Object.fromEntries(CATS.map(c => [c.id, 0]));
+    for (const r of RELEASES) {
+      for (const it of r.items) {
+        const hay = `${r.v} ${r.date} ${r.title.pt} ${r.title.en} ${stripHtml(it.pt)} ${stripHtml(it.en)} ${CAT_MAP[it.c].pt} ${CAT_MAP[it.c].en}`.toLowerCase();
+        if (!q || q.split(/\s+/).every(tok => hay.includes(tok))) {
+          counts.all++;
+          counts[it.c]++;
+        }
+      }
+    }
+    elFiltros.innerHTML = CATS.map(c => {
+      const cls = c.id === activeCat ? 'filtro ativo' : 'filtro';
+      return `<button type="button" class="${cls}" data-cat="${c.id}" aria-pressed="${c.id === activeCat}">${c[l]} <span class="qtd">${counts[c.id]}</span></button>`;
+    }).join('');
+    elFiltros.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => { activeCat = btn.dataset.cat; render(); });
+    });
+  }
+
+  function render() {
+    const l = lang();
+    const q = query.trim().toLowerCase();
+    elBusca.placeholder = l === 'en'
+      ? 'Search feature, hook, command or version… (e.g. MCP, holdout, BM25, codex)'
+      : 'Buscar recurso, hook, comando ou versão… (ex: MCP, holdout, BM25, codex)';
+    elLimpar.classList.toggle('on', query.length > 0);
+
+    renderSummary(l);
+    renderFilters(l);
+
+    let shownItems = 0;
+    let shownReleases = 0;
+    const htmlReleases = [];
+    const htmlIndice = [];
+    const saltoOpts = [`<option value="">${l === 'en' ? 'Jump to version…' : 'Ir para versão…'}</option>`];
+
+    for (const r of RELEASES) {
+      const id = slug(r.v);
+      const matched = r.items.filter(it => matches(r, it, q));
+      const isFiltering = activeCat !== 'all' || q.length > 0;
+      const visible = !isFiltering || matched.length > 0;
+
+      htmlIndice.push(
+        `<li class="${visible ? '' : 'vazio'}"><a href="#${id}" data-target="${id}"><span>v${r.v}</span><span class="dt">${shortDate(r.date, l)}</span></a></li>`
+      );
+      if (visible) {
+        saltoOpts.push(`<option value="${id}">v${r.v} · ${r.date}</option>`);
+        shownReleases++;
+        shownItems += matched.length;
+        const metricsHtml = r.metrics ? `<div class="metricas">${r.metrics.map(m => `<span class="metrica">${m.k[l]}: <b>${m.v}</b></span>`).join('')}</div>` : '';
+        const itemsHtml = matched.map(it =>
+          `<li class="item"><span class="tag tag-${it.c}">${CAT_MAP[it.c][l]}</span><span class="item-txt">${it[l]}</span></li>`
+        ).join('');
+        const honestHtml = r.honest ? `<p class="nota-honesta">${r.honest[l]}</p>` : '';
+        const latestBadge = r.latest ? `<span class="badge-atual">${l === 'en' ? 'latest' : 'atual'}</span>` : '';
+        const commitHtml = r.commit ? `<a class="commit-link" href="${REPO}${r.commit}" target="_blank" rel="noopener">${r.commit} ↗</a>` : '';
+        htmlReleases.push(`
+          <article class="release" id="${id}">
+            <div class="release-head">
+              <div class="release-id">
+                <h2><a class="ancora" href="#${id}">v${r.v}</a></h2>
+                ${latestBadge}
+              </div>
+              <div class="release-meta">
+                <time datetime="${r.date}">${r.date}</time>
+                ${commitHtml}
+              </div>
+            </div>
+            <p class="release-titulo">${r.title[l]}</p>
+            <p class="release-resumo">${r.summary[l]}</p>
+            ${metricsHtml}
+            <ul class="itens">${itemsHtml}</ul>
+            ${honestHtml}
+          </article>
+        `);
+      }
+    }
+
+    elIndice.innerHTML = htmlIndice.join('');
+    elSalto.innerHTML = saltoOpts.join('');
+
+    const isFiltered = activeCat !== 'all' || q.length > 0;
+    const statusText = l === 'en'
+      ? `Showing <b>${shownItems}</b> changes across <b>${shownReleases}</b> of ${RELEASES.length} releases`
+      : `Mostrando <b>${shownItems}</b> mudanças em <b>${shownReleases}</b> de ${RELEASES.length} versões`;
+    const resetBtn = isFiltered
+      ? `<button type="button" class="reset-link" id="reset-btn">${l === 'en' ? 'Clear filters' : 'Limpar filtros'}</button>`
+      : '';
+    elStatus.innerHTML = `<span>${statusText}</span>${resetBtn}`;
+    const rb = document.getElementById('reset-btn');
+    if (rb) rb.addEventListener('click', resetFilters);
+
+    if (htmlReleases.length) {
+      elReleases.innerHTML = htmlReleases.join('');
+      observeActive();
+    } else {
+      elReleases.innerHTML = `
+        <div class="sem-resultado">
+          <p>${l === 'en' ? 'No release item matches that filter.' : 'Nenhuma mudança bate com esse filtro.'}</p>
+          <button type="button" class="reset-link" id="reset-empty">${l === 'en' ? 'Show all releases' : 'Mostrar todas as versões'}</button>
+        </div>
+      `;
+      document.getElementById('reset-empty').addEventListener('click', resetFilters);
+    }
+  }
+
+  function resetFilters() {
+    activeCat = 'all';
+    query = '';
+    elBusca.value = '';
+    render();
+  }
+
+  // destaca na lateral a versão atualmente no topo da viewport
+  let observer = null;
+  function observeActive() {
+    if (observer) observer.disconnect();
+    const links = new Map([...elIndice.querySelectorAll('a')].map(a => [a.dataset.target, a]));
+    const setActive = id => {
+      links.forEach((a, k) => a.classList.toggle('ativo', k === id));
+    };
+    const articles = [...elReleases.querySelectorAll('.release')];
+    if (articles[0]) setActive(articles[0].id);
+    if (!('IntersectionObserver' in window)) return;
+    observer = new IntersectionObserver(entries => {
+      const hit = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (hit) setActive(hit.target.id);
+    }, { rootMargin: '-80px 0px -65% 0px', threshold: 0 });
+    articles.forEach(a => observer.observe(a));
+  }
+
+  elBusca.addEventListener('input', () => { query = elBusca.value; render(); });
+  elLimpar.addEventListener('click', () => { query = ''; elBusca.value = ''; elBusca.focus(); render(); });
+  elSalto.addEventListener('change', () => {
+    if (!elSalto.value) return;
+    const t = document.getElementById(elSalto.value);
+    if (t) t.scrollIntoView({ behavior: 'smooth' });
+    elSalto.value = '';
+  });
+  addEventListener('keydown', e => {
+    if (e.key === '/' && document.activeElement !== elBusca && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      elBusca.focus();
+    } else if (e.key === 'Escape' && document.activeElement === elBusca) {
+      elBusca.blur();
+    }
+  });
+
+  document.querySelector('.troca').addEventListener('click', () => {
+    const novo = lang() === 'en' ? 'pt' : 'en';
+    raiz.classList.remove('pt', 'en');
+    raiz.classList.add(novo);
+    raiz.lang = novo === 'pt' ? 'pt-BR' : 'en';
+    try { localStorage.setItem('helena-lang', novo); } catch {}
+    render();
+  });
+
+  render();
+  if (location.hash) {
+    const target = document.getElementById(location.hash.slice(1));
+    if (target) target.scrollIntoView();
+  }
+})();
+</script>
+</body>
+</html>
